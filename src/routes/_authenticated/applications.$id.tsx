@@ -74,13 +74,25 @@ function AppDetail() {
     queryKey: ["tasks", "byApp", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("application_id", id)
-        .order("done")
-        .order("due_date", { ascending: true, nullsFirst: false });
+        .from("task_applications")
+        .select("task:tasks(*)")
+        .eq("application_id", id);
       if (error) throw error;
-      return data;
+      const rows = (data ?? []) as unknown as {
+        task: { id: string; title: string; due_date: string | null; done: boolean } | null;
+      }[];
+      return rows
+        .map((r) => r.task)
+        .filter(
+          (t): t is { id: string; title: string; due_date: string | null; done: boolean } => !!t,
+        )
+        .sort((a, b) => {
+          if (a.done !== b.done) return a.done ? 1 : -1;
+          if (!a.due_date && !b.due_date) return 0;
+          if (!a.due_date) return 1;
+          if (!b.due_date) return -1;
+          return a.due_date.localeCompare(b.due_date);
+        });
     },
   });
 
@@ -134,12 +146,17 @@ function AppDetail() {
 
   const addTask = useMutation({
     mutationFn: async (t: { title: string; due_date: string | null }) => {
-      const { error } = await supabase.from("tasks").insert({
-        application_id: id,
-        title: t.title,
-        due_date: t.due_date,
-      });
+      if (!app) throw new Error("Application not loaded");
+      const { data: task, error } = await supabase
+        .from("tasks")
+        .insert({ user_id: app.user_id, title: t.title, due_date: t.due_date })
+        .select("id")
+        .single();
       if (error) throw error;
+      const { error: linkError } = await supabase
+        .from("task_applications")
+        .insert({ task_id: task.id, application_id: id });
+      if (linkError) throw linkError;
     },
     onSuccess: () => {
       toast.success("Task added");

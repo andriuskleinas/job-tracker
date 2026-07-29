@@ -106,43 +106,68 @@ export type Database = {
         }
         Relationships: []
       }
-      tasks: {
+      task_applications: {
         Row: {
           application_id: string
+          created_at: string
+          task_id: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          task_id: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_applications_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_applications_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
           created_at: string
           done: boolean
           due_date: string | null
           id: string
           title: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          application_id: string
           created_at?: string
           done?: boolean
           due_date?: string | null
           id?: string
           title: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          application_id?: string
           created_at?: string
           done?: boolean
           due_date?: string | null
           id?: string
           title?: string
           updated_at?: string
+          user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "tasks_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "applications"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {

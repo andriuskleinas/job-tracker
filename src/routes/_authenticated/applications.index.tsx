@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import {
@@ -28,9 +29,11 @@ import {
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES, statusColor, type Status } from "@/lib/status";
-import { Plus, Upload, Download } from "lucide-react";
+import { Plus, Upload, Download, List, LayoutGrid } from "lucide-react";
 import Papa from "papaparse";
 import { useRef } from "react";
+
+type View = "list" | "grid";
 
 export const Route = createFileRoute("/_authenticated/applications/")({
   head: () => ({
@@ -58,6 +61,14 @@ function ApplicationsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [view, setView] = useState<View>(() => {
+    if (typeof window === "undefined") return "list";
+    return (localStorage.getItem("applications-view") as View) || "list";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("applications-view", view);
+  }, [view]);
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["applications"],
@@ -198,6 +209,19 @@ function ApplicationsPage() {
         description="Track every role you're pursuing."
         actions={
           <>
+            <ToggleGroup
+              type="single"
+              value={view}
+              onValueChange={(v) => v && setView(v as View)}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="list" aria-label="List view" size="sm">
+                <List className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
+                <LayoutGrid className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
             <Dialog
               open={importOpen}
               onOpenChange={(v) => {
@@ -325,7 +349,7 @@ function ApplicationsPage() {
           title="No applications yet"
           body="Add your first one to start tracking where every role stands."
         />
-      ) : (
+      ) : view === "list" ? (
         <div className="grid gap-3">
           {apps.map((a) => (
             <Link key={a.id} to="/applications/$id" params={{ id: a.id }} className="block">
@@ -343,6 +367,30 @@ function ApplicationsPage() {
                   </Badge>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
+                  Applied {new Date(a.application_date).toLocaleDateString()}
+                </p>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {apps.map((a) => (
+            <Link key={a.id} to="/applications/$id" params={{ id: a.id }} className="block h-full">
+              <Card className="flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40">
+                <div className="flex items-start justify-between gap-3">
+                  <Badge
+                    className={statusColor[a.status as Status] + " shrink-0 capitalize"}
+                    variant="outline"
+                  >
+                    {a.status}
+                  </Badge>
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{a.position}</p>
+                  <p className="truncate text-sm text-muted-foreground">{a.company}</p>
+                </div>
+                <p className="mt-auto text-xs text-muted-foreground">
                   Applied {new Date(a.application_date).toLocaleDateString()}
                 </p>
               </Card>
