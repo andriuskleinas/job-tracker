@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -16,11 +18,16 @@ import {
 import { statusColor, type Status } from "@/lib/status";
 import {
   computeKpis,
+  eventsBeyondCurrentStatus,
   funnelStages,
+  historyStartedAt,
+  medianDaysBetweenStages,
+  monthlyCohorts,
   parseLocalDate,
   statusBreakdown,
   weeklyApplications,
   type StatsApplication,
+  type StatsStatusEvent,
   type StatsTask,
 } from "@/lib/stats";
 import { ArrowDown, ArrowUp, Plus, TriangleAlert } from "lucide-react";
@@ -49,6 +56,11 @@ const barConfig = {
 
 const stageConfig = {
   count: { label: "Applications", color: "var(--dv-stage-2)" },
+} satisfies ChartConfig;
+
+const cohortConfig = {
+  applied: { label: "Applied", color: "var(--dv-stage-1)" },
+  reachedInterview: { label: "Reached interview", color: "var(--dv-stage-3)" },
 } satisfies ChartConfig;
 
 const STAGE_FILLS = ["var(--dv-stage-1)", "var(--dv-stage-2)", "var(--dv-stage-3)"];
@@ -91,22 +103,56 @@ function DashboardPage() {
     },
   });
 
-  if (appsLoading || tasksLoading) return <DashboardSkeleton />;
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
+    queryKey: ["status-events"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("application_status_events")
+        .select("application_id, status, changed_at, created_at")
+        .order("changed_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (appsLoading || tasksLoading || eventsLoading) return <DashboardSkeleton />;
 
   return (
-    <DashboardView apps={apps as StatsApplication[]} tasks={tasks as unknown as TaskWithApp[]} />
+    <DashboardView
+      apps={apps as StatsApplication[]}
+      tasks={tasks as unknown as TaskWithApp[]}
+      events={events as StatsStatusEvent[]}
+    />
   );
 }
 
 /** Presentation only — kept separate from fetching so it can be rendered with fixtures. */
-export function DashboardView({ apps, tasks }: { apps: StatsApplication[]; tasks: TaskWithApp[] }) {
+export function DashboardView({
+  apps,
+  tasks,
+  events = [],
+}: {
+  apps: StatsApplication[];
+  tasks: TaskWithApp[];
+  events?: StatsStatusEvent[];
+}) {
   const statApps = apps;
   const statTasks = tasks;
 
   const kpis = useMemo(() => computeKpis(statApps, statTasks), [statApps, statTasks]);
   const breakdown = useMemo(() => statusBreakdown(statApps), [statApps]);
   const weekly = useMemo(() => weeklyApplications(statApps), [statApps]);
-  const funnel = useMemo(() => funnelStages(statApps), [statApps]);
+  const funnel = useMemo(() => funnelStages(statApps, events), [statApps, events]);
+  const cohorts = useMemo(() => monthlyCohorts(statApps, events), [statApps, events]);
+  const daysToInterview = useMemo(
+    () => medianDaysBetweenStages(events, "applied", "interviewing"),
+    [events],
+  );
+  const historyDepth = useMemo(
+    () => eventsBeyondCurrentStatus(statApps, events),
+    [statApps, events],
+  );
+  const historySince = useMemo(() => historyStartedAt(events), [events]);
 
   const upcoming = useMemo(() => {
     const today = new Date();
@@ -144,10 +190,14 @@ export function DashboardView({ apps, tasks }: { apps: StatsApplication[]; tasks
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Key metrics">
         <StatTile label="Total applications" value={kpis.total} />
         <StatTile label="Active pipeline" value={kpis.active} hint="Applied or interviewing" />
+        {/* Reads from the same funnel as the Stage reach chart, so the two can
+            never disagree on screen. */}
         <StatTile
           label="Interview rate"
-          value={kpis.interviewRate === null ? "—" : `${Math.round(kpis.interviewRate * 100)}%`}
-          hint="Reached interview, by current status"
+          value={kpis.total === 0 ? "—" : `${Math.round((funnel[1]?.share ?? 0) * 100)}%`}
+          hint={
+            historyDepth > 0 ? "Ever reached interview" : "Ever reached interview (lower bound)"
+          }
         />
         <StatTile label="Offers" value={kpis.offers} />
         <StatTile
@@ -213,8 +263,19 @@ export function DashboardView({ apps, tasks }: { apps: StatsApplication[]; tasks
           <CardHeader>
             <CardTitle className="text-base">Stage reach</CardTitle>
             <CardDescription>
-              Current status only — an application rejected after an interview counts just as
-              rejected, so these are lower bounds.
+              {historyDepth > 0 ? (
+                <>
+                  How far each application got, including {historyDepth} that moved past a stage
+                  before reaching {historyDepth === 1 ? "its" : "their"} current status.
+                </>
+              ) : (
+                <>
+                  Still current-status only — no recorded transition yet credits an application with
+                  a stage its status doesn&apos;t already show, so these remain lower bounds.
+                  {historySince &&
+                    ` Transitions recorded since ${historySince.toLocaleDateString()}.`}
+                </>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -312,6 +373,93 @@ export function DashboardView({ apps, tasks }: { apps: StatsApplication[]; tasks
           />
         </CardContent>
       </Card>
+
+      <section className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Interview conversion by cohort</CardTitle>
+            <CardDescription>
+              Applications grouped by the month you sent them, and how many ever reached an
+              interview. Recent months have had less time to convert.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={cohortConfig} className="aspect-auto h-[220px] w-full">
+              <BarChart
+                accessibilityLayer
+                data={cohorts}
+                margin={{ left: 4, right: 4, top: 8, bottom: 4 }}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  width={28}
+                  allowDecimals={false}
+                  tickMargin={4}
+                />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent labelKey="label" />} />
+                <ChartLegend content={<ChartLegendContent />} />
+                {/* Nested magnitudes: interviews are a subset of applications, so
+                    they share one hue at two steps rather than two identities. */}
+                <Bar
+                  dataKey="applied"
+                  fill="var(--color-applied)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={24}
+                  isAnimationActive={false}
+                />
+                <Bar
+                  dataKey="reachedInterview"
+                  fill="var(--color-reachedInterview)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={24}
+                  isAnimationActive={false}
+                />
+              </BarChart>
+            </ChartContainer>
+            <DataTable
+              caption="Interview conversion by cohort"
+              columns={["Month", "Applied", "Reached interview", "Rate"]}
+              rows={cohorts.map((c) => [
+                c.label,
+                String(c.applied),
+                String(c.reachedInterview),
+                c.rate === null ? "—" : `${Math.round(c.rate * 100)}%`,
+              ])}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Time to interview</CardTitle>
+            <CardDescription>Median days from applying to the first interview.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {daysToInterview ? (
+              <>
+                <p className="text-3xl font-semibold">{daysToInterview.medianDays}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  days, across {daysToInterview.sampleSize} application
+                  {daysToInterview.sampleSize === 1 ? "" : "s"} with both transitions recorded
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-semibold text-muted-foreground">—</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Needs two recorded transitions on the same application. This can&apos;t be
+                  reconstructed from current status, so it fills in as you move applications through
+                  the pipeline
+                  {historySince && ` — recording began ${historySince.toLocaleDateString()}`}.
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       <Card className="mt-4">
         <CardHeader>

@@ -5,8 +5,14 @@ import { ACTIVE_STATUSES, STATUSES, type Status } from "./status";
  * Structural row shapes — deliberately narrower than the generated Supabase
  * types so these helpers stay pure and easy to test.
  */
-export type StatsApplication = { status: Status; application_date: string };
+export type StatsApplication = { id: string; status: Status; application_date: string };
 export type StatsTask = { done: boolean; due_date: string | null };
+export type StatsStatusEvent = {
+  application_id: string;
+  status: Status;
+  changed_at: string;
+  created_at: string;
+};
 
 /**
  * Parse a Postgres DATE (`YYYY-MM-DD`) as a *local* calendar date.
@@ -38,7 +44,6 @@ export function statusCounts(apps: StatsApplication[]): Record<Status, number> {
 export type Kpis = {
   total: number;
   active: number;
-  interviewRate: number | null;
   offers: number;
   lastSeven: number;
   lastSevenDelta: number;
@@ -69,9 +74,9 @@ export function computeKpis(
   return {
     total,
     active: ACTIVE_STATUSES.reduce((sum, s) => sum + counts[s], 0),
-    // Current-status only: an application rejected *after* an interview is
-    // recorded as `rejected`, so this is a lower bound. See the chart caption.
-    interviewRate: total === 0 ? null : (counts.interviewing + counts.offer) / total,
+    // Interview rate deliberately lives in `funnelStages`, not here: it needs
+    // the event log to count applications that moved past interviewing, and
+    // having a second current-status-only version invites the two to disagree.
     offers: counts.offer,
     lastSeven,
     lastSevenDelta: lastSeven - priorSeven,
@@ -119,22 +124,192 @@ export function weeklyApplications(
 export type FunnelStage = { stage: string; count: number; share: number };
 
 /**
- * Stage reach based on *current* status.
- *
- * `applications.status` is a single mutable column with no history, so an
- * application that interviewed and was then rejected only ever reports
- * `rejected`. Every count here is therefore a lower bound, which the UI states
- * plainly rather than implying a true historical funnel.
+ * The ordered pipeline. `rejected` and `withdrawn` are terminal outcomes that
+ * sit off this ladder — they say an application stopped, not how far it got.
  */
-export function funnelStages(apps: StatsApplication[]): FunnelStage[] {
-  const counts = statusCounts(apps);
+export const PIPELINE: readonly Status[] = ["applied", "interviewing", "offer"];
+
+function pipelineRank(status: Status): number {
+  return PIPELINE.indexOf(status);
+}
+
+/**
+ * The furthest pipeline stage an application is known to have reached, using
+ * both sources of evidence:
+ *
+ *  - the status-change log (`application_status_events`), which catches
+ *    applications that passed *through* a stage and moved on; and
+ *  - the current status, which is itself proof of having reached that stage.
+ *
+ * Neither alone is sufficient. The log only covers changes recorded since the
+ * history table was added, so on its own it under-reports older applications.
+ * Current status alone under-reports anything that moved past a stage — an
+ * application rejected after interviewing reports only `rejected`. Taking the
+ * max of the two is monotonic: reach can only ever be revised upward as more
+ * transitions are recorded, so this never regresses what the old
+ * current-status-only view reported.
+ */
+export function furthestStageRank(app: StatsApplication, events: StatsStatusEvent[] = []): number {
+  // Floor at `applied`: a terminal status ranks -1 on the ladder, but every
+  // application was applied by definition, so that is the true baseline. Without
+  // this floor a rejected application with no logged events would drop out of
+  // the "Applied" bar entirely, making the funnel's top stage under-count.
+  let rank = Math.max(pipelineRank(app.status), 0);
+  for (const e of events) rank = Math.max(rank, pipelineRank(e.status));
+  return rank;
+}
+
+export function groupEventsByApplication(
+  events: StatsStatusEvent[],
+): Map<string, StatsStatusEvent[]> {
+  const byApp = new Map<string, StatsStatusEvent[]>();
+  for (const e of events) {
+    const list = byApp.get(e.application_id);
+    if (list) list.push(e);
+    else byApp.set(e.application_id, [e]);
+  }
+  // Chronological order matters for the duration helpers below.
+  for (const list of byApp.values()) {
+    list.sort((a, b) => a.changed_at.localeCompare(b.changed_at));
+  }
+  return byApp;
+}
+
+/** Historical stage reach — events unioned with current status. */
+export function funnelStages(
+  apps: StatsApplication[],
+  events: StatsStatusEvent[] = [],
+): FunnelStage[] {
+  const byApp = groupEventsByApplication(events);
   const total = apps.length;
-  const reached = [
-    { stage: "Applied", count: total },
-    { stage: "Interviewing", count: counts.interviewing + counts.offer },
-    { stage: "Offer", count: counts.offer },
-  ];
-  return reached.map((s) => ({ ...s, share: total === 0 ? 0 : s.count / total }));
+
+  const reachedCounts = PIPELINE.map(
+    (_, stageIndex) =>
+      apps.filter((a) => furthestStageRank(a, byApp.get(a.id) ?? []) >= stageIndex).length,
+  );
+
+  return PIPELINE.map((status, i) => ({
+    stage: status.charAt(0).toUpperCase() + status.slice(1),
+    count: reachedCounts[i],
+    share: total === 0 ? 0 : reachedCounts[i] / total,
+  }));
+}
+
+/**
+ * How many applications the log credits with a stage that their current status
+ * alone would not reveal. Zero means the historical view is currently telling
+ * you nothing the simpler view didn't — worth saying out loud rather than
+ * implying the history is richer than it is.
+ */
+export function eventsBeyondCurrentStatus(
+  apps: StatsApplication[],
+  events: StatsStatusEvent[],
+): number {
+  const byApp = groupEventsByApplication(events);
+  return apps.filter((a) => {
+    const withEvents = furthestStageRank(a, byApp.get(a.id) ?? []);
+    // Compare against the same `applied` floor. A rejected application whose
+    // only logged event is `applied` tells us nothing new — every application
+    // applied — so it must not count as history revealing extra reach.
+    return withEvents > Math.max(pipelineRank(a.status), 0);
+  }).length;
+}
+
+/** When transition recording began — backfilled rows share the migration's timestamp. */
+export function historyStartedAt(events: StatsStatusEvent[]): Date | null {
+  if (events.length === 0) return null;
+  return new Date(
+    events.reduce((min, e) => (e.created_at < min ? e.created_at : min), events[0].created_at),
+  );
+}
+
+export type StageDuration = { medianDays: number; sampleSize: number };
+
+/**
+ * Median days from first reaching `from` to first reaching `to`.
+ *
+ * Requires two *recorded* transitions for the same application, so this stays
+ * null until the log has accumulated real movement — it cannot be reconstructed
+ * from current status. Returns null rather than a misleading zero.
+ */
+export function medianDaysBetweenStages(
+  events: StatsStatusEvent[],
+  from: Status,
+  to: Status,
+): StageDuration | null {
+  const byApp = groupEventsByApplication(events);
+  const spans: number[] = [];
+
+  for (const list of byApp.values()) {
+    const start = list.find((e) => e.status === from);
+    const end = list.find((e) => e.status === to);
+    if (!start || !end) continue;
+    const days = daysBetween(new Date(start.changed_at), new Date(end.changed_at));
+    if (days >= 0) spans.push(days);
+  }
+
+  if (spans.length === 0) return null;
+  spans.sort((a, b) => a - b);
+  const mid = Math.floor(spans.length / 2);
+  return {
+    medianDays: spans.length % 2 === 0 ? Math.round((spans[mid - 1] + spans[mid]) / 2) : spans[mid],
+    sampleSize: spans.length,
+  };
+}
+
+export type CohortBucket = {
+  month: string;
+  label: string;
+  applied: number;
+  reachedInterview: number;
+  rate: number | null;
+};
+
+/**
+ * Applications grouped by the month they were sent, and how many of each month's
+ * cohort ever reached an interview.
+ *
+ * Cohorting by send-month (not by event date) is what makes the comparison fair:
+ * a recent month has had less time to convert, which the UI notes rather than
+ * hiding. `rate` is null for an empty month so the caller renders a gap instead
+ * of a misleading 0%.
+ */
+export function monthlyCohorts(
+  apps: StatsApplication[],
+  events: StatsStatusEvent[] = [],
+  today: Date = new Date(),
+  months = 6,
+): CohortBucket[] {
+  const byApp = groupEventsByApplication(events);
+  const interviewRank = pipelineRank("interviewing");
+
+  const buckets: CohortBucket[] = Array.from({ length: months }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - (months - 1 - i), 1);
+    return {
+      month: format(d, "yyyy-MM"),
+      label: format(d, "MMM"),
+      applied: 0,
+      reachedInterview: 0,
+      rate: null,
+    };
+  });
+
+  const indexByMonth = new Map(buckets.map((b, i) => [b.month, i]));
+
+  for (const app of apps) {
+    const key = format(parseLocalDate(app.application_date), "yyyy-MM");
+    const index = indexByMonth.get(key);
+    if (index === undefined) continue;
+    buckets[index].applied += 1;
+    if (furthestStageRank(app, byApp.get(app.id) ?? []) >= interviewRank) {
+      buckets[index].reachedInterview += 1;
+    }
+  }
+
+  return buckets.map((b) => ({
+    ...b,
+    rate: b.applied === 0 ? null : b.reachedInterview / b.applied,
+  }));
 }
 
 export type StatusDatum = { status: Status; label: string; count: number };
