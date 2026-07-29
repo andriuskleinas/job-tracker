@@ -51,6 +51,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-dv-bar: var(--dv-bar);
+  --color-dv-stage-1: var(--dv-stage-1);
+  --color-dv-stage-2: var(--dv-stage-2);
+  --color-dv-stage-3: var(--dv-stage-3);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -87,6 +91,16 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+  /*
+   * Dashboard data-viz tokens. Single-series bars use one hue (bar length,
+   * not colour, carries the value); the stage ramp is an ordinal scale for the
+   * funnel. Both were validated for lightness band, chroma, CVD separation and
+   * surface contrast in each mode — re-validate before changing a value.
+   */
+  --dv-bar: oklch(0.623 0.214 259.815); /* blue-500, 3.58:1 on surface */
+  --dv-stage-1: oklch(0.707 0.165 254.624); /* blue-400 */
+  --dv-stage-2: oklch(0.546 0.245 262.881); /* blue-600 */
+  --dv-stage-3: oklch(0.379 0.146 265.522); /* blue-800 */
   --sidebar: oklch(0.984 0.003 247.858);
   --sidebar-foreground: oklch(0.129 0.042 264.695);
   --sidebar-primary: oklch(0.208 0.042 265.755);
@@ -122,6 +136,12 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+  /* Dark steps are selected against the dark card, not flipped from light —
+   * the stage ramp anchors light-end-last so depth still reads as progress. */
+  --dv-bar: oklch(0.707 0.165 254.624); /* blue-400, 5.75:1 on card */
+  --dv-stage-1: oklch(0.623 0.214 259.815); /* blue-500 */
+  --dv-stage-2: oklch(0.707 0.165 254.624); /* blue-400 */
+  --dv-stage-3: oklch(0.809 0.105 251.813); /* blue-300 */
   --sidebar: oklch(0.208 0.042 265.755);
   --sidebar-foreground: oklch(0.984 0.003 247.858);
   --sidebar-primary: oklch(0.488 0.243 264.376);

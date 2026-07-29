@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      application_status_events: {
+        Row: {
+          application_id: string
+          changed_at: string
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["application_status"]
+        }
+        Insert: {
+          application_id: string
+          changed_at?: string
+          created_at?: string
+          id?: string
+          status: Database["public"]["Enums"]["application_status"]
+        }
+        Update: {
+          application_id?: string
+          changed_at?: string
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["application_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_status_events_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           application_date: string

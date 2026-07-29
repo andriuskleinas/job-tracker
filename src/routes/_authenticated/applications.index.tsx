@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { z } from "zod";
+import { STATUSES, statusColor, type Status } from "@/lib/status";
 import { Plus, Upload, Download } from "lucide-react";
 import Papa from "papaparse";
 import { useRef } from "react";
@@ -40,17 +41,6 @@ export const Route = createFileRoute("/_authenticated/applications/")({
   }),
   component: ApplicationsPage,
 });
-
-const STATUSES = ["applied", "interviewing", "offer", "rejected", "withdrawn"] as const;
-type Status = (typeof STATUSES)[number];
-
-const statusColor: Record<Status, string> = {
-  applied: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
-  interviewing: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-  offer: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
-  rejected: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
-  withdrawn: "bg-muted text-muted-foreground",
-};
 
 const appSchema = z.object({
   company: z.string().trim().min(1, "Company is required").max(120),
@@ -145,7 +135,13 @@ function ApplicationsPage() {
             notes: (raw.notes ?? "").trim(),
           });
           if (parsed.success) valid.push(parsed.data);
-          else errs.push({ row: rowNum, reason: parsed.error.issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; ") });
+          else
+            errs.push({
+              row: rowNum,
+              reason: parsed.error.issues
+                .map((x) => `${x.path.join(".")}: ${x.message}`)
+                .join("; "),
+            });
         });
         setImportErrors(errs);
         if (valid.length === 0) {
@@ -201,7 +197,13 @@ function ApplicationsPage() {
           <p className="text-sm text-muted-foreground">Track every role you're pursuing.</p>
         </div>
         <div className="flex gap-2">
-          <Dialog open={importOpen} onOpenChange={(v) => { setImportOpen(v); if (!v) setImportErrors([]); }}>
+          <Dialog
+            open={importOpen}
+            onOpenChange={(v) => {
+              setImportOpen(v);
+              if (!v) setImportErrors([]);
+            }}
+          >
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Upload className="mr-1 h-4 w-4" /> Import CSV
@@ -213,7 +215,8 @@ function ApplicationsPage() {
               </DialogHeader>
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Columns: <code>company, position, status, application_date, notes</code>. Missing status defaults to
+                  Columns: <code>company, position, status, application_date, notes</code>. Missing
+                  status defaults to
                   <code> applied</code>; missing date defaults to today.
                 </p>
                 <Button variant="ghost" size="sm" onClick={downloadTemplate} type="button">
@@ -254,59 +257,59 @@ function ApplicationsPage() {
                 <Plus className="mr-1 h-4 w-4" /> New application
               </Button>
             </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>New application</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={onSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="company">Company</Label>
-                  <Input id="company" name="company" required />
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New application</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={onSubmit} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="company">Company</Label>
+                    <Input id="company" name="company" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="position">Position</Label>
+                    <Input id="position" name="position" required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select name="status" defaultValue="applied">
+                      <SelectTrigger id="status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STATUSES.map((s) => (
+                          <SelectItem key={s} value={s} className="capitalize">
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="application_date">Application date</Label>
+                    <Input
+                      id="application_date"
+                      name="application_date"
+                      type="date"
+                      defaultValue={new Date().toISOString().slice(0, 10)}
+                      required
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="position">Position</Label>
-                  <Input id="position" name="position" required />
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea id="notes" name="notes" rows={3} />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select name="status" defaultValue="applied">
-                    <SelectTrigger id="status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUSES.map((s) => (
-                        <SelectItem key={s} value={s} className="capitalize">
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="application_date">Application date</Label>
-                  <Input
-                    id="application_date"
-                    name="application_date"
-                    type="date"
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    required
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea id="notes" name="notes" rows={3} />
-              </div>
-              <DialogFooter>
-                <Button type="submit" disabled={create.isPending}>
-                  {create.isPending ? "Saving…" : "Save"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
+                <DialogFooter>
+                  <Button type="submit" disabled={create.isPending}>
+                    {create.isPending ? "Saving…" : "Save"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
           </Dialog>
         </div>
       </div>
@@ -316,18 +319,15 @@ function ApplicationsPage() {
       ) : apps.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
-            <p className="text-muted-foreground">No applications yet. Add your first one to get started.</p>
+            <p className="text-muted-foreground">
+              No applications yet. Add your first one to get started.
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3">
           {apps.map((a) => (
-            <Link
-              key={a.id}
-              to="/applications/$id"
-              params={{ id: a.id }}
-              className="block"
-            >
+            <Link key={a.id} to="/applications/$id" params={{ id: a.id }} className="block">
               <Card className="transition-colors hover:bg-accent/50">
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-4">
@@ -335,7 +335,10 @@ function ApplicationsPage() {
                       <CardTitle className="text-base">{a.position}</CardTitle>
                       <p className="text-sm text-muted-foreground">{a.company}</p>
                     </div>
-                    <Badge className={statusColor[a.status as Status] + " capitalize"} variant="outline">
+                    <Badge
+                      className={statusColor[a.status as Status] + " capitalize"}
+                      variant="outline"
+                    >
                       {a.status}
                     </Badge>
                   </div>

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { z } from "zod";
+import { STATUSES } from "@/lib/status";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/applications/$id")({
@@ -41,8 +42,6 @@ export const Route = createFileRoute("/_authenticated/applications/$id")({
   }),
   component: AppDetail,
 });
-
-const STATUSES = ["applied", "interviewing", "offer", "rejected", "withdrawn"] as const;
 
 const editSchema = z.object({
   company: z.string().trim().min(1).max(120),
@@ -60,7 +59,11 @@ function AppDetail() {
   const { data: app, isLoading } = useQuery({
     queryKey: ["applications", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("applications").select("*").eq("id", id).maybeSingle();
+      const { data, error } = await supabase
+        .from("applications")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -163,7 +166,10 @@ function AppDetail() {
     },
   });
 
-  if (isLoading) return <main className="mx-auto max-w-4xl px-4 py-8 text-sm text-muted-foreground">Loading…</main>;
+  if (isLoading)
+    return (
+      <main className="mx-auto max-w-4xl px-4 py-8 text-sm text-muted-foreground">Loading…</main>
+    );
   if (!app)
     return (
       <main className="mx-auto max-w-4xl px-4 py-8">
@@ -236,7 +242,9 @@ function AppDetail() {
                 <Label>Status</Label>
                 <Select
                   value={form.status}
-                  onValueChange={(v) => setForm({ ...form, status: v as (typeof STATUSES)[number] })}
+                  onValueChange={(v) =>
+                    setForm({ ...form, status: v as (typeof STATUSES)[number] })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -304,7 +312,12 @@ function AppDetail() {
         </CardHeader>
         <CardContent className="space-y-4">
           <form onSubmit={onAddTask} className="flex flex-wrap gap-2">
-            <Input name="title" placeholder="e.g. Send follow-up email" className="min-w-[200px] flex-1" required />
+            <Input
+              name="title"
+              placeholder="e.g. Send follow-up email"
+              className="min-w-[200px] flex-1"
+              required
+            />
             <Input name="due_date" type="date" className="w-40" />
             <Button type="submit" disabled={addTask.isPending}>
               <Plus className="mr-1 h-4 w-4" /> Add
@@ -322,7 +335,9 @@ function AppDetail() {
                     onCheckedChange={(v) => toggleTask.mutate({ tid: t.id, done: !!v })}
                   />
                   <div className="flex-1">
-                    <p className={`text-sm ${t.done ? "text-muted-foreground line-through" : ""}`}>{t.title}</p>
+                    <p className={`text-sm ${t.done ? "text-muted-foreground line-through" : ""}`}>
+                      {t.title}
+                    </p>
                     {t.due_date && (
                       <p className="text-xs text-muted-foreground">
                         Due {new Date(t.due_date).toLocaleDateString()}

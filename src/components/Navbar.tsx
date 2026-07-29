@@ -43,16 +43,29 @@ export function Navbar() {
           {signedIn ? (
             <>
               <Link
+                to="/dashboard"
+                className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                activeProps={{
+                  className: "rounded-md px-3 py-1.5 text-sm bg-accent text-foreground",
+                }}
+              >
+                Dashboard
+              </Link>
+              <Link
                 to="/applications"
                 className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                activeProps={{ className: "rounded-md px-3 py-1.5 text-sm bg-accent text-foreground" }}
+                activeProps={{
+                  className: "rounded-md px-3 py-1.5 text-sm bg-accent text-foreground",
+                }}
               >
                 Applications
               </Link>
               <Link
                 to="/tasks"
                 className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                activeProps={{ className: "rounded-md px-3 py-1.5 text-sm bg-accent text-foreground" }}
+                activeProps={{
+                  className: "rounded-md px-3 py-1.5 text-sm bg-accent text-foreground",
+                }}
               >
                 Tasks
               </Link>
