@@ -1,41 +1,37 @@
-## Job Tracker — Plan
+## Smoke Test Plan
 
-### Fix build blocker first
-- Install missing `@supabase/supabase-js` package (TS build currently fails on all three integration files).
+Drive the live preview with Playwright (headless Chromium) to verify auth, CRUD, and per-user isolation. Capture screenshots at each step for evidence.
 
-### Database (one migration)
-- `profiles` — `id` (PK → auth.users), `display_name`, `email`, timestamps. Auto-created via `handle_new_user` trigger on `auth.users`.
-- `applications` — `user_id`, `company`, `position`, `status` (enum: applied/interviewing/offer/rejected/withdrawn), `application_date`, `notes`, timestamps.
-- `tasks` — `application_id` (FK → applications, ON DELETE CASCADE), `title`, `due_date`, `done`, timestamps. No `user_id` column; ownership derived from parent application.
-- RLS on all three, scoped to `auth.uid()`. Task policies use `EXISTS (SELECT 1 FROM applications WHERE id = tasks.application_id AND user_id = auth.uid())`.
-- GRANTs to `authenticated` + `service_role` (no anon).
-- `updated_at` trigger.
+### 1. Auth flow (User A)
+- Navigate to `/auth`, sign up with `usera+<ts>@test.dev` / password.
+- Verify redirect to `/applications` and Navbar shows signed-in state.
+- Sign out via Navbar; verify redirect and session cleared (localStorage `sb-*-auth-token` gone).
+- Sign back in with same creds; verify session restored.
 
-### Routes
-- `/` — landing; if signed in, link/redirect to `/applications`; if not, sign-in CTA.
-- `/auth` — email/password sign in + sign up (public).
-- `/_authenticated/applications` — list + create form.
-- `/_authenticated/applications/$id` — detail, edit, delete + nested Tasks CRUD for that application.
-- `/_authenticated/tasks` — flat list of all the user's tasks across applications, with toggle-done.
+### 2. Applications CRUD (User A)
+- **Create**: open "New application" dialog, submit (Acme / Engineer / applied / today / note). Verify card appears in list.
+- **Read**: click card → `/applications/$id` renders the record.
+- **Update**: edit status to `interviewing` and change notes; verify persisted after reload.
+- **Delete**: delete the application; verify it disappears from list and DB (via psql if `PGHOST` available).
 
-Uses the integration-managed `_authenticated/route.tsx` gate (do not author).
+### 3. Tasks CRUD (User A)
+- On an application detail page, add a task with due date.
+- Verify it appears on `/tasks` global view.
+- Toggle done; edit title; delete. Verify each op via UI + reload.
 
-### UI
-- Shared navbar in `__root.tsx` with Applications / Tasks links + session-aware Sign in / Sign out (per auth-guards rules).
-- shadcn components, light modern theme via existing tokens (no hardcoded colors).
-- Forms: `react-hook-form` + `zod` + shadcn Form; `sonner` toasts for success/error.
-- Per-route `head()` metadata (title/description/og).
+### 4. Per-user isolation (User B)
+- Sign out User A. Sign up User B (`userb+<ts>@test.dev`).
+- Verify `/applications` list is empty (does not show A's data).
+- Verify `/tasks` empty.
+- Attempt direct access to User A's application URL `/applications/<A-id>` — expect not-found / empty (RLS blocks the row).
+- Direct Supabase probe as User B: `supabase.from('applications').select('*')` returns only B's rows; attempted insert with `user_id = A.id` fails RLS.
 
-### Data layer
-- Browser `supabase` client for all reads/writes (RLS enforces isolation — no server functions needed for this scope).
-- TanStack Query for fetching/caching + mutations with `invalidateQueries`.
-- Root `onAuthStateChange` listener → `router.invalidate()` + query invalidation (filtered per docs).
-- Sign-out follows the 4-step hygiene (cancel → clear → signOut → navigate replace).
+### 5. Reporting
+- Report per-step: pass/fail, final URL, screenshot path, any console errors or network 4xx/5xx.
+- If a step fails, capture the failing request payload/response and stop before mutating further.
 
-### Acceptance mapping
-- A1: `/auth` handles sign up / in; navbar Sign out.
-- A2/A3: inserts set `user_id = auth.uid()`; RLS filters lists to owner.
-- A4: user publishes via Lovable Publish after review.
-
-### Out of scope
-- Password reset page, social login, profile editing UI, file uploads, analytics.
+### Technical notes
+- Script under `/tmp/browser/smoke/`, viewport 1280x1800, `headless=True`.
+- Two isolated browser contexts (one per user) so sessions don't bleed.
+- Preserve one User A application ID across contexts to test cross-user access.
+- No code changes; read-only verification of the running preview at `http://localhost:8080`.
