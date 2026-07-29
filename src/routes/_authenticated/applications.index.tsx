@@ -200,11 +200,6 @@ function ApplicationsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Applications</h1>
           <p className="text-sm text-muted-foreground">Track every role you're pursuing.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <span />
-          </DialogTrigger>
-        </Dialog>
         <div className="flex gap-2">
           <Dialog open={importOpen} onOpenChange={(v) => { setImportOpen(v); if (!v) setImportErrors([]); }}>
             <DialogTrigger asChild>
