@@ -25,7 +25,9 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Plus } from "lucide-react";
+import { Plus, Upload, Download } from "lucide-react";
+import Papa from "papaparse";
+import { useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated/applications/")({
   head: () => ({
@@ -61,6 +63,9 @@ const appSchema = z.object({
 function ApplicationsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["applications"],
@@ -96,6 +101,81 @@ function ApplicationsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
   });
 
+  const importMut = useMutation({
+    mutationFn: async (rows: z.infer<typeof appSchema>[]) => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      const userId = userData.user.id;
+      const { error } = await supabase.from("applications").insert(
+        rows.map((r) => ({
+          user_id: userId,
+          company: r.company,
+          position: r.position,
+          status: r.status,
+          application_date: r.application_date,
+          notes: r.notes || null,
+        })),
+      );
+      if (error) throw error;
+    },
+    onSuccess: (_d, rows) => {
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      toast.success(`Imported ${rows.length} application${rows.length === 1 ? "" : "s"}`);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Import failed"),
+  });
+
+  const handleFile = (file: File) => {
+    setImportErrors([]);
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: (h) => h.trim().toLowerCase(),
+      complete: (results) => {
+        const valid: z.infer<typeof appSchema>[] = [];
+        const errs: { row: number; reason: string }[] = [];
+        const today = new Date().toISOString().slice(0, 10);
+        results.data.forEach((raw, i) => {
+          const rowNum = i + 2; // header is row 1
+          const parsed = appSchema.safeParse({
+            company: (raw.company ?? "").trim(),
+            position: (raw.position ?? "").trim(),
+            status: (raw.status ?? "").trim().toLowerCase() || "applied",
+            application_date: (raw.application_date ?? "").trim() || today,
+            notes: (raw.notes ?? "").trim(),
+          });
+          if (parsed.success) valid.push(parsed.data);
+          else errs.push({ row: rowNum, reason: parsed.error.issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; ") });
+        });
+        setImportErrors(errs);
+        if (valid.length === 0) {
+          toast.error("No valid rows to import");
+          return;
+        }
+        importMut.mutate(valid, {
+          onSuccess: () => {
+            if (errs.length === 0) setImportOpen(false);
+          },
+        });
+      },
+      error: (err) => toast.error(`Parse failed: ${err.message}`),
+    });
+  };
+
+  const downloadTemplate = () => {
+    const csv =
+      "company,position,status,application_date,notes\n" +
+      "Acme Inc,Frontend Engineer,applied,2026-07-01,Referred by Alice\n" +
+      "Globex,Product Designer,interviewing,2026-07-15,\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "applications-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -120,12 +200,60 @@ function ApplicationsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Applications</h1>
           <p className="text-sm text-muted-foreground">Track every role you're pursuing.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-1 h-4 w-4" /> New application
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Dialog open={importOpen} onOpenChange={(v) => { setImportOpen(v); if (!v) setImportErrors([]); }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Upload className="mr-1 h-4 w-4" /> Import CSV
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Import applications from CSV</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Columns: <code>company, position, status, application_date, notes</code>. Missing status defaults to
+                  <code> applied</code>; missing date defaults to today.
+                </p>
+                <Button variant="ghost" size="sm" onClick={downloadTemplate} type="button">
+                  <Download className="mr-1 h-4 w-4" /> Download template
+                </Button>
+                <Input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  disabled={importMut.isPending}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleFile(f);
+                    e.target.value = "";
+                  }}
+                />
+                {importMut.isPending && <p className="text-sm text-muted-foreground">Importing…</p>}
+                {importErrors.length > 0 && (
+                  <div className="max-h-48 overflow-auto rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
+                    <p className="mb-2 font-medium text-destructive">
+                      Skipped {importErrors.length} row{importErrors.length === 1 ? "" : "s"}:
+                    </p>
+                    <ul className="space-y-1">
+                      {importErrors.map((er) => (
+                        <li key={er.row}>
+                          <span className="font-mono">Row {er.row}:</span> {er.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-1 h-4 w-4" /> New application
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>New application</DialogTitle>
@@ -179,7 +307,8 @@ function ApplicationsPage() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {isLoading ? (

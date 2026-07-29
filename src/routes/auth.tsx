@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -29,6 +30,9 @@ const credsSchema = z.object({
 function AuthPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -74,6 +78,29 @@ function AuthPage() {
     }
   };
 
+  const handleForgot = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const parsed = z.string().trim().email("Enter a valid email").safeParse(forgotEmail);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast.success("Password reset link sent. Check your email.");
+      setForgotOpen(false);
+      setForgotEmail("");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   return (
     <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-md items-center px-4 py-10">
       <Card className="w-full">
@@ -113,12 +140,74 @@ function AuthPage() {
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
                   </Button>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => setForgotOpen(true)}
+                      className="block w-full text-center text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
                 </form>
               </TabsContent>
             ))}
           </Tabs>
         </CardContent>
       </Card>
+      <ForgotDialog
+        open={forgotOpen}
+        onOpenChange={setForgotOpen}
+        email={forgotEmail}
+        setEmail={setForgotEmail}
+        loading={forgotLoading}
+        onSubmit={handleForgot}
+      />
     </main>
+  );
+}
+
+function ForgotDialog({
+  open,
+  onOpenChange,
+  email,
+  setEmail,
+  loading,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  email: string;
+  setEmail: (v: string) => void;
+  loading: boolean;
+  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reset your password</DialogTitle>
+          <DialogDescription>
+            Enter your email and we'll send you a link to set a new password.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="forgot-email">Email</Label>
+            <Input
+              id="forgot-email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Sending…" : "Send reset link"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
