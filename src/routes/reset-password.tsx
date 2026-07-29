@@ -74,10 +74,10 @@ function ResetPasswordPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-md items-center px-4 py-10">
+    <main className="container-form flex min-h-[calc(100svh-4rem)] flex-col justify-center py-10">
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>Set a new password</CardTitle>
+          <CardTitle className="text-xl tracking-[-0.02em]">Set a new password</CardTitle>
           <CardDescription>
             {ready
               ? "Enter and confirm your new password below."
@@ -88,11 +88,25 @@ function ResetPasswordPage() {
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="password">New password</Label>
-              <Input id="password" name="password" type="password" autoComplete="new-password" required disabled={!ready} />
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                disabled={!ready}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm">Confirm password</Label>
-              <Input id="confirm" name="confirm" type="password" autoComplete="new-password" required disabled={!ready} />
+              <Input
+                id="confirm"
+                name="confirm"
+                type="password"
+                autoComplete="new-password"
+                required
+                disabled={!ready}
+              />
             </div>
             <Button type="submit" className="w-full" disabled={loading || !ready}>
               {loading ? "Updating…" : "Update password"}

@@ -2,13 +2,29 @@ export const STATUSES = ["applied", "interviewing", "offer", "rejected", "withdr
 
 export type Status = (typeof STATUSES)[number];
 
-/** Badge classes — shared by the applications list, detail page, and dashboard. */
+/**
+ * Badge classes — shared by the applications list, detail page, and dashboard.
+ *
+ * The palette is black / white / grey / red, so these cannot be told apart by
+ * hue the way a five-colour scale would. Each status is separated by *fill and
+ * border style* instead, which also survives greyscale and every form of
+ * colour blindness:
+ *
+ *   applied      filled grey    in the pipeline, nothing owed
+ *   interviewing solid black    live and moving
+ *   offer        solid red      the one result worth spotting across a page
+ *   rejected     outlined grey  closed
+ *   withdrawn    dashed grey    closed, by you
+ *
+ * Red goes to `offer` rather than `rejected` on purpose: the accent marks what
+ * deserves attention, and a rejection needs none.
+ */
 export const statusColor: Record<Status, string> = {
-  applied: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
-  interviewing: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-  offer: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
-  rejected: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200",
-  withdrawn: "bg-muted text-muted-foreground",
+  applied: "border-transparent bg-muted text-foreground",
+  interviewing: "border-transparent bg-foreground text-background",
+  offer: "border-transparent bg-brand text-brand-foreground",
+  rejected: "border-border bg-transparent text-muted-foreground",
+  withdrawn: "border-dashed border-border bg-transparent text-muted-foreground",
 };
 
 /** Statuses that still represent a live opportunity. */

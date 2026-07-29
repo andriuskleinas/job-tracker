@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { EmptyState } from "@/components/EmptyState";
 import {
   Select,
   SelectContent,
@@ -168,15 +169,20 @@ function AppDetail() {
 
   if (isLoading)
     return (
-      <main className="mx-auto max-w-4xl px-4 py-8 text-sm text-muted-foreground">Loading…</main>
+      <main className="container-narrow page-body text-sm text-muted-foreground">Loading…</main>
     );
   if (!app)
     return (
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        <p className="text-sm text-muted-foreground">Application not found.</p>
-        <Button asChild variant="link" className="px-0">
-          <Link to="/applications">Back to applications</Link>
-        </Button>
+      <main className="container-narrow page-body">
+        <EmptyState
+          title="Application not found"
+          body="It may have been deleted, or the link is no longer valid."
+          action={
+            <Button asChild variant="outline">
+              <Link to="/applications">Back to applications</Link>
+            </Button>
+          }
+        />
       </main>
     );
 
@@ -204,20 +210,25 @@ function AppDetail() {
   };
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8">
-      <Button asChild variant="ghost" size="sm" className="mb-4 -ml-2">
+    <main className="container-narrow page-body">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 mb-4 text-muted-foreground">
         <Link to="/applications">
-          <ArrowLeft className="mr-1 h-4 w-4" /> Back
+          <ArrowLeft className="h-4 w-4" /> Back
         </Link>
       </Button>
 
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{app.position}</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">{app.company}</p>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Edit application</CardTitle>
+          <CardTitle className="text-base">Details</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="company">Company</Label>
                 <Input
@@ -237,7 +248,7 @@ function AppDetail() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select
@@ -278,11 +289,11 @@ function AppDetail() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
-            <div className="flex justify-between">
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button type="button" variant="destructive">
-                    <Trash2 className="mr-1 h-4 w-4" /> Delete
+                  <Button type="button" variant="destructive" className="w-full sm:w-auto">
+                    <Trash2 className="h-4 w-4" /> Delete
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -298,7 +309,7 @@ function AppDetail() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-              <Button type="submit" disabled={update.isPending}>
+              <Button type="submit" className="w-full sm:w-auto" disabled={update.isPending}>
                 {update.isPending ? "Saving…" : "Save changes"}
               </Button>
             </div>
@@ -306,45 +317,56 @@ function AppDetail() {
         </CardContent>
       </Card>
 
-      <Card className="mt-6">
+      <Card className="mt-4">
         <CardHeader>
-          <CardTitle>Tasks</CardTitle>
+          <CardTitle className="text-base">Follow-up tasks</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={onAddTask} className="flex flex-wrap gap-2">
+          <form onSubmit={onAddTask} className="flex flex-col gap-2 sm:flex-row">
             <Input
               name="title"
               placeholder="e.g. Send follow-up email"
-              className="min-w-[200px] flex-1"
+              className="flex-1"
               required
             />
-            <Input name="due_date" type="date" className="w-40" />
-            <Button type="submit" disabled={addTask.isPending}>
-              <Plus className="mr-1 h-4 w-4" /> Add
-            </Button>
+            <div className="flex gap-2">
+              <Input name="due_date" type="date" className="flex-1 sm:w-40 sm:flex-none" />
+              <Button type="submit" disabled={addTask.isPending}>
+                <Plus className="h-4 w-4" /> Add
+              </Button>
+            </div>
           </form>
 
           {tasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tasks yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No tasks yet — add the next thing you owe this application.
+            </p>
           ) : (
-            <ul className="divide-y rounded-md border">
+            <ul className="divide-y rounded-lg border">
               {tasks.map((t) => (
-                <li key={t.id} className="flex items-center gap-3 p-3">
+                <li key={t.id} className="flex items-start gap-3 p-3">
                   <Checkbox
+                    className="mt-0.5 shrink-0"
                     checked={t.done}
                     onCheckedChange={(v) => toggleTask.mutate({ tid: t.id, done: !!v })}
                   />
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <p className={`text-sm ${t.done ? "text-muted-foreground line-through" : ""}`}>
                       {t.title}
                     </p>
                     {t.due_date && (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         Due {new Date(t.due_date).toLocaleDateString()}
                       </p>
                     )}
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => deleteTask.mutate(t.id)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="-mr-1 shrink-0 text-muted-foreground hover:text-brand-accent"
+                    aria-label={`Delete task: ${t.title}`}
+                    onClick={() => deleteTask.mutate(t.id)}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </li>

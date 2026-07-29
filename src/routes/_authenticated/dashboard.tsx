@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { PageHeader } from "@/components/PageHeader";
+import { EmptyState } from "@/components/EmptyState";
 import {
   ChartContainer,
   ChartLegend,
@@ -139,6 +142,19 @@ export function DashboardView({
   const statApps = apps;
   const statTasks = tasks;
 
+  /*
+   * The horizontal charts reserve fixed pixels for the category axis and the
+   * value labels. At the full width that is comfortable; on a phone it leaves
+   * the bars almost no room, so both allowances shrink and the stage labels
+   * drop their percentage suffix.
+   */
+  const isMobile = useIsMobile();
+  // 86px is the measured width of the longest tick ("Interviewing") at 11px —
+  // anything narrower clips its first character rather than wrapping.
+  const axisWidth = isMobile ? 86 : 92;
+  const axisTick = isMobile ? { fontSize: 11 } : undefined;
+  const labelGutter = isMobile ? 30 : 96;
+
   const kpis = useMemo(() => computeKpis(statApps, statTasks), [statApps, statTasks]);
   const breakdown = useMemo(() => statusBreakdown(statApps), [statApps]);
   const weekly = useMemo(() => weeklyApplications(statApps), [statApps]);
@@ -165,26 +181,25 @@ export function DashboardView({
 
   if (apps.length === 0) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="container-page page-body">
         <PageHeading />
-        <Card>
-          <CardContent className="py-16 text-center">
-            <p className="text-muted-foreground">
-              No applications yet — stats appear here once you've logged your first one.
-            </p>
-            <Button asChild className="mt-4">
+        <EmptyState
+          title="No applications yet"
+          body="Stats appear here once you've logged your first one."
+          action={
+            <Button asChild>
               <Link to="/applications">
-                <Plus className="mr-1 h-4 w-4" /> Add an application
+                <Plus className="h-4 w-4" /> Add an application
               </Link>
             </Button>
-          </CardContent>
-        </Card>
+          }
+        />
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="container-page page-body">
       <PageHeading />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Key metrics">
@@ -235,7 +250,8 @@ export function DashboardView({
                   dataKey="label"
                   tickLine={false}
                   axisLine={false}
-                  width={92}
+                  width={axisWidth}
+                  tick={axisTick}
                   tickMargin={6}
                 />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
@@ -284,7 +300,7 @@ export function DashboardView({
                 accessibilityLayer
                 data={funnel}
                 layout="vertical"
-                margin={{ left: 4, right: 96, top: 4, bottom: 4 }}
+                margin={{ left: 4, right: labelGutter, top: 4, bottom: 4 }}
               >
                 <CartesianGrid horizontal={false} />
                 <XAxis type="number" hide />
@@ -293,7 +309,8 @@ export function DashboardView({
                   dataKey="stage"
                   tickLine={false}
                   axisLine={false}
-                  width={92}
+                  width={axisWidth}
+                  tick={axisTick}
                   tickMargin={6}
                 />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
@@ -314,9 +331,9 @@ export function DashboardView({
                     fontSize={12}
                     // Without an explicit width recharts inherits the bar's own
                     // width, and a short bar wraps its label onto two lines.
-                    width={88}
+                    width={isMobile ? 28 : 88}
                     formatter={(value: number) =>
-                      kpis.total === 0
+                      kpis.total === 0 || isMobile
                         ? `${value}`
                         : `${value} (${Math.round((value / kpis.total) * 100)}%)`
                     }
@@ -495,7 +512,7 @@ export function DashboardView({
                       )}
                     </div>
                     <span
-                      className={`shrink-0 text-xs ${overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}
+                      className={`shrink-0 text-xs ${overdue ? "font-medium text-brand-accent" : "text-muted-foreground"}`}
                     >
                       {overdue && <TriangleAlert className="mr-1 inline h-3 w-3" aria-hidden />}
                       {overdue ? "Overdue " : "Due "}
@@ -527,12 +544,7 @@ export function DashboardView({
 }
 
 function PageHeading() {
-  return (
-    <div className="mb-6">
-      <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-      <p className="text-sm text-muted-foreground">How your search is tracking.</p>
-    </div>
-  );
+  return <PageHeader title="Dashboard" description="How your search is tracking." />;
 }
 
 function StatTile({
@@ -554,7 +566,9 @@ function StatTile({
         <p className="text-sm text-muted-foreground">{label}</p>
         <div className="mt-1 flex items-baseline gap-2">
           {/* Proportional figures: tabular-nums makes a display-size number look loose. */}
-          <span className={`text-3xl font-semibold ${alert ? "text-destructive" : ""}`}>
+          <span
+            className={`text-3xl font-semibold tracking-[-0.02em] ${alert ? "text-brand-accent" : ""}`}
+          >
             {value}
           </span>
           {delta !== undefined && delta !== 0 && (
@@ -624,7 +638,7 @@ function DataTable({
 
 function DashboardSkeleton() {
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main className="container-page page-body">
       <PageHeading />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (

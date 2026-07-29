@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/PageHeader";
+import { EmptyState } from "@/components/EmptyState";
 import {
   Select,
   SelectContent,
@@ -190,162 +192,159 @@ function ApplicationsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Applications</h1>
-          <p className="text-sm text-muted-foreground">Track every role you're pursuing.</p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog
-            open={importOpen}
-            onOpenChange={(v) => {
-              setImportOpen(v);
-              if (!v) setImportErrors([]);
-            }}
-          >
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Upload className="mr-1 h-4 w-4" /> Import CSV
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Import applications from CSV</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Columns: <code>company, position, status, application_date, notes</code>. Missing
-                  status defaults to
-                  <code> applied</code>; missing date defaults to today.
-                </p>
-                <Button variant="ghost" size="sm" onClick={downloadTemplate} type="button">
-                  <Download className="mr-1 h-4 w-4" /> Download template
+    <main className="container-page page-body">
+      <PageHeader
+        title="Applications"
+        description="Track every role you're pursuing."
+        actions={
+          <>
+            <Dialog
+              open={importOpen}
+              onOpenChange={(v) => {
+                setImportOpen(v);
+                if (!v) setImportErrors([]);
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <Upload className="h-4 w-4" /> Import CSV
                 </Button>
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  disabled={importMut.isPending}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleFile(f);
-                    e.target.value = "";
-                  }}
-                />
-                {importMut.isPending && <p className="text-sm text-muted-foreground">Importing…</p>}
-                {importErrors.length > 0 && (
-                  <div className="max-h-48 overflow-auto rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs">
-                    <p className="mb-2 font-medium text-destructive">
-                      Skipped {importErrors.length} row{importErrors.length === 1 ? "" : "s"}:
-                    </p>
-                    <ul className="space-y-1">
-                      {importErrors.map((er) => (
-                        <li key={er.row}>
-                          <span className="font-mono">Row {er.row}:</span> {er.reason}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-1 h-4 w-4" /> New application
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>New application</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={onSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Company</Label>
-                    <Input id="company" name="company" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="position">Position</Label>
-                    <Input id="position" name="position" required />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select name="status" defaultValue="applied">
-                      <SelectTrigger id="status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUSES.map((s) => (
-                          <SelectItem key={s} value={s} className="capitalize">
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="application_date">Application date</Label>
-                    <Input
-                      id="application_date"
-                      name="application_date"
-                      type="date"
-                      defaultValue={new Date().toISOString().slice(0, 10)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea id="notes" name="notes" rows={3} />
-                </div>
-                <DialogFooter>
-                  <Button type="submit" disabled={create.isPending}>
-                    {create.isPending ? "Saving…" : "Save"}
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import applications from CSV</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    Columns: <code>company, position, status, application_date, notes</code>.
+                    Missing status defaults to <code>applied</code>; missing date defaults to today.
+                  </p>
+                  <Button variant="ghost" size="sm" onClick={downloadTemplate} type="button">
+                    <Download className="h-4 w-4" /> Download template
                   </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+                  <Input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    disabled={importMut.isPending}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleFile(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  {importMut.isPending && (
+                    <p className="text-sm text-muted-foreground">Importing…</p>
+                  )}
+                  {importErrors.length > 0 && (
+                    <div className="max-h-48 overflow-auto rounded-md border border-brand/40 bg-brand/5 p-3 text-xs">
+                      <p className="mb-2 font-medium text-brand-accent">
+                        Skipped {importErrors.length} row{importErrors.length === 1 ? "" : "s"}:
+                      </p>
+                      <ul className="space-y-1">
+                        {importErrors.map((er) => (
+                          <li key={er.row}>
+                            <span className="font-mono">Row {er.row}:</span> {er.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full sm:w-auto">
+                  <Plus className="h-4 w-4" /> New application
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>New application</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={onSubmit} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="company">Company</Label>
+                      <Input id="company" name="company" required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="position">Position</Label>
+                      <Input id="position" name="position" required />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="status">Status</Label>
+                      <Select name="status" defaultValue="applied">
+                        <SelectTrigger id="status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUSES.map((s) => (
+                            <SelectItem key={s} value={s} className="capitalize">
+                              {s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="application_date">Application date</Label>
+                      <Input
+                        id="application_date"
+                        name="application_date"
+                        type="date"
+                        defaultValue={new Date().toISOString().slice(0, 10)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea id="notes" name="notes" rows={3} />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" className="w-full sm:w-auto" disabled={create.isPending}>
+                      {create.isPending ? "Saving…" : "Save"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </>
+        }
+      />
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : apps.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <p className="text-muted-foreground">
-              No applications yet. Add your first one to get started.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          title="No applications yet"
+          body="Add your first one to start tracking where every role stands."
+        />
       ) : (
         <div className="grid gap-3">
           {apps.map((a) => (
             <Link key={a.id} to="/applications/$id" params={{ id: a.id }} className="block">
-              <Card className="transition-colors hover:bg-accent/50">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-base">{a.position}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{a.company}</p>
-                    </div>
-                    <Badge
-                      className={statusColor[a.status as Status] + " capitalize"}
-                      variant="outline"
-                    >
-                      {a.status}
-                    </Badge>
+              <Card className="p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 sm:p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{a.position}</p>
+                    <p className="truncate text-sm text-muted-foreground">{a.company}</p>
                   </div>
-                </CardHeader>
-                <CardContent className="pt-0 text-xs text-muted-foreground">
+                  <Badge
+                    className={statusColor[a.status as Status] + " shrink-0 capitalize"}
+                    variant="outline"
+                  >
+                    {a.status}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
                   Applied {new Date(a.application_date).toLocaleDateString()}
-                </CardContent>
+                </p>
               </Card>
             </Link>
           ))}

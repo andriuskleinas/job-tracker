@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -14,9 +20,15 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — Job Tracker" },
-      { name: "description", content: "Sign in or create an account to track your job applications." },
+      {
+        name: "description",
+        content: "Sign in or create an account to track your job applications.",
+      },
       { property: "og:title", content: "Sign in — Job Tracker" },
-      { property: "og:description", content: "Sign in or create an account to track your job applications." },
+      {
+        property: "og:description",
+        content: "Sign in or create an account to track your job applications.",
+      },
     ],
   }),
   component: AuthPage,
@@ -102,10 +114,10 @@ function AuthPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-3.5rem)] max-w-md items-center px-4 py-10">
+    <main className="container-form flex min-h-[calc(100svh-4rem)] flex-col justify-center py-10">
       <Card className="w-full">
         <CardHeader>
-          <CardTitle>Welcome</CardTitle>
+          <CardTitle className="text-xl tracking-[-0.02em]">Welcome</CardTitle>
           <CardDescription>Sign in or create an account to continue.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -125,7 +137,13 @@ function AuthPage() {
                 >
                   <div className="space-y-2">
                     <Label htmlFor={`${mode}-email`}>Email</Label>
-                    <Input id={`${mode}-email`} name="email" type="email" autoComplete="email" required />
+                    <Input
+                      id={`${mode}-email`}
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor={`${mode}-password`}>Password</Label>
