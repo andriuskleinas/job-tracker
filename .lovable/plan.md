@@ -1,31 +1,25 @@
-## Hardening Plan
+## CSV import for Applications
 
-Small, low-risk hygiene improvements. No functional changes to the app.
+Add an "Import CSV" button on `/applications` next to "New application" that opens a dialog letting users upload a `.csv` file, previews parsed rows, imports valid ones, and reports errors.
 
-### 1. Git hygiene
-- Add `.env`, `.env.local`, `.env.*.local` to `.gitignore` so future secrets can't be accidentally committed. (Current `.env` only holds the public anon key + URL, so no rotation needed.)
+### CSV format
+Header row required. Columns: `company`, `position`, `status`, `application_date`, `notes`.
+- `company`, `position`: required, 1–120 chars.
+- `status`: one of `applied|interviewing|offer|rejected|withdrawn`. Defaults to `applied` if empty.
+- `application_date`: `YYYY-MM-DD`. Defaults to today if empty.
+- `notes`: optional, ≤2000 chars.
 
-### 2. Auth hardening (Supabase dashboard — user action)
-- Enable **Leaked Password Protection** (HaveIBeenPwned) under Auth → Providers → Email.
-- Keep **Confirm email** ON in production (currently causing rate-limit hits during smoke tests — only disable for dev).
-- Set a minimum password length of 8+ in Auth settings.
+### Behavior
+- Parse client-side with PapaParse (`papaparse`), `header: true`, `skipEmptyLines: true`.
+- Validate each row with the existing zod `appSchema` (extended to accept the defaults above).
+- Import **all valid rows** (no dedupe) via a single `supabase.from("applications").insert([...])` scoped to the current `user_id`.
+- Show a summary toast: `Imported X, skipped Y`, and render a per-row error list (row number + reason) inside the dialog when any fail.
+- Invalidate the `["applications"]` query on success.
+- Provide a "Download template" link that generates a small sample CSV.
 
-### 3. Client-side input validation
-- Add `zod` schemas for the Auth form (email format, password length ≥ 8) and Application/Task forms (trim, max length on `company`, `position`, `notes`, task `title`) with inline error messages. RLS already protects the DB; this improves UX and blocks obvious junk.
+### Files
+- `package.json`: add `papaparse` + `@types/papaparse`.
+- `src/routes/_authenticated/applications.index.tsx`: add Import button, dialog, parse/validate/insert logic, template download.
 
-### 4. Security headers on the root document
-- Add basic meta/response hardening in `src/routes/__root.tsx` head: `referrer` = `strict-origin-when-cross-origin`, and a minimal `Content-Security-Policy` compatible with Supabase + Vite.
-
-### 5. Session/auth hygiene review (code)
-- Confirm sign-out flow: `queryClient.cancelQueries` → `clear()` → `supabase.auth.signOut()` → navigate (already implemented — verify).
-- Ensure no `SUPABASE_SERVICE_ROLE_KEY` import path is reachable from client bundles (verify `client.server.ts` is only imported from server functions).
-
-### 6. Re-run security scan
-- After the above, re-run `security--run_security_scan` to confirm no new findings.
-
-### Out of scope (explicitly not doing)
-- Rotating the anon key (it's public by design).
-- Rewriting RLS (already correct and verified).
-- Adding rate limiting (no primitive available on this stack).
-
-Confirm and I'll implement steps 1, 3, 4, 5, 6. Steps in section 2 require you to toggle settings in the Supabase dashboard.
+### Out of scope
+No backend/schema changes. No server function — RLS on `applications` already enforces per-user access on the client insert.
