@@ -54,10 +54,11 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-dv-bar: var(--dv-bar);
-  --color-dv-stage-1: var(--dv-stage-1);
-  --color-dv-stage-2: var(--dv-stage-2);
-  --color-dv-stage-3: var(--dv-stage-3);
+  --color-status-applied: var(--status-applied);
+  --color-status-interviewing: var(--status-interviewing);
+  --color-status-offer: var(--status-offer);
+  --color-status-rejected: var(--status-rejected);
+  --color-status-withdrawn: var(--status-withdrawn);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -69,13 +70,17 @@
 }
 
 /*
- * Brand palette — four colours only: black, white, grey, red.
+ * Brand palette — black, white, grey, red.
  *
- * Every neutral is chroma 0, so nothing drifts blue or warm; red is the single
- * hue in the system and is reserved for emphasis (never decoration). Two red
- * tokens exist because one value cannot be readable in both roles:
+ * Every neutral is chroma 0, so nothing drifts blue or warm; red is the only
+ * brand hue and is reserved for emphasis (never decoration). Two red tokens
+ * exist because one value cannot be readable in both roles:
  *   --brand        solid fill, always paired with --brand-foreground
  *   --brand-accent red *on* a surface (text, icons, rules, hairlines)
+ *
+ * The chrome is the whole of the brand palette. Status is a second, separate
+ * vocabulary (see --status-* below): it is data rather than decoration, so it
+ * is allowed hues the chrome is not, and the two never borrow from each other.
  */
 :root {
   --radius: 0.625rem;
@@ -107,16 +112,38 @@
   --chart-4: oklch(0.6 0 0);
   --chart-5: oklch(0.72 0 0);
   /*
-   * Dashboard data-viz tokens, on the same four colours as the rest of the site.
-   * Single-series bars are one neutral (bar length, not colour, carries the
-   * value). The stage ramp is ordinal: grey darkens as the funnel narrows and
-   * the final stage lands on brand red. Every step clears 3:1 against its
-   * surface — re-validate before changing a value.
+   * Status hues — one colour language for every place a status appears: the
+   * badges, the dashboard bars, and the stage funnel. Three tokens each:
+   *
+   *   --status-X        the mark colour (chart fills)
+   *   --status-X-soft   tinted badge background
+   *   --status-X-text   type on that tint (all >= 5.9:1)
+   *
+   * The steps are not eyeballed. Green and red sit either side of amber, and
+   * under protanopia/deuteranopia all three collapse onto one yellow axis —
+   * so lightness, not hue, has to separate them. These L values were solved
+   * for that: worst adjacent CVD dE 8.1, normal-vision dE 24.0 (targets 8
+   * and 15). Red is as bright as that budget allows — a step lighter and it
+   * collapses into green for a deuteranope. Amber is 2.2:1 on white, below
+   * the 3:1 mark floor, which the
+   * charts repay with permanent value labels and a data table; never let a
+   * bar carry meaning on fill alone. Re-run the validator before editing.
    */
-  --dv-bar: oklch(0.32 0 0); /* 9.7:1 on white */
-  --dv-stage-1: oklch(0.62 0 0); /* 3.2:1 */
-  --dv-stage-2: oklch(0.42 0 0); /* 6.8:1 */
-  --dv-stage-3: oklch(0.51 0.215 27.4); /* brand red, 5.2:1 */
+  --status-applied: oklch(0.575 0.163 255.5); /* blue   — in the pipeline */
+  --status-applied-soft: color-mix(in oklch, var(--status-applied) 14%, transparent);
+  --status-applied-text: oklch(0.454 0.166 257.7);
+  --status-interviewing: oklch(0.76 0.155 74.5); /* amber  — live and moving */
+  --status-interviewing-soft: color-mix(in oklch, var(--status-interviewing) 20%, transparent);
+  --status-interviewing-text: oklch(0.471 0.105 66.1);
+  --status-offer: oklch(0.582 0.187 144.3); /* green  — the good outcome */
+  --status-offer-soft: color-mix(in oklch, var(--status-offer) 14%, transparent);
+  --status-offer-text: oklch(0.445 0.152 142.5);
+  --status-rejected: oklch(0.486 0.199 29.2); /* red    — closed, not by you */
+  --status-rejected-soft: color-mix(in oklch, var(--status-rejected) 14%, transparent);
+  --status-rejected-text: oklch(0.461 0.189 29.2);
+  --status-withdrawn: oklch(0.62 0 0); /* grey   — closed, by you */
+  --status-withdrawn-soft: color-mix(in oklch, var(--status-withdrawn) 22%, transparent);
+  --status-withdrawn-text: oklch(0.42 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.145 0 0);
@@ -157,12 +184,29 @@
   --chart-3: oklch(0.7 0 0);
   --chart-4: oklch(0.56 0 0);
   --chart-5: oklch(0.44 0 0);
-  /* Dark steps are selected against the dark card, not flipped from light —
-   * the ramp still lightens as the funnel narrows so depth reads as progress. */
-  --dv-bar: oklch(0.78 0 0); /* 7.9:1 on card */
-  --dv-stage-1: oklch(0.52 0 0); /* 3.4:1 */
-  --dv-stage-2: oklch(0.68 0 0); /* 5.9:1 */
-  --dv-stage-3: oklch(0.71 0.19 25); /* brand red, 6.4:1 */
+  /*
+   * Status hues re-solved against the dark card — same five meanings, not a
+   * flip of the light steps. Worst adjacent CVD dE 8.7, normal-vision 23.7,
+   * and every fill clears 3:1 here (amber no longer needs the label relief).
+   * Amber sits brighter than a conventional dark-mode band would put it;
+   * that headroom is what holds it apart from green once hue is simulated
+   * away, and contrast is measured, so the brightness is bought, not spent.
+   */
+  --status-applied: oklch(0.619 0.161 255.3);
+  --status-applied-soft: color-mix(in oklch, var(--status-applied) 22%, transparent);
+  --status-applied-text: oklch(0.795 0.107 251.3);
+  --status-interviewing: oklch(0.821 0.15 78.2);
+  --status-interviewing-soft: color-mix(in oklch, var(--status-interviewing) 22%, transparent);
+  --status-interviewing-text: oklch(0.86 0.13 84.9);
+  --status-offer: oklch(0.66 0.185 144.9);
+  --status-offer-soft: color-mix(in oklch, var(--status-offer) 22%, transparent);
+  --status-offer-text: oklch(0.82 0.16 145);
+  --status-rejected: oklch(0.56 0.2 25.1);
+  --status-rejected-soft: color-mix(in oklch, var(--status-rejected) 26%, transparent);
+  --status-rejected-text: oklch(0.745 0.155 25.2);
+  --status-withdrawn: oklch(0.686 0 0);
+  --status-withdrawn-soft: color-mix(in oklch, var(--status-withdrawn) 22%, transparent);
+  --status-withdrawn-text: oklch(0.779 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.985 0 0);

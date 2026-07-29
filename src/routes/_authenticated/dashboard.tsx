@@ -18,7 +18,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { statusColor, type Status } from "@/lib/status";
+import { statusColor, statusFill, type Status } from "@/lib/status";
 import {
   computeKpis,
   eventsBeyondCurrentStatus,
@@ -29,6 +29,7 @@ import {
   parseLocalDate,
   statusBreakdown,
   weeklyApplications,
+  PIPELINE,
   type StatsApplication,
   type StatsStatusEvent,
   type StatsTask,
@@ -47,26 +48,45 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
+type LinkedRole = { id: string; company: string; position: string };
+
+/**
+ * A task carries every role it was assigned to, not one. The shape — and the
+ * select that produces it — has to stay identical to the tasks page, because
+ * both read the same `["tasks", "all"]` cache entry and whichever mounts
+ * first is the one that fills it.
+ */
 type TaskWithApp = StatsTask & {
   id: string;
   title: string;
-  applications: { id: string; company: string; position: string } | null;
+  task_applications: { application: LinkedRole | null }[];
 };
 
+const linkedRoles = (t: TaskWithApp): LinkedRole[] =>
+  (t.task_applications ?? []).map((ta) => ta.application).filter((a): a is LinkedRole => !!a);
+
+/*
+ * Colour on this page is the status language from `@/lib/status`, nothing
+ * else. A bar and a badge that share a hue always share a meaning, so the
+ * dashboard needs no legend of its own to be read — the one at the foot is a
+ * key to the whole vocabulary, not an index of these particular charts.
+ *
+ * Where a chart counts applications generally rather than by outcome
+ * (per-week volume, cohort size) it takes `applied` blue: those are
+ * applications you sent, which is what blue means everywhere else here.
+ */
 const barConfig = {
-  count: { label: "Applications", color: "var(--dv-bar)" },
+  count: { label: "Applications", color: "var(--status-applied)" },
 } satisfies ChartConfig;
 
 const stageConfig = {
-  count: { label: "Applications", color: "var(--dv-stage-2)" },
+  count: { label: "Applications", color: "var(--status-applied)" },
 } satisfies ChartConfig;
 
 const cohortConfig = {
-  applied: { label: "Applied", color: "var(--dv-stage-1)" },
-  reachedInterview: { label: "Reached interview", color: "var(--dv-stage-3)" },
+  applied: { label: "Applied", color: "var(--status-applied)" },
+  reachedInterview: { label: "Reached interview", color: "var(--status-interviewing)" },
 } satisfies ChartConfig;
-
-const STAGE_FILLS = ["var(--dv-stage-1)", "var(--dv-stage-2)", "var(--dv-stage-3)"];
 
 /**
  * Every <Bar> below sets `isAnimationActive={false}` deliberately.
@@ -98,7 +118,7 @@ function DashboardPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, applications:application_id (id, company, position)")
+        .select("*, task_applications(application:applications(id, company, position))")
         .order("done")
         .order("due_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -204,7 +224,12 @@ export function DashboardView({
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Key metrics">
         <StatTile label="Total applications" value={kpis.total} />
-        <StatTile label="Active pipeline" value={kpis.active} hint="Applied or interviewing" />
+        <StatTile
+          label="Active pipeline"
+          value={kpis.active}
+          hint="Applied or interviewing"
+          accent="applied"
+        />
         {/* Reads from the same funnel as the Stage reach chart, so the two can
             never disagree on screen. */}
         <StatTile
@@ -213,8 +238,9 @@ export function DashboardView({
           hint={
             historyDepth > 0 ? "Ever reached interview" : "Ever reached interview (lower bound)"
           }
+          accent="interviewing"
         />
-        <StatTile label="Offers" value={kpis.offers} />
+        <StatTile label="Offers" value={kpis.offers} accent="offer" />
         <StatTile
           label="Applied in last 7 days"
           value={kpis.lastSeven}
@@ -257,11 +283,13 @@ export function DashboardView({
                 <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
                 <Bar
                   dataKey="count"
-                  fill="var(--color-count)"
                   radius={[0, 4, 4, 0]}
                   maxBarSize={24}
                   isAnimationActive={false}
                 >
+                  {breakdown.map((b) => (
+                    <Cell key={b.status} fill={statusFill[b.status as Status]} />
+                  ))}
                   <LabelList
                     dataKey="count"
                     position="right"
@@ -321,7 +349,7 @@ export function DashboardView({
                   isAnimationActive={false}
                 >
                   {funnel.map((stage, i) => (
-                    <Cell key={stage.stage} fill={STAGE_FILLS[i]} />
+                    <Cell key={stage.stage} fill={statusFill[PIPELINE[i]]} />
                   ))}
                   <LabelList
                     dataKey="count"
@@ -497,18 +525,24 @@ export function DashboardView({
               {upcoming.map((t) => {
                 const due = parseLocalDate(t.due_date as string);
                 const overdue = due < new Date(new Date().toDateString());
+                const roles = linkedRoles(t);
                 return (
                   <li key={t.id} className="flex items-center justify-between gap-3 py-2.5">
                     <div className="min-w-0">
                       <p className="truncate text-sm">{t.title}</p>
-                      {t.applications && (
-                        <Link
-                          to="/applications/$id"
-                          params={{ id: t.applications.id }}
-                          className="text-xs text-muted-foreground hover:underline"
-                        >
-                          {t.applications.position} · {t.applications.company}
-                        </Link>
+                      {/* One task can cover several roles; this row has space
+                          for one, so the rest are counted rather than listed. */}
+                      {roles.length > 0 && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          <Link
+                            to="/applications/$id"
+                            params={{ id: roles[0].id }}
+                            className="hover:underline"
+                          >
+                            {roles[0].position} · {roles[0].company}
+                          </Link>
+                          {roles.length > 1 && ` +${roles.length - 1} more`}
+                        </p>
                       )}
                     </div>
                     <span
@@ -547,23 +581,41 @@ function PageHeading() {
   return <PageHeader title="Dashboard" description="How your search is tracking." />;
 }
 
+/**
+ * `accent` ties a tile to the status it counts. It rides a dot next to the
+ * label rather than the figure: a number is text, and text stays in text ink
+ * so it keeps its full contrast — the swatch beside it is what carries the
+ * hue. `alert` is the one exception, because an overdue count is a warning
+ * rather than an identity, and its label says so in words either way.
+ */
 function StatTile({
   label,
   value,
   hint,
   delta,
   alert,
+  accent,
 }: {
   label: string;
   value: number | string;
   hint?: string;
   delta?: number;
   alert?: boolean;
+  accent?: Status;
 }) {
   return (
     <Card>
       <CardContent className="p-5">
-        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          {accent && (
+            <span
+              aria-hidden
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: statusFill[accent] }}
+            />
+          )}
+          {label}
+        </p>
         <div className="mt-1 flex items-baseline gap-2">
           {/* Proportional figures: tabular-nums makes a display-size number look loose. */}
           <span
@@ -572,7 +624,11 @@ function StatTile({
             {value}
           </span>
           {delta !== undefined && delta !== 0 && (
-            <span className="flex items-center text-xs text-muted-foreground">
+            <span
+              className={`flex items-center text-xs ${
+                delta > 0 ? "text-[var(--status-offer-text)]" : "text-muted-foreground"
+              }`}
+            >
               {delta > 0 ? (
                 <ArrowUp className="h-3 w-3" aria-hidden />
               ) : (
