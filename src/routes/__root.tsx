@@ -80,6 +80,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "referrer", content: "strict-origin-when-cross-origin" },
+      { httpEquiv: "X-Content-Type-Options", content: "nosniff" },
       { title: "Job Tracker — Organize Your Job Search" },
       { name: "description", content: "Track job applications and follow-up tasks in one clean dashboard." },
       { name: "author", content: "Lovable" },
