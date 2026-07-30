@@ -33,8 +33,12 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
   async ({ next }) => {
     
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+    // Fall back to the public project values so a missing env var never breaks auth.
+    // The anon/publishable key is safe to expose (protected by Row-Level Security).
+    const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ojhxziejichxbubmdxdb.supabase.co';
+    const SUPABASE_PUBLISHABLE_KEY =
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qaHh6aWVqaWNoeGJ1Ym1keGRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMDg5OTYsImV4cCI6MjEwMDg4NDk5Nn0.jxrFD6umHs4CTWmLPl647Vb2wldHqf5jOGC-FEDunM8';
 
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       const missing = [

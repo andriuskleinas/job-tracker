@@ -27,11 +27,23 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 
+// Public project values. The anon/publishable key is safe to ship to the browser
+// (it is protected by Row-Level Security, not secrecy). These act as a fallback so
+// the published build works even when the hosting env vars are not injected.
+const FALLBACK_SUPABASE_URL = 'https://ojhxziejichxbubmdxdb.supabase.co';
+const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qaHh6aWVqaWNoeGJ1Ym1keGRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMDg5OTYsImV4cCI6MjEwMDg4NDk5Nn0.jxrFD6umHs4CTWmLPl647Vb2wldHqf5jOGC-FEDunM8';
+
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  // Fall back to process.env for SSR (server-side rendering), then to the public
+  // project values above so a missing env var never crashes the app.
+  const SUPABASE_URL =
+    import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || FALLBACK_SUPABASE_URL;
+  const SUPABASE_PUBLISHABLE_KEY =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    FALLBACK_SUPABASE_PUBLISHABLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
