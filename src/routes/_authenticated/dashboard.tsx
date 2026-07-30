@@ -1,7 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +28,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { statusColor, statusFill, type Status } from "@/lib/status";
+import { STATUSES, statusColor, statusFill, type Status } from "@/lib/status";
 import {
   computeKpis,
   eventsBeyondCurrentStatus,
@@ -68,8 +78,8 @@ const linkedRoles = (t: TaskWithApp): LinkedRole[] =>
 /*
  * Colour on this page is the status language from `@/lib/status`, nothing
  * else. A bar and a badge that share a hue always share a meaning, so the
- * dashboard needs no legend of its own to be read — the one at the foot is a
- * key to the whole vocabulary, not an index of these particular charts.
+ * dashboard needs no legend of its own to be read — the one under the heading
+ * is a key to the whole vocabulary, not an index of these particular charts.
  *
  * Where a chart counts applications generally rather than by outcome
  * (per-week volume, cohort size) it takes `applied` blue: those are
@@ -221,6 +231,7 @@ export function DashboardView({
   return (
     <main className="container-page page-body">
       <PageHeading />
+      <StatusLegend />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Key metrics">
         <StatTile label="Total applications" value={kpis.total} />
@@ -379,8 +390,12 @@ export function DashboardView({
           <CardDescription>Last 12 weeks, by the date you applied.</CardDescription>
         </CardHeader>
         <CardContent>
+          {/* A line, not columns: this panel is about the shape of the last
+              twelve weeks — where the search sped up and where it stalled —
+              and a trend is what a line is for. Zero weeks are real zeros, so
+              the line touches the baseline rather than breaking. */}
           <ChartContainer config={barConfig} className="aspect-auto h-[240px] w-full">
-            <BarChart
+            <AreaChart
               accessibilityLayer
               data={weekly}
               margin={{ left: 4, right: 4, top: 8, bottom: 4 }}
@@ -401,15 +416,26 @@ export function DashboardView({
                 allowDecimals={false}
                 tickMargin={4}
               />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent labelKey="label" />} />
-              <Bar
+              <ChartTooltip
+                cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
+                content={<ChartTooltipContent labelKey="label" />}
+              />
+              <Area
+                type="monotone"
                 dataKey="count"
+                stroke="var(--color-count)"
+                strokeWidth={2}
+                // A wash, not a block — it gives the line a body to read
+                // against without competing with the bars on this page.
                 fill="var(--color-count)"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={24}
+                fillOpacity={0.12}
+                // Dots ring themselves in the card colour so they stay
+                // legible where the line runs through them.
+                dot={{ r: 3.5, strokeWidth: 2, stroke: "var(--card)" }}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }}
                 isAnimationActive={false}
               />
-            </BarChart>
+            </AreaChart>
           </ChartContainer>
           <DataTable
             caption="Applications per week"
@@ -559,21 +585,27 @@ export function DashboardView({
           )}
         </CardContent>
       </Card>
-
-      {/* Badge renders a <div>, so this wrapper must not be a <p>. */}
-      <div className="mt-4 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-        <span className="mr-1">Status legend:</span>
-        {breakdown.map((b) => (
-          <Badge
-            key={b.status}
-            variant="outline"
-            className={`${statusColor[b.status as Status]} capitalize`}
-          >
-            {b.status}
-          </Badge>
-        ))}
-      </div>
     </main>
+  );
+}
+
+/**
+ * The key to the colour language, and it belongs above the charts it explains
+ * — at the foot it sat below the fold, which is the one place a legend is no
+ * use. It lists all five statuses rather than only the ones currently in the
+ * data, so the vocabulary reads the same on an empty account as a full one.
+ */
+function StatusLegend() {
+  return (
+    // Badge renders a <div>, so this wrapper must not be a <p>.
+    <div className="mb-4 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:mb-6">
+      <span className="mr-0.5">Status legend:</span>
+      {STATUSES.map((s) => (
+        <Badge key={s} variant="outline" className={`${statusColor[s]} capitalize`}>
+          {s}
+        </Badge>
+      ))}
+    </div>
   );
 }
 
