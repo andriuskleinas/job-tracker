@@ -130,6 +130,7 @@ function AppDetail() {
     onSuccess: () => {
       toast.success("Saved");
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      navigate({ to: "/applications" });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),
   });
