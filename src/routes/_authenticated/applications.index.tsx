@@ -55,6 +55,13 @@ const appSchema = z.object({
   notes: z.string().max(2000).optional().or(z.literal("")),
 });
 
+// The New application dialog can also seed a first follow-up task, linked to the
+// application that gets created. Both task fields are optional.
+const appWithTaskSchema = appSchema.extend({
+  task_title: z.string().trim().max(200, "Task title must be 200 characters or fewer").optional(),
+  task_due_date: z.string().optional(),
+});
+
 function ApplicationsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -83,22 +90,42 @@ function ApplicationsPage() {
   });
 
   const create = useMutation({
-    mutationFn: async (values: z.infer<typeof appSchema>) => {
+    mutationFn: async (values: z.infer<typeof appWithTaskSchema>) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not signed in");
-      const { error } = await supabase.from("applications").insert({
-        user_id: userData.user.id,
-        company: values.company,
-        position: values.position,
-        status: values.status,
-        application_date: values.application_date,
-        notes: values.notes || null,
-      });
+      const userId = userData.user.id;
+      const { data: appRow, error } = await supabase
+        .from("applications")
+        .insert({
+          user_id: userId,
+          company: values.company,
+          position: values.position,
+          status: values.status,
+          application_date: values.application_date,
+          notes: values.notes || null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+
+      const taskTitle = values.task_title?.trim();
+      if (taskTitle) {
+        const { data: task, error: taskError } = await supabase
+          .from("tasks")
+          .insert({ user_id: userId, title: taskTitle, due_date: values.task_due_date || null })
+          .select("id")
+          .single();
+        if (taskError) throw taskError;
+        const { error: linkError } = await supabase
+          .from("task_applications")
+          .insert({ task_id: task.id, application_id: appRow.id });
+        if (linkError) throw linkError;
+      }
     },
-    onSuccess: () => {
-      toast.success("Application added");
+    onSuccess: (_data, values) => {
+      toast.success(values.task_title?.trim() ? "Application and task added" : "Application added");
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setOpen(false);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
@@ -188,12 +215,14 @@ function ApplicationsPage() {
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const parsed = appSchema.safeParse({
+    const parsed = appWithTaskSchema.safeParse({
       company: fd.get("company"),
       position: fd.get("position"),
       status: fd.get("status"),
       application_date: fd.get("application_date"),
       notes: fd.get("notes"),
+      task_title: fd.get("task_title"),
+      task_due_date: fd.get("task_due_date"),
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
@@ -329,6 +358,27 @@ function ApplicationsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="notes">Notes</Label>
                     <Textarea id="notes" name="notes" rows={3} />
+                  </div>
+                  <div className="space-y-3 rounded-lg border border-dashed p-4">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">Add a follow-up task</p>
+                      <p className="text-xs text-muted-foreground">
+                        Optional — kick things off with the next thing you owe this application.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="task_title">Task (optional)</Label>
+                      <Input
+                        id="task_title"
+                        name="task_title"
+                        placeholder="e.g. Send follow-up email"
+                        maxLength={200}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="task_due_date">Due date</Label>
+                      <Input id="task_due_date" name="task_due_date" type="date" />
+                    </div>
                   </div>
                   <DialogFooter>
                     <Button type="submit" className="w-full sm:w-auto" disabled={create.isPending}>
