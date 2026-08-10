@@ -68,9 +68,16 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              <span className="ml-2 max-w-[16ch] truncate text-xs text-muted-foreground lg:max-w-none">
+              <Link
+                to="/account"
+                className="ml-2 max-w-[16ch] truncate text-xs text-muted-foreground transition-colors hover:text-foreground lg:max-w-none"
+                activeProps={{
+                  className: "ml-2 max-w-[16ch] truncate text-xs text-foreground lg:max-w-none",
+                }}
+                title="Account settings"
+              >
                 {email}
-              </span>
+              </Link>
               <Button variant="ghost" size="sm" className="ml-1" onClick={handleSignOut}>
                 Sign out
               </Button>
@@ -128,6 +135,19 @@ export function Navbar() {
                       {link.label}
                     </Link>
                   ))}
+                  {signedIn && (
+                    <Link
+                      to="/account"
+                      onClick={() => setMenuOpen(false)}
+                      className="rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      activeProps={{
+                        className:
+                          "rounded-md px-3 py-2.5 text-sm bg-accent font-medium text-foreground",
+                      }}
+                    >
+                      Account
+                    </Link>
+                  )}
                   {!signedIn && (
                     <Link
                       to="/"

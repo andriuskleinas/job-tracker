@@ -90,24 +90,42 @@ export type Database = {
       };
       profiles: {
         Row: {
+          city: string | null;
+          country: string | null;
           created_at: string;
           display_name: string | null;
           email: string | null;
+          first_name: string | null;
           id: string;
+          last_name: string | null;
+          nickname: string | null;
+          time_zone: string | null;
           updated_at: string;
         };
         Insert: {
+          city?: string | null;
+          country?: string | null;
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
+          first_name?: string | null;
           id: string;
+          last_name?: string | null;
+          nickname?: string | null;
+          time_zone?: string | null;
           updated_at?: string;
         };
         Update: {
+          city?: string | null;
+          country?: string | null;
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
+          first_name?: string | null;
           id?: string;
+          last_name?: string | null;
+          nickname?: string | null;
+          time_zone?: string | null;
           updated_at?: string;
         };
         Relationships: [];
