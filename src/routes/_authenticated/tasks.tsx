@@ -20,6 +20,7 @@ import {
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { RoleMultiSelect, type RoleOption } from "@/components/RoleMultiSelect";
+import { statusColor, type Status } from "@/lib/status";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Plus, Pencil, Trash2, List, LayoutGrid } from "lucide-react";
@@ -45,12 +46,19 @@ const taskSchema = z.object({
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
+type LinkedApplication = {
+  id: string;
+  company: string;
+  position: string;
+  status: Status;
+};
+
 type TaskRow = {
   id: string;
   title: string;
   due_date: string | null;
   done: boolean;
-  task_applications: { application: RoleOption | null }[];
+  task_applications: { application: LinkedApplication | null }[];
 };
 
 type View = "list" | "grid";
@@ -85,7 +93,7 @@ function TasksPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, task_applications(application:applications(id, company, position))")
+        .select("*, task_applications(application:applications(id, company, position, status))")
         .order("done")
         .order("due_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -280,15 +288,15 @@ function TasksPage() {
 function RoleBadges({ task }: { task: TaskRow }) {
   const applications = task.task_applications
     .map((ta) => ta.application)
-    .filter((a): a is RoleOption => !!a);
+    .filter((a): a is LinkedApplication => !!a);
   if (applications.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {applications.map((app) => (
         <Link key={app.id} to="/applications/$id" params={{ id: app.id }}>
           <Badge
-            variant="secondary"
-            className="font-normal transition-colors hover:bg-secondary/80"
+            variant="outline"
+            className={`${statusColor[app.status]} font-normal transition-opacity hover:opacity-80`}
           >
             {app.position} · {app.company}
           </Badge>
