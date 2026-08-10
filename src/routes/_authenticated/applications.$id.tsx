@@ -47,7 +47,7 @@ export const Route = createFileRoute("/_authenticated/applications/$id")({
 const editSchema = z.object({
   company: z.string().trim().min(1).max(120),
   position: z.string().trim().min(1).max(120),
-  status: z.enum(STATUSES),
+  status: z.enum(STATUSES, { errorMap: () => ({ message: "Select application status" }) }),
   application_date: z.string().min(1),
   website: z.string().trim().max(255).optional().or(z.literal("")),
   notes: z.string().max(2000).optional().or(z.literal("")),
