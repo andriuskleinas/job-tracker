@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
+import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import {
   Select,
   SelectContent,
@@ -28,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { z } from "zod";
-import { STATUSES, statusColor, type Status } from "@/lib/status";
+import { STATUSES } from "@/lib/status";
 import { Plus, Upload, Download, List, LayoutGrid } from "lucide-react";
 import Papa from "papaparse";
 import { useRef } from "react";
@@ -82,10 +81,10 @@ function ApplicationsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*")
+        .select("*, task_applications(task:tasks(id, due_date, done))")
         .order("application_date", { ascending: false });
       if (error) throw error;
-      return data;
+      return data as unknown as ApplicationCardData[];
     },
   });
 
@@ -413,49 +412,13 @@ function ApplicationsPage() {
       ) : view === "list" ? (
         <div className="grid gap-3">
           {apps.map((a) => (
-            <Link key={a.id} to="/applications/$id" params={{ id: a.id }} className="block">
-              <Card className="p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{a.position}</p>
-                    <p className="truncate text-sm text-muted-foreground">{a.company}</p>
-                  </div>
-                  <Badge
-                    className={statusColor[a.status as Status] + " shrink-0 capitalize"}
-                    variant="outline"
-                  >
-                    {a.status}
-                  </Badge>
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Applied {new Date(a.application_date).toLocaleDateString()}
-                </p>
-              </Card>
-            </Link>
+            <ApplicationCard key={a.id} app={a} variant="list" />
           ))}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {apps.map((a) => (
-            <Link key={a.id} to="/applications/$id" params={{ id: a.id }} className="block h-full">
-              <Card className="flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40">
-                <div className="flex items-start justify-between gap-3">
-                  <Badge
-                    className={statusColor[a.status as Status] + " shrink-0 capitalize"}
-                    variant="outline"
-                  >
-                    {a.status}
-                  </Badge>
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{a.position}</p>
-                  <p className="truncate text-sm text-muted-foreground">{a.company}</p>
-                </div>
-                <p className="mt-auto text-xs text-muted-foreground">
-                  Applied {new Date(a.application_date).toLocaleDateString()}
-                </p>
-              </Card>
-            </Link>
+            <ApplicationCard key={a.id} app={a} variant="grid" />
           ))}
         </div>
       )}

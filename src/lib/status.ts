@@ -49,3 +49,10 @@ export const statusFill: Record<Status, string> = {
 
 /** Statuses that still represent a live opportunity. */
 export const ACTIVE_STATUSES: readonly Status[] = ["applied", "interviewing"];
+
+/**
+ * Statuses that are history, not pipeline. These recede on the board so live
+ * opportunities carry the visual weight. `offer` is deliberately excluded — it
+ * is a closed loop, but the good one, so it should stand out rather than fade.
+ */
+export const CLOSED_STATUSES: readonly Status[] = ["rejected", "withdrawn"];
