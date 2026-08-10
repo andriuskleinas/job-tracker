@@ -139,6 +139,15 @@ function RootComponent() {
   const router = useRouter();
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      // Recovery links can land on any route (they fall back to the Site URL
+      // root when the exact path isn't in Supabase's redirect allow-list), so
+      // funnel the recovery session to the page that can set a new password.
+      if (event === "PASSWORD_RECOVERY") {
+        if (router.state.location.pathname !== "/reset-password") {
+          router.navigate({ to: "/reset-password", replace: true });
+        }
+        return;
+      }
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
