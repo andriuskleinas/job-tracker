@@ -236,7 +236,7 @@ function ApplicationsPage() {
       <PageHeader
         title="Applications"
         count={isLoading ? undefined : apps.length}
-        description="Track every role you're pursuing."
+        description="Track progress towards your dream job."
         actions={
           <>
             <ToggleGroup
@@ -276,10 +276,11 @@ function ApplicationsPage() {
                   <Button variant="ghost" size="sm" onClick={downloadTemplate} type="button">
                     <Download className="h-4 w-4" /> Download template
                   </Button>
-                  <Input
+                  <input
                     ref={fileInputRef}
                     type="file"
                     accept=".csv,text/csv"
+                    className="sr-only"
                     disabled={importMut.isPending}
                     onChange={(e) => {
                       const f = e.target.files?.[0];
@@ -287,6 +288,15 @@ function ApplicationsPage() {
                       e.target.value = "";
                     }}
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    disabled={importMut.isPending}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" /> Choose CSV file
+                  </Button>
                   {importMut.isPending && (
                     <p className="text-sm text-muted-foreground">Importing…</p>
                   )}
