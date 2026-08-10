@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { RoleMultiSelect, type RoleOption } from "@/components/RoleMultiSelect";
 import { statusColor, type Status } from "@/lib/status";
+import { faviconUrl, LOGO_SIZE } from "@/lib/company-logo";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Plus, Pencil, Trash2, List, LayoutGrid } from "lucide-react";
@@ -51,6 +52,7 @@ type LinkedApplication = {
   company: string;
   position: string;
   status: Status;
+  website: string | null;
 };
 
 type TaskRow = {
@@ -93,7 +95,9 @@ function TasksPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
-        .select("*, task_applications(application:applications(id, company, position, status))")
+        .select(
+          "*, task_applications(application:applications(id, company, position, status, website))",
+        )
         .order("done")
         .order("due_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -306,6 +310,32 @@ function TasksPage() {
   );
 }
 
+/** Company logo for a role badge; falls back to the company name on a miss. */
+function RoleLogo({ company, website }: { company: string; website: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const url = faviconUrl(website);
+  if (!url || failed) {
+    return <span>{company}</span>;
+  }
+  return (
+    <img
+      src={url}
+      alt={company}
+      title={company}
+      width={16}
+      height={16}
+      loading="lazy"
+      className="h-4 w-4 shrink-0 rounded-sm object-contain"
+      onError={() => setFailed(true)}
+      onLoad={(e) => {
+        // Domains with no real favicon return a tiny generic globe — treat
+        // anything under the requested size as a miss and show the name.
+        if (e.currentTarget.naturalWidth < LOGO_SIZE) setFailed(true);
+      }}
+    />
+  );
+}
+
 function RoleBadges({ task }: { task: TaskRow }) {
   const applications = task.task_applications
     .map((ta) => ta.application)
@@ -317,9 +347,9 @@ function RoleBadges({ task }: { task: TaskRow }) {
         <Link key={app.id} to="/applications/$id" params={{ id: app.id }}>
           <Badge
             variant="outline"
-            className={`${statusColor[app.status]} font-normal transition-opacity hover:opacity-80`}
+            className={`${statusColor[app.status]} gap-1.5 font-normal transition-opacity hover:opacity-80`}
           >
-            {app.position} · {app.company}
+            {app.position} · <RoleLogo company={app.company} website={app.website} />
           </Badge>
         </Link>
       ))}
