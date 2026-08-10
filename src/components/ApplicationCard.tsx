@@ -2,9 +2,18 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, ListChecks, StickyNote, TriangleAlert } from "lucide-react";
+import {
+  Blend,
+  Building2,
+  Clock,
+  Globe,
+  ListChecks,
+  StickyNote,
+  TriangleAlert,
+} from "lucide-react";
 import { ACTIVE_STATUSES, CLOSED_STATUSES, statusColor, type Status } from "@/lib/status";
 import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
+import { flagForCountry, jobTypeMeta, type JobType } from "@/lib/job-location";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
 
 export type LinkedTask = { id: string; due_date: string | null; done: boolean };
@@ -17,6 +26,9 @@ export type ApplicationCardData = {
   application_date: string;
   notes: string | null;
   website: string | null;
+  job_type: string | null;
+  country: string | null;
+  city: string | null;
   task_applications?: { task: LinkedTask | null }[];
 };
 
@@ -88,6 +100,50 @@ function CompanyLogo({
   );
 }
 
+const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
+  remote: Globe,
+  hybrid: Blend,
+  onsite: Building2,
+};
+
+const JOB_TYPE_CHIP: Record<JobType, string> = {
+  remote: "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300",
+  hybrid: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
+  onsite: "bg-stone-200/70 text-stone-700 dark:bg-stone-800/60 dark:text-stone-300",
+};
+
+/** Job type pill + a location pill (flag · City, Country) when we have either. */
+function LocationRow({ app }: { app: ApplicationCardData }) {
+  const meta = jobTypeMeta(app.job_type);
+  const city = app.city?.trim();
+  const country = app.country?.trim();
+  const place = [city, country].filter(Boolean).join(", ");
+  if (!meta && !place) return null;
+
+  const Icon = meta ? JOB_TYPE_ICON[app.job_type as JobType] : null;
+  const flag = flagForCountry(country);
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {meta && Icon && (
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+            JOB_TYPE_CHIP[app.job_type as JobType]
+          }`}
+        >
+          <Icon className="h-3.5 w-3.5" /> {meta.short}
+        </span>
+      )}
+      {place && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {flag ? <span aria-hidden>{flag}</span> : null}
+          {place}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TaskChip({
   openCount,
   nextDue,
@@ -142,7 +198,9 @@ function CardMeta({
         <TaskChip openCount={meta.openCount} nextDue={meta.nextDue} overdue={meta.overdue} />
       )}
       {meta.hasNotes && (
-        <StickyNote className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="ml-auto flex shrink-0" title="Has notes">
+          <StickyNote className="h-3.5 w-3.5 text-muted-foreground" aria-label="Has notes" />
+        </span>
       )}
     </div>
   );
@@ -186,6 +244,7 @@ export function ApplicationCard({
             {identity}
             {badge}
           </div>
+          <LocationRow app={app} />
           <div className="mt-auto border-t pt-3">
             <CardMeta app={app} meta={meta} />
           </div>
@@ -205,7 +264,8 @@ export function ApplicationCard({
           {identity}
           {badge}
         </div>
-        <div className="mt-3">
+        <div className="mt-3 space-y-2">
+          <LocationRow app={app} />
           <CardMeta app={app} meta={meta} />
         </div>
       </Card>

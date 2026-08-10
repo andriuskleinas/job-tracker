@@ -25,9 +25,11 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { LocationFields, type LocationValue } from "@/components/LocationFields";
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
+import { JOB_TYPES } from "@/lib/job-location";
 import { Plus, Upload, Download, List, LayoutGrid } from "lucide-react";
 import Papa from "papaparse";
 import { useRef } from "react";
@@ -46,25 +48,53 @@ export const Route = createFileRoute("/_authenticated/applications/")({
   component: ApplicationsPage,
 });
 
-const appSchema = z.object({
+const appBase = z.object({
   company: z.string().trim().min(1, "Company is required").max(120),
   position: z.string().trim().min(1, "Position is required").max(120),
   status: z.enum(STATUSES, { errorMap: () => ({ message: "Select application status" }) }),
   application_date: z.string().min(1, "Date is required"),
   website: z.string().trim().max(255).optional().or(z.literal("")),
   notes: z.string().max(2000).optional().or(z.literal("")),
+  job_type: z.enum(JOB_TYPES).or(z.literal("")).optional(),
+  country: z.string().trim().max(120).optional().or(z.literal("")),
+  city: z.string().trim().max(120).optional().or(z.literal("")),
 });
+
+// On-site and hybrid roles have a physical base, so both city and country are
+// mandatory; fully remote roles leave them optional.
+const requireLocation = (val: z.infer<typeof appBase>, ctx: z.RefinementCtx) => {
+  if (val.job_type === "onsite" || val.job_type === "hybrid") {
+    if (!val.city?.trim())
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["city"],
+        message: "City is required for on-site and hybrid roles",
+      });
+    if (!val.country?.trim())
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["country"],
+        message: "Country is required for on-site and hybrid roles",
+      });
+  }
+};
+
+const appSchema = appBase.superRefine(requireLocation);
 
 // The New application dialog can also seed a first follow-up task, linked to the
 // application that gets created. Both task fields are optional.
-const appWithTaskSchema = appSchema.extend({
-  task_title: z.string().trim().max(200, "Task title must be 200 characters or fewer").optional(),
-  task_due_date: z.string().optional(),
-});
+const appWithTaskSchema = appBase
+  .extend({
+    task_title: z.string().trim().max(200, "Task title must be 200 characters or fewer").optional(),
+    task_due_date: z.string().optional(),
+  })
+  .superRefine(requireLocation);
 
 function ApplicationsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const defaultLocation: LocationValue = { job_type: "onsite", country: "", city: "" };
+  const [location, setLocation] = useState<LocationValue>(defaultLocation);
   const [importOpen, setImportOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +134,9 @@ function ApplicationsPage() {
           application_date: values.application_date,
           website: values.website || null,
           notes: values.notes || null,
+          job_type: values.job_type || null,
+          country: values.country || null,
+          city: values.city || null,
         })
         .select("id")
         .single();
@@ -146,6 +179,9 @@ function ApplicationsPage() {
           application_date: r.application_date,
           website: r.website || null,
           notes: r.notes || null,
+          job_type: r.job_type || null,
+          country: r.country || null,
+          city: r.city || null,
         })),
       );
       if (error) throw error;
@@ -176,6 +212,9 @@ function ApplicationsPage() {
             application_date: (raw.application_date ?? "").trim() || today,
             website: (raw.website ?? "").trim(),
             notes: (raw.notes ?? "").trim(),
+            job_type: (raw.job_type ?? "").trim().toLowerCase(),
+            country: (raw.country ?? "").trim(),
+            city: (raw.city ?? "").trim(),
           });
           if (parsed.success) valid.push(parsed.data);
           else
@@ -225,6 +264,9 @@ function ApplicationsPage() {
       application_date: fd.get("application_date"),
       website: fd.get("website"),
       notes: fd.get("notes"),
+      job_type: location.job_type,
+      country: location.country,
+      city: location.city,
       task_title: fd.get("task_title"),
       task_due_date: fd.get("task_due_date"),
     });
@@ -322,7 +364,13 @@ function ApplicationsPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog
+              open={open}
+              onOpenChange={(v) => {
+                setOpen(v);
+                if (v) setLocation(defaultLocation);
+              }}
+            >
               <DialogTrigger asChild>
                 <Button className="w-full sm:w-auto">
                   <Plus className="h-4 w-4" /> New application
@@ -383,6 +431,7 @@ function ApplicationsPage() {
                       Used to show the company logo on the board.
                     </p>
                   </div>
+                  <LocationFields value={location} onChange={setLocation} />
                   <div className="space-y-2">
                     <Label htmlFor="notes">Notes</Label>
                     <Textarea id="notes" name="notes" rows={3} />

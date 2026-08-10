@@ -27,9 +27,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { LocationFields, type LocationValue } from "@/components/LocationFields";
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
+import { JOB_TYPES } from "@/lib/job-location";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/applications/$id")({
@@ -44,14 +46,35 @@ export const Route = createFileRoute("/_authenticated/applications/$id")({
   component: AppDetail,
 });
 
-const editSchema = z.object({
-  company: z.string().trim().min(1).max(120),
-  position: z.string().trim().min(1).max(120),
-  status: z.enum(STATUSES, { errorMap: () => ({ message: "Select application status" }) }),
-  application_date: z.string().min(1),
-  website: z.string().trim().max(255).optional().or(z.literal("")),
-  notes: z.string().max(2000).optional().or(z.literal("")),
-});
+const editSchema = z
+  .object({
+    company: z.string().trim().min(1).max(120),
+    position: z.string().trim().min(1).max(120),
+    status: z.enum(STATUSES, { errorMap: () => ({ message: "Select application status" }) }),
+    application_date: z.string().min(1),
+    website: z.string().trim().max(255).optional().or(z.literal("")),
+    notes: z.string().max(2000).optional().or(z.literal("")),
+    job_type: z.enum(JOB_TYPES).or(z.literal("")).optional(),
+    country: z.string().trim().max(120).optional().or(z.literal("")),
+    city: z.string().trim().max(120).optional().or(z.literal("")),
+  })
+  // On-site and hybrid roles need a physical base; remote leaves it optional.
+  .superRefine((val, ctx) => {
+    if (val.job_type === "onsite" || val.job_type === "hybrid") {
+      if (!val.city?.trim())
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["city"],
+          message: "City is required for on-site and hybrid roles",
+        });
+      if (!val.country?.trim())
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["country"],
+          message: "Country is required for on-site and hybrid roles",
+        });
+    }
+  });
 
 function AppDetail() {
   const { id } = Route.useParams();
@@ -104,6 +127,9 @@ function AppDetail() {
     application_date: "",
     website: "",
     notes: "",
+    job_type: "" as LocationValue["job_type"],
+    country: "",
+    city: "",
   });
 
   useEffect(() => {
@@ -115,6 +141,9 @@ function AppDetail() {
         application_date: app.application_date,
         website: app.website ?? "",
         notes: app.notes ?? "",
+        job_type: (app.job_type ?? "") as LocationValue["job_type"],
+        country: app.country ?? "",
+        city: app.city ?? "",
       });
     }
   }, [app]);
@@ -123,7 +152,14 @@ function AppDetail() {
     mutationFn: async (values: z.infer<typeof editSchema>) => {
       const { error } = await supabase
         .from("applications")
-        .update({ ...values, website: values.website || null, notes: values.notes || null })
+        .update({
+          ...values,
+          website: values.website || null,
+          notes: values.notes || null,
+          job_type: values.job_type || null,
+          country: values.country || null,
+          city: values.city || null,
+        })
         .eq("id", id);
       if (error) throw error;
     },
@@ -315,6 +351,10 @@ function AppDetail() {
                 Used to show the company logo on the board.
               </p>
             </div>
+            <LocationFields
+              value={{ job_type: form.job_type, country: form.country, city: form.city }}
+              onChange={(v) => setForm({ ...form, ...v })}
+            />
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
               <Textarea

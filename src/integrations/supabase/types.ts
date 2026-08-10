@@ -43,9 +43,12 @@ export type Database = {
       applications: {
         Row: {
           application_date: string;
+          city: string | null;
           company: string;
+          country: string | null;
           created_at: string;
           id: string;
+          job_type: string | null;
           notes: string | null;
           position: string;
           status: Database["public"]["Enums"]["application_status"];
@@ -55,9 +58,12 @@ export type Database = {
         };
         Insert: {
           application_date?: string;
+          city?: string | null;
           company: string;
+          country?: string | null;
           created_at?: string;
           id?: string;
+          job_type?: string | null;
           notes?: string | null;
           position: string;
           status?: Database["public"]["Enums"]["application_status"];
@@ -67,9 +73,12 @@ export type Database = {
         };
         Update: {
           application_date?: string;
+          city?: string | null;
           company?: string;
+          country?: string | null;
           created_at?: string;
           id?: string;
+          job_type?: string | null;
           notes?: string | null;
           position?: string;
           status?: Database["public"]["Enums"]["application_status"];
