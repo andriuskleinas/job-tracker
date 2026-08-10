@@ -235,6 +235,7 @@ function ApplicationsPage() {
     <main className="container-page page-body">
       <PageHeader
         title="Applications"
+        count={isLoading ? undefined : apps.length}
         description="Track every role you're pursuing."
         actions={
           <>
