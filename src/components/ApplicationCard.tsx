@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Blend,
   Building2,
@@ -198,9 +199,16 @@ function CardMeta({
         <TaskChip openCount={meta.openCount} nextDue={meta.nextDue} overdue={meta.overdue} />
       )}
       {meta.hasNotes && (
-        <span className="ml-auto flex shrink-0" title="Has notes">
-          <StickyNote className="h-3.5 w-3.5 text-muted-foreground" aria-label="Has notes" />
-        </span>
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="ml-auto flex shrink-0" aria-label="Has notes">
+                <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Has notes</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );
