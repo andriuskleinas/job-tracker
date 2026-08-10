@@ -21,7 +21,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { RoleMultiSelect, type RoleOption } from "@/components/RoleMultiSelect";
 import { statusColor, type Status } from "@/lib/status";
-import { faviconUrl, LOGO_SIZE } from "@/lib/company-logo";
+import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Plus, Pencil, Trash2, List, LayoutGrid } from "lucide-react";
@@ -328,9 +328,9 @@ function RoleLogo({ company, website }: { company: string; website: string | nul
       className="h-4 w-4 shrink-0 rounded-sm object-contain"
       onError={() => setFailed(true)}
       onLoad={(e) => {
-        // Domains with no real favicon return a tiny generic globe — treat
-        // anything under the requested size as a miss and show the name.
-        if (e.currentTarget.naturalWidth < LOGO_SIZE) setFailed(true);
+        // Domains with no real favicon return a 16px generic globe — treat only
+        // that (not a smaller-but-real mark) as a miss and show the name.
+        if (e.currentTarget.naturalWidth <= GENERIC_FAVICON_SIZE) setFailed(true);
       }}
     />
   );

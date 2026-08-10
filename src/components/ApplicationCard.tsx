@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ListChecks, StickyNote, TriangleAlert } from "lucide-react";
 import { ACTIVE_STATUSES, CLOSED_STATUSES, statusColor, type Status } from "@/lib/status";
-import { faviconUrl, LOGO_SIZE } from "@/lib/company-logo";
+import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
 
 export type LinkedTask = { id: string; due_date: string | null; done: boolean };
@@ -76,9 +76,9 @@ function CompanyLogo({
           className="h-full w-full object-contain p-1"
           onError={() => setFailed(true)}
           onLoad={(e) => {
-            // A domain with no real favicon comes back as a tiny generic globe —
-            // treat anything under the requested size as a miss.
-            if (e.currentTarget.naturalWidth < LOGO_SIZE) setFailed(true);
+            // A domain with no real favicon comes back as a 16px generic globe —
+            // treat only that (not a smaller-but-real mark) as a miss.
+            if (e.currentTarget.naturalWidth <= GENERIC_FAVICON_SIZE) setFailed(true);
           }}
         />
       ) : (
