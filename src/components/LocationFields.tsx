@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useState } from "react";
 import { Building2, Blend, Check, ChevronsUpDown, Globe, MapPin } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -117,28 +118,30 @@ export function LocationFields({
   );
 }
 
-function TriggerButton({
-  children,
-  placeholder,
-  filled,
-}: {
-  children: React.ReactNode;
-  placeholder: string;
-  filled: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="combobox"
-      className="flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-    >
-      <span className={cn("flex min-w-0 items-center gap-1.5", !filled && "text-muted-foreground")}>
-        {children ?? placeholder}
-      </span>
-      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-    </button>
-  );
-}
+// forwardRef + prop spread so PopoverTrigger's asChild Slot can wire its click
+// handler, ref, and aria attributes onto the real button — without this the
+// trigger renders but never opens.
+const TriggerButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<"button"> & { placeholder: string; filled: boolean }
+>(({ children, placeholder, filled, className, ...props }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    role="combobox"
+    className={cn(
+      "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+      className,
+    )}
+    {...props}
+  >
+    <span className={cn("flex min-w-0 items-center gap-1.5", !filled && "text-muted-foreground")}>
+      {children ?? placeholder}
+    </span>
+    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+  </button>
+));
+TriggerButton.displayName = "TriggerButton";
 
 function CityCombobox({
   value,
