@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Combobox } from "@/components/Combobox";
 import { COUNTRIES, CITIES, flagEmoji, flagForCountry } from "@/lib/job-location";
+import { fetchProfile } from "@/lib/profile";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Clock, LocateFixed, MapPin } from "lucide-react";
@@ -44,6 +45,8 @@ const profileSchema = z.object({
   city: z.string().trim().max(120),
   time_zone: z.string().trim().max(64),
 });
+
+const emailSchema = z.string().trim().email("Enter a valid email").max(255);
 
 const pwSchema = z
   .object({
@@ -85,19 +88,7 @@ function AccountPage() {
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile"],
-    queryFn: async () => {
-      const { data: userData, error: userErr } = await supabase.auth.getUser();
-      if (userErr) throw userErr;
-      const uid = userData.user?.id;
-      if (!uid) throw new Error("Not signed in");
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", uid)
-        .maybeSingle();
-      if (error) throw error;
-      return { ...data, email: data?.email ?? userData.user?.email ?? null, id: uid };
-    },
+    queryFn: fetchProfile,
   });
 
   const [form, setForm] = useState({
@@ -108,6 +99,7 @@ function AccountPage() {
     city: "",
     time_zone: "",
   });
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
     if (profile) {
@@ -119,6 +111,7 @@ function AccountPage() {
         city: profile.city ?? "",
         time_zone: profile.time_zone ?? "",
       });
+      setEmail(profile.email ?? "");
     }
   }, [profile]);
 
@@ -145,6 +138,17 @@ function AccountPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),
   });
 
+  const changeEmail = useMutation({
+    mutationFn: async (newEmail: string) => {
+      const { error } = await supabase.auth.updateUser({ email: newEmail });
+      if (error) throw error;
+      return newEmail;
+    },
+    onSuccess: (newEmail) =>
+      toast.success(`Confirmation sent to ${newEmail}. Click the link there to finish the change.`),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Could not update email"),
+  });
+
   const changePassword = useMutation({
     mutationFn: async (password: string) => {
       const { error } = await supabase.auth.updateUser({ password });
@@ -162,6 +166,20 @@ function AccountPage() {
       return;
     }
     saveProfile.mutate(parsed.data);
+  };
+
+  const onChangeEmail = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = emailSchema.safeParse(email);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    if (parsed.data.toLowerCase() === (profile?.email ?? "").toLowerCase()) {
+      toast.error("That's already your email");
+      return;
+    }
+    changeEmail.mutate(parsed.data);
   };
 
   const onChangePassword = (e: React.FormEvent<HTMLFormElement>) => {
@@ -302,6 +320,37 @@ function AccountPage() {
             <div className="flex justify-end pt-2">
               <Button type="submit" disabled={saveProfile.isPending}>
                 {saveProfile.isPending ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="text-base">Email address</CardTitle>
+          <CardDescription>
+            Used to sign in. Changing it sends a confirmation link to the new address — the change
+            takes effect once you click it.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onChangeEmail} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button type="submit" disabled={changeEmail.isPending}>
+                {changeEmail.isPending ? "Sending…" : "Update email"}
               </Button>
             </div>
           </form>

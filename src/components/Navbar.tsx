@@ -1,18 +1,26 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Logo } from "@/components/Logo";
-import { Menu } from "lucide-react";
+import { fetchProfile, accountDisplayName, accountInitials } from "@/lib/profile";
+import { LogOut, Menu, Settings } from "lucide-react";
 
 /** Single source of truth for the portal nav — desktop bar and mobile sheet. */
 const appLinks = [
   { label: "Dashboard", to: "/dashboard" },
   { label: "Applications", to: "/applications" },
   { label: "Tasks", to: "/tasks" },
-  { label: "Account", to: "/account" },
 ] as const;
 
 const linkBase =
@@ -21,23 +29,30 @@ const linkActive = "rounded-md px-3 py-1.5 text-sm bg-accent font-medium text-fo
 
 export function Navbar() {
   const [signedIn, setSignedIn] = useState(false);
-  const [email, setEmail] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const router = useRouter();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSignedIn(!!data.session);
-      setEmail(data.session?.user.email ?? null);
-    });
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       setSignedIn(!!session);
-      setEmail(session?.user.email ?? null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Name/nickname/email for the avatar — shared cache with the account page.
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: fetchProfile,
+    enabled: signedIn,
+    staleTime: 60_000,
+  });
+
+  const displayName = accountDisplayName(profile);
+  const initials = accountInitials(profile);
+  const email = profile?.email ?? null;
 
   const handleSignOut = async () => {
     setMenuOpen(false);
@@ -69,12 +84,35 @@ export function Navbar() {
                   {link.label}
                 </Link>
               ))}
-              <span className="ml-2 max-w-[16ch] truncate text-xs text-muted-foreground lg:max-w-none">
-                {email}
-              </span>
-              <Button variant="ghost" size="sm" className="ml-1" onClick={handleSignOut}>
-                Sign out
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="ml-2 flex items-center rounded-full outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    aria-label="Account menu"
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-foreground text-xs font-medium text-background">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5">
+                    <p className="truncate text-sm font-medium">{displayName}</p>
+                    {email && <p className="truncate text-xs text-muted-foreground">{email}</p>}
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/account">
+                      <Settings className="h-4 w-4" /> Account settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="h-4 w-4" /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <>
@@ -108,9 +146,20 @@ export function Navbar() {
               <SheetTitle className="sr-only">Menu</SheetTitle>
               <div className="flex h-full flex-col">
                 <div className="border-b px-5 py-4">
-                  <Logo />
-                  {signedIn && email && (
-                    <p className="mt-3 truncate text-xs text-muted-foreground">{email}</p>
+                  {signedIn ? (
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9">
+                        <AvatarFallback className="bg-foreground text-xs font-medium text-background">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{displayName}</p>
+                        {email && <p className="truncate text-xs text-muted-foreground">{email}</p>}
+                      </div>
+                    </div>
+                  ) : (
+                    <Logo />
                   )}
                 </div>
 
@@ -129,6 +178,19 @@ export function Navbar() {
                       {link.label}
                     </Link>
                   ))}
+                  {signedIn && (
+                    <Link
+                      to="/account"
+                      onClick={() => setMenuOpen(false)}
+                      className="rounded-md px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                      activeProps={{
+                        className:
+                          "rounded-md px-3 py-2.5 text-sm bg-accent font-medium text-foreground",
+                      }}
+                    >
+                      Account
+                    </Link>
+                  )}
                   {!signedIn && (
                     <Link
                       to="/"
