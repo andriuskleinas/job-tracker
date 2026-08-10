@@ -51,6 +51,7 @@ const appSchema = z.object({
   position: z.string().trim().min(1, "Position is required").max(120),
   status: z.enum(STATUSES),
   application_date: z.string().min(1, "Date is required"),
+  website: z.string().trim().max(255).optional().or(z.literal("")),
   notes: z.string().max(2000).optional().or(z.literal("")),
 });
 
@@ -101,6 +102,7 @@ function ApplicationsPage() {
           position: values.position,
           status: values.status,
           application_date: values.application_date,
+          website: values.website || null,
           notes: values.notes || null,
         })
         .select("id")
@@ -142,6 +144,7 @@ function ApplicationsPage() {
           position: r.position,
           status: r.status,
           application_date: r.application_date,
+          website: r.website || null,
           notes: r.notes || null,
         })),
       );
@@ -171,6 +174,7 @@ function ApplicationsPage() {
             position: (raw.position ?? "").trim(),
             status: (raw.status ?? "").trim().toLowerCase() || "applied",
             application_date: (raw.application_date ?? "").trim() || today,
+            website: (raw.website ?? "").trim(),
             notes: (raw.notes ?? "").trim(),
           });
           if (parsed.success) valid.push(parsed.data);
@@ -199,9 +203,9 @@ function ApplicationsPage() {
 
   const downloadTemplate = () => {
     const csv =
-      "company,position,status,application_date,notes\n" +
-      "Acme Inc,Frontend Engineer,applied,2026-07-01,Referred by Alice\n" +
-      "Globex,Product Designer,interviewing,2026-07-15,\n";
+      "company,position,status,application_date,website,notes\n" +
+      "Acme Inc,Frontend Engineer,applied,2026-07-01,https://acme.com,Referred by Alice\n" +
+      "Globex,Product Designer,interviewing,2026-07-15,globex.com,\n";
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -219,6 +223,7 @@ function ApplicationsPage() {
       position: fd.get("position"),
       status: fd.get("status"),
       application_date: fd.get("application_date"),
+      website: fd.get("website"),
       notes: fd.get("notes"),
       task_title: fd.get("task_title"),
       task_due_date: fd.get("task_due_date"),
@@ -364,6 +369,19 @@ function ApplicationsPage() {
                         required
                       />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Company website</Label>
+                    <Input
+                      id="website"
+                      name="website"
+                      type="url"
+                      inputMode="url"
+                      placeholder="acme.com"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Used to show the company logo on the board.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="notes">Notes</Label>

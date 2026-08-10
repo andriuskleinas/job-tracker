@@ -49,6 +49,7 @@ const editSchema = z.object({
   position: z.string().trim().min(1).max(120),
   status: z.enum(STATUSES),
   application_date: z.string().min(1),
+  website: z.string().trim().max(255).optional().or(z.literal("")),
   notes: z.string().max(2000).optional().or(z.literal("")),
 });
 
@@ -101,6 +102,7 @@ function AppDetail() {
     position: "",
     status: "applied" as (typeof STATUSES)[number],
     application_date: "",
+    website: "",
     notes: "",
   });
 
@@ -111,6 +113,7 @@ function AppDetail() {
         position: app.position,
         status: app.status,
         application_date: app.application_date,
+        website: app.website ?? "",
         notes: app.notes ?? "",
       });
     }
@@ -120,7 +123,7 @@ function AppDetail() {
     mutationFn: async (values: z.infer<typeof editSchema>) => {
       const { error } = await supabase
         .from("applications")
-        .update({ ...values, notes: values.notes || null })
+        .update({ ...values, website: values.website || null, notes: values.notes || null })
         .eq("id", id);
       if (error) throw error;
     },
@@ -296,6 +299,20 @@ function AppDetail() {
                   required
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="website">Company website</Label>
+              <Input
+                id="website"
+                type="url"
+                inputMode="url"
+                placeholder="acme.com"
+                value={form.website}
+                onChange={(e) => setForm({ ...form, website: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Used to show the company logo on the board.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>

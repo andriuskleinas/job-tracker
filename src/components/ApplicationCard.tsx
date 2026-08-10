@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, ListChecks, StickyNote, TriangleAlert } from "lucide-react";
 import { ACTIVE_STATUSES, CLOSED_STATUSES, statusColor, type Status } from "@/lib/status";
+import { faviconUrl, LOGO_SIZE } from "@/lib/company-logo";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
 
 export type LinkedTask = { id: string; due_date: string | null; done: boolean };
@@ -14,6 +16,7 @@ export type ApplicationCardData = {
   status: Status;
   application_date: string;
   notes: string | null;
+  website: string | null;
   task_applications?: { task: LinkedTask | null }[];
 };
 
@@ -43,15 +46,44 @@ function deriveMeta(app: ApplicationCardData) {
   };
 }
 
-function CompanyLogo({ company, dim }: { company: string; dim?: boolean }) {
+function CompanyLogo({
+  company,
+  website,
+  dim,
+}: {
+  company: string;
+  website: string | null;
+  dim?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const url = faviconUrl(website);
+  const showImg = !!url && !failed;
   const initial = company.trim().charAt(0).toUpperCase() || "?";
+
   return (
     <div
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted text-sm font-medium ${
-        dim ? "text-muted-foreground" : "text-foreground/70"
-      }`}
+      className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border text-sm font-medium ${
+        showImg ? "bg-white" : "bg-muted"
+      } ${dim ? "text-muted-foreground" : "text-foreground/70"}`}
     >
-      {initial}
+      {showImg ? (
+        <img
+          src={url}
+          alt=""
+          width={36}
+          height={36}
+          loading="lazy"
+          className="h-full w-full object-contain p-1"
+          onError={() => setFailed(true)}
+          onLoad={(e) => {
+            // A domain with no real favicon comes back as a tiny generic globe —
+            // treat anything under the requested size as a miss.
+            if (e.currentTarget.naturalWidth < LOGO_SIZE) setFailed(true);
+          }}
+        />
+      ) : (
+        initial
+      )}
     </div>
   );
 }
@@ -128,7 +160,7 @@ export function ApplicationCard({
 
   const identity = (
     <div className="flex min-w-0 items-center gap-3">
-      <CompanyLogo company={app.company} dim={meta.isClosed} />
+      <CompanyLogo company={app.company} website={app.website} dim={meta.isClosed} />
       <div className="min-w-0">
         <p className={`truncate font-medium ${dimTitle}`}>{app.position}</p>
         <p className="truncate text-sm text-muted-foreground">{app.company}</p>
