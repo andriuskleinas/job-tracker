@@ -184,6 +184,46 @@ function TasksPage() {
     },
   });
 
+  const ongoing = tasks.filter((t) => !t.done);
+  const completed = tasks.filter((t) => t.done);
+
+  const renderSection = (title: string, items: TaskRow[]) => {
+    if (items.length === 0) return null;
+    return (
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
+          <span className="text-xs text-muted-foreground">{items.length}</span>
+        </div>
+        {view === "list" ? (
+          <Card className="divide-y">
+            {items.map((t) => (
+              <TaskListRow
+                key={t.id}
+                task={t}
+                onToggle={(done) => toggle.mutate({ tid: t.id, done })}
+                onEdit={() => setEditingTask(t)}
+                onDelete={() => remove.mutate(t.id)}
+              />
+            ))}
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((t) => (
+              <TaskGridCard
+                key={t.id}
+                task={t}
+                onToggle={(done) => toggle.mutate({ tid: t.id, done })}
+                onEdit={() => setEditingTask(t)}
+                onDelete={() => remove.mutate(t.id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  };
+
   return (
     <main className="container-narrow page-body">
       <PageHeader
@@ -256,29 +296,10 @@ function TasksPage() {
           title="No tasks yet"
           body="Add a follow-up yourself, or open an application and add one there — either way it'll show up here."
         />
-      ) : view === "list" ? (
-        <Card className="divide-y">
-          {tasks.map((t) => (
-            <TaskListRow
-              key={t.id}
-              task={t}
-              onToggle={(done) => toggle.mutate({ tid: t.id, done })}
-              onEdit={() => setEditingTask(t)}
-              onDelete={() => remove.mutate(t.id)}
-            />
-          ))}
-        </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {tasks.map((t) => (
-            <TaskGridCard
-              key={t.id}
-              task={t}
-              onToggle={(done) => toggle.mutate({ tid: t.id, done })}
-              onEdit={() => setEditingTask(t)}
-              onDelete={() => remove.mutate(t.id)}
-            />
-          ))}
+        <div className="space-y-8">
+          {renderSection("Ongoing", ongoing)}
+          {renderSection("Completed", completed)}
         </div>
       )}
     </main>
