@@ -200,17 +200,26 @@ function JobTypeFilter({
   );
 }
 
-/** One filter control plus, in the stacked mobile sheet, a small label above it. */
+/**
+ * One filter control plus, in the stacked mobile sheet, a small label above it.
+ *
+ * `desktopWidth` sizes the inline (non-stacked) wrapper: comboboxes need a
+ * stable width so they don't jump when a long value is picked; the hug-content
+ * pills pass "" so their wrapper shrinks to the pill and no empty space is left
+ * masquerading as a gap. In the sheet every control is full width regardless.
+ */
 function Field({
   label,
   stacked,
+  desktopWidth = "sm:w-52",
   children,
 }: {
   label: string;
   stacked: boolean;
+  desktopWidth?: string;
   children: ReactNode;
 }) {
-  if (!stacked) return <div className="sm:w-52">{children}</div>;
+  if (!stacked) return <div className={desktopWidth || undefined}>{children}</div>;
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
@@ -280,7 +289,7 @@ export function ApplicationFilters({
   // row and the mobile sheet. `stacked` switches to full-width labelled fields.
   const fields = (stacked: boolean) => (
     <>
-      <Field label="Status" stacked={stacked}>
+      <Field label="Status" stacked={stacked} desktopWidth="">
         <StatusFilter
           value={value.status}
           onChange={(status) => onChange({ status })}
@@ -289,7 +298,7 @@ export function ApplicationFilters({
       </Field>
 
       {hasJobTypes && (
-        <Field label="Job type" stacked={stacked}>
+        <Field label="Job type" stacked={stacked} desktopWidth="">
           <JobTypeFilter
             options={jobTypeOptions}
             value={value.jobType}
