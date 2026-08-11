@@ -92,9 +92,10 @@ function dueBucket(due: string | null): Bucket {
 /**
  * Due date shown relative for open tasks ("2d overdue"), absolute once done.
  *
- * Anything owed now or imminently gets a filled pill with an icon so it reads
- * as a warning at a glance — red once overdue, amber for today/tomorrow. Tasks
- * further out stay plain muted text: only what needs attention should shout.
+ * Anything owed this week gets a filled pill with an icon so it reads as a
+ * warning at a glance — red once overdue, amber for the days ahead — matching
+ * the tone of its section. Tasks further out stay plain muted text: only what
+ * needs attention soon should shout.
  */
 function DueLabel({ due, done }: { due: string; done: boolean }) {
   const absolute = new Date(due).toLocaleDateString();
@@ -104,9 +105,9 @@ function DueLabel({ due, done }: { due: string; done: boolean }) {
 
   const past = daysAgo(due); // positive = overdue
   const overdue = past > 0;
-  const imminent = past >= -1; // today or tomorrow
+  const thisWeek = past >= -7; // due within the next 7 days
 
-  if (overdue || imminent) {
+  if (overdue || thisWeek) {
     const tone = overdue
       ? "bg-[var(--status-rejected-soft)] text-[var(--status-rejected-text)]"
       : "bg-[var(--status-interviewing-soft)] text-[var(--status-interviewing-text)]";
