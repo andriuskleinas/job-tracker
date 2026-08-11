@@ -345,6 +345,11 @@ function TasksPage() {
         }
       />
 
+      <QuickAdd
+        isPending={create.isPending}
+        onAdd={(title) => create.mutate({ title, due_date: "", done: false, roleIds: [] })}
+      />
+
       <Dialog open={!!editingTask} onOpenChange={(v) => !v && setEditingTask(null)}>
         <DialogContent>
           <DialogHeader>
@@ -385,6 +390,42 @@ function TasksPage() {
         </div>
       )}
     </main>
+  );
+}
+
+/**
+ * Always-visible capture bar. Logging a follow-up should be a two-second act,
+ * not a dialog: type a title, press Enter, keep going. The input clears
+ * immediately so several tasks can be jotted in a row; due dates and linked
+ * roles are added later via the row's edit action or the full "New task" form.
+ */
+function QuickAdd({ isPending, onAdd }: { isPending: boolean; onAdd: (title: string) => void }) {
+  const [title, setTitle] = useState("");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+    setTitle("");
+  };
+
+  return (
+    <form onSubmit={submit} className="mb-6 flex items-center gap-2">
+      <div className="relative flex-1">
+        <Plus className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Add a task and press Enter…"
+          aria-label="Quick add a task"
+          className="pl-9"
+        />
+      </div>
+      <Button type="submit" variant="secondary" disabled={isPending || !title.trim()}>
+        Add
+      </Button>
+    </form>
   );
 }
 
