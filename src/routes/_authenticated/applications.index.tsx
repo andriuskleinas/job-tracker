@@ -168,7 +168,7 @@ function ApplicationsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("applications")
-        .select("*, task_applications(task:tasks(id, due_date, done))")
+        .select("*, task_applications(task:tasks(id, due_date, done, priority))")
         .order("application_date", { ascending: false });
       if (error) throw error;
       return data as unknown as ApplicationCardData[];

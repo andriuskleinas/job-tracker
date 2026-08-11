@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Briefcase, CalendarClock, X } from "lucide-react";
+import { Briefcase, CalendarClock, Star, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -199,6 +199,25 @@ export function TaskFilters({
       )}
 
       <DueFilter value={value.due} onChange={(due) => onChange({ due })} />
+
+      <Button
+        variant="outline"
+        onClick={() => onChange({ highPriorityOnly: !value.highPriorityOnly })}
+        aria-pressed={value.highPriorityOnly}
+        className={cn("h-9 gap-2 font-normal", value.highPriorityOnly && "border-brand/50")}
+      >
+        <Star
+          className={cn(
+            "h-4 w-4",
+            value.highPriorityOnly
+              ? "fill-[var(--status-interviewing-text)] text-[var(--status-interviewing-text)]"
+              : "text-muted-foreground",
+          )}
+        />
+        <span className={cn(!value.highPriorityOnly && "text-muted-foreground")}>
+          High priority
+        </span>
+      </Button>
 
       <Button
         variant="outline"

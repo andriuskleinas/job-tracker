@@ -32,7 +32,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
 import { JOB_TYPES } from "@/lib/job-location";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Star, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/applications/$id")({
   head: () => ({
@@ -76,6 +76,14 @@ const editSchema = z
     }
   });
 
+type DetailTask = {
+  id: string;
+  title: string;
+  due_date: string | null;
+  done: boolean;
+  priority: boolean;
+};
+
 function AppDetail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
@@ -103,15 +111,15 @@ function AppDetail() {
         .eq("application_id", id);
       if (error) throw error;
       const rows = (data ?? []) as unknown as {
-        task: { id: string; title: string; due_date: string | null; done: boolean } | null;
+        task: DetailTask | null;
       }[];
       return rows
         .map((r) => r.task)
-        .filter(
-          (t): t is { id: string; title: string; due_date: string | null; done: boolean } => !!t,
-        )
+        .filter((t): t is DetailTask => !!t)
         .sort((a, b) => {
           if (a.done !== b.done) return a.done ? 1 : -1;
+          // Open, high-priority tasks surface first; due date breaks the rest.
+          if (!a.done && a.priority !== b.priority) return a.priority ? -1 : 1;
           if (!a.due_date && !b.due_date) return 0;
           if (!a.due_date) return 1;
           if (!b.due_date) return -1;
@@ -208,6 +216,14 @@ function AppDetail() {
   const toggleTask = useMutation({
     mutationFn: async ({ tid, done }: { tid: string; done: boolean }) => {
       const { error } = await supabase.from("tasks").update({ done }).eq("id", tid);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+
+  const togglePriority = useMutation({
+    mutationFn: async ({ tid, priority }: { tid: string; priority: boolean }) => {
+      const { error } = await supabase.from("tasks").update({ priority }).eq("id", tid);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
@@ -435,6 +451,22 @@ function AppDetail() {
                       </p>
                     )}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={
+                      t.priority
+                        ? "shrink-0 text-[var(--status-interviewing-text)] hover:text-[var(--status-interviewing-text)]"
+                        : "shrink-0 text-muted-foreground hover:text-foreground"
+                    }
+                    aria-label={
+                      t.priority ? `Remove priority: ${t.title}` : `Mark high priority: ${t.title}`
+                    }
+                    aria-pressed={t.priority}
+                    onClick={() => togglePriority.mutate({ tid: t.id, priority: !t.priority })}
+                  >
+                    <Star className={`h-4 w-4 ${t.priority ? "fill-current" : ""}`} />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"

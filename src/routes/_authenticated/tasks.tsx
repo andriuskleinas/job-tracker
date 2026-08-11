@@ -35,7 +35,7 @@ import {
 import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Pencil, Trash2, List, LayoutGrid, AlertTriangle, Clock } from "lucide-react";
+import { Pencil, Trash2, List, LayoutGrid, AlertTriangle, Clock, Star } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({
@@ -53,6 +53,7 @@ const taskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   due_date: z.string().optional().or(z.literal("")),
   done: z.boolean(),
+  priority: z.boolean(),
   roleIds: z.array(z.string()),
 });
 
@@ -71,6 +72,7 @@ type TaskRow = {
   title: string;
   due_date: string | null;
   done: boolean;
+  priority: boolean;
   task_applications: { application: LinkedApplication | null }[];
 };
 
@@ -184,6 +186,7 @@ function TasksPage() {
           user_id: userData.user.id,
           title: values.title,
           due_date: values.due_date || null,
+          priority: values.priority,
         })
         .select("id")
         .single();
@@ -212,6 +215,7 @@ function TasksPage() {
           title: values.title,
           due_date: values.due_date || null,
           done: values.done,
+          priority: values.priority,
         })
         .eq("id", id);
       if (error) throw error;
@@ -245,6 +249,14 @@ function TasksPage() {
     onSuccess: invalidate,
   });
 
+  const togglePriority = useMutation({
+    mutationFn: async ({ tid, priority }: { tid: string; priority: boolean }) => {
+      const { error } = await supabase.from("tasks").update({ priority }).eq("id", tid);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
   const remove = useMutation({
     mutationFn: async (tid: string) => {
       const { error } = await supabase.from("tasks").delete().eq("id", tid);
@@ -266,6 +278,12 @@ function TasksPage() {
     },
     { overdue: [], today: [], week: [], later: [], nodate: [] },
   );
+  // Urgency stays primary (time is the point), but within each window a starred
+  // task rises above routine ones. Stable sort keeps the due-date order intact
+  // among tasks of equal priority.
+  for (const key of DUE_WINDOW_ORDER) {
+    byBucket[key].sort((a, b) => Number(b.priority) - Number(a.priority));
+  }
 
   const renderSection = (title: string, items: TaskRow[], danger = false) => {
     if (items.length === 0) return null;
@@ -286,6 +304,7 @@ function TasksPage() {
                 key={t.id}
                 task={t}
                 onToggle={(done) => toggle.mutate({ tid: t.id, done })}
+                onTogglePriority={(priority) => togglePriority.mutate({ tid: t.id, priority })}
                 onEdit={() => setEditingTask(t)}
                 onDelete={() => remove.mutate(t.id)}
               />
@@ -298,6 +317,7 @@ function TasksPage() {
                 key={t.id}
                 task={t}
                 onToggle={(done) => toggle.mutate({ tid: t.id, done })}
+                onTogglePriority={(priority) => togglePriority.mutate({ tid: t.id, priority })}
                 onEdit={() => setEditingTask(t)}
                 onDelete={() => remove.mutate(t.id)}
               />
@@ -350,7 +370,13 @@ function TasksPage() {
           <TaskForm
             roles={roles}
             isPending={create.isPending}
-            initialValues={{ title: draftTitle, due_date: "", done: false, roleIds: [] }}
+            initialValues={{
+              title: draftTitle,
+              due_date: "",
+              done: false,
+              priority: false,
+              roleIds: [],
+            }}
             onSubmit={(values) => create.mutate(values)}
           />
         </DialogContent>
@@ -369,6 +395,7 @@ function TasksPage() {
                 title: editingTask.title,
                 due_date: editingTask.due_date ?? "",
                 done: editingTask.done,
+                priority: editingTask.priority,
                 roleIds: editingTask.task_applications
                   .map((ta) => ta.application?.id)
                   .filter((id): id is string => !!id),
@@ -500,14 +527,43 @@ function RoleBadges({ task }: { task: TaskRow }) {
   );
 }
 
+/**
+ * Priority star: outline when normal, filled amber when high. The one control
+ * that says "this matters more than the routine follow-ups" — one click, no
+ * menu. Reuses the amber token so a starred task and the "This week" pill speak
+ * the same colour language.
+ */
+function StarButton({ task, onToggle }: { task: TaskRow; onToggle: (priority: boolean) => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={
+        task.priority
+          ? "text-[var(--status-interviewing-text)] hover:text-[var(--status-interviewing-text)]"
+          : "text-muted-foreground hover:text-foreground"
+      }
+      aria-label={
+        task.priority ? `Remove priority: ${task.title}` : `Mark high priority: ${task.title}`
+      }
+      aria-pressed={task.priority}
+      onClick={() => onToggle(!task.priority)}
+    >
+      <Star className={`h-4 w-4 ${task.priority ? "fill-current" : ""}`} />
+    </Button>
+  );
+}
+
 function TaskListRow({
   task,
   onToggle,
+  onTogglePriority,
   onEdit,
   onDelete,
 }: {
   task: TaskRow;
   onToggle: (done: boolean) => void;
+  onTogglePriority: (priority: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -526,6 +582,7 @@ function TaskListRow({
         {task.due_date && <DueLabel due={task.due_date} done={task.done} />}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
+        <StarButton task={task} onToggle={onTogglePriority} />
         <Button
           variant="ghost"
           size="icon"
@@ -552,11 +609,13 @@ function TaskListRow({
 function TaskGridCard({
   task,
   onToggle,
+  onTogglePriority,
   onEdit,
   onDelete,
 }: {
   task: TaskRow;
   onToggle: (done: boolean) => void;
+  onTogglePriority: (priority: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -578,6 +637,7 @@ function TaskGridCard({
       <div className="mt-auto flex items-center justify-between pt-1">
         {task.due_date ? <DueLabel due={task.due_date} done={task.done} /> : <span />}
         <div className="flex shrink-0 items-center gap-0.5">
+          <StarButton task={task} onToggle={onTogglePriority} />
           <Button
             variant="ghost"
             size="icon"
@@ -618,11 +678,12 @@ function TaskForm({
   const [title, setTitle] = useState(initialValues?.title ?? "");
   const [dueDate, setDueDate] = useState(initialValues?.due_date ?? "");
   const [done, setDone] = useState(initialValues?.done ?? false);
+  const [priority, setPriority] = useState(initialValues?.priority ?? false);
   const [roleIds, setRoleIds] = useState<string[]>(initialValues?.roleIds ?? []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = taskSchema.safeParse({ title, due_date: dueDate, done, roleIds });
+    const parsed = taskSchema.safeParse({ title, due_date: dueDate, done, priority, roleIds });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
       return;
@@ -661,6 +722,13 @@ function TaskForm({
           </div>
         )}
       </div>
+      <label className="flex w-fit items-center gap-2 text-sm">
+        <Checkbox checked={priority} onCheckedChange={(v) => setPriority(!!v)} />
+        <Star
+          className={`h-4 w-4 ${priority ? "fill-[var(--status-interviewing-text)] text-[var(--status-interviewing-text)]" : "text-muted-foreground"}`}
+        />
+        High priority
+      </label>
       <div className="space-y-2">
         <Label>Roles</Label>
         <RoleMultiSelect roles={roles} selected={roleIds} onChange={setRoleIds} />

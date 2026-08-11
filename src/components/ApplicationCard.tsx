@@ -9,6 +9,7 @@ import {
   Clock,
   Globe,
   ListChecks,
+  Star,
   StickyNote,
   TriangleAlert,
 } from "lucide-react";
@@ -17,7 +18,12 @@ import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { flagForCountry, jobTypeMeta, type JobType } from "@/lib/job-location";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
 
-export type LinkedTask = { id: string; due_date: string | null; done: boolean };
+export type LinkedTask = {
+  id: string;
+  due_date: string | null;
+  done: boolean;
+  priority: boolean;
+};
 
 export type ApplicationCardData = {
   id: string;
@@ -47,6 +53,7 @@ function deriveMeta(app: ApplicationCardData) {
   return {
     openCount: openTasks.length,
     nextDue,
+    hasPriority: openTasks.some((t) => t.priority),
     overdue: nextDue ? daysAgo(nextDue) > 0 : false,
     isClosed: CLOSED_STATUSES.includes(app.status),
     // The classic silently-dying application: still live, nothing owed on it,
@@ -149,10 +156,12 @@ function TaskChip({
   openCount,
   nextDue,
   overdue,
+  hasPriority,
 }: {
   openCount: number;
   nextDue: string | null;
   overdue: boolean;
+  hasPriority: boolean;
 }) {
   if (openCount === 0) return null;
   const noun = `${openCount} task${openCount === 1 ? "" : "s"}`;
@@ -164,7 +173,15 @@ function TaskChip({
       : "bg-muted text-muted-foreground";
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${tone}`}>
-      <ListChecks className="h-3.5 w-3.5" /> {label}
+      {hasPriority ? (
+        <Star
+          className="h-3.5 w-3.5 fill-[var(--status-interviewing-text)] text-[var(--status-interviewing-text)]"
+          aria-label="Has a high-priority task"
+        />
+      ) : (
+        <ListChecks className="h-3.5 w-3.5" />
+      )}{" "}
+      {label}
     </span>
   );
 }
@@ -200,7 +217,12 @@ function CardMeta({
       {meta.stalled ? (
         <StalledPill />
       ) : (
-        <TaskChip openCount={meta.openCount} nextDue={meta.nextDue} overdue={meta.overdue} />
+        <TaskChip
+          openCount={meta.openCount}
+          nextDue={meta.nextDue}
+          overdue={meta.overdue}
+          hasPriority={meta.hasPriority}
+        />
       )}
       {meta.hasNotes && (
         <TooltipProvider delayDuration={150}>
