@@ -28,6 +28,7 @@ import {
   DUE_WINDOW_ORDER,
   EMPTY_TASK_FILTERS,
   filterTasks,
+  hasActiveTaskFilters,
   type DueWindow,
   type TaskFilters as TaskFiltersState,
 } from "@/lib/task-filters";
@@ -313,19 +314,29 @@ function TasksPage() {
         title="Tasks"
         description="Every follow-up across your applications."
         actions={
-          <ToggleGroup
-            type="single"
-            value={view}
-            onValueChange={(v) => v && setView(v as View)}
-            className="justify-start"
-          >
-            <ToggleGroupItem value="list" aria-label="List view" size="sm">
-              <List className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
-              <LayoutGrid className="h-4 w-4" />
-            </ToggleGroupItem>
-          </ToggleGroup>
+          <div className="flex flex-wrap items-center gap-2">
+            {tasks.length > 0 && (
+              <TaskFilters
+                tasks={tasks}
+                value={filters}
+                onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+                onClear={() => setFilters(EMPTY_TASK_FILTERS)}
+              />
+            )}
+            <ToggleGroup
+              type="single"
+              value={view}
+              onValueChange={(v) => v && setView(v as View)}
+              className="justify-start"
+            >
+              <ToggleGroupItem value="list" aria-label="List view" size="sm">
+                <List className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
+                <LayoutGrid className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
         }
       />
 
@@ -376,35 +387,31 @@ function TasksPage() {
           title="No tasks yet"
           body="Add a follow-up yourself, or open an application and add one there — either way it'll show up here."
         />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          title="No tasks match these filters"
+          body="Try widening the due window or clearing a filter to see more."
+          action={
+            <Button variant="outline" onClick={() => setFilters(EMPTY_TASK_FILTERS)}>
+              Clear filters
+            </Button>
+          }
+        />
       ) : (
-        <>
-          <TaskFilters
-            tasks={tasks}
-            value={filters}
-            onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-            onClear={() => setFilters(EMPTY_TASK_FILTERS)}
-            resultCount={visible.length}
-            total={tasks.length}
-          />
-          {visible.length === 0 ? (
-            <EmptyState
-              title="No tasks match these filters"
-              body="Try widening the due window or clearing a filter to see more."
-              action={
-                <Button variant="outline" onClick={() => setFilters(EMPTY_TASK_FILTERS)}>
-                  Clear filters
-                </Button>
-              }
-            />
-          ) : (
-            <div className="space-y-8">
-              {BUCKET_ORDER.map(({ key, title, danger }) =>
-                renderSection(title, byBucket[key], danger),
-              )}
-              {renderSection("Completed", completed)}
-            </div>
+        <div className="space-y-8">
+          {hasActiveTaskFilters(filters) && (
+            <p className="-mt-2 text-xs text-muted-foreground" aria-live="polite">
+              Showing{" "}
+              <span className="font-medium tabular-nums text-foreground">{visible.length}</span> of{" "}
+              <span className="tabular-nums">{tasks.length}</span> task
+              {tasks.length === 1 ? "" : "s"}
+            </p>
           )}
-        </>
+          {BUCKET_ORDER.map(({ key, title, danger }) =>
+            renderSection(title, byBucket[key], danger),
+          )}
+          {renderSection("Completed", completed)}
+        </div>
       )}
     </main>
   );
@@ -435,7 +442,7 @@ function QuickAdd({
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Add a task…"
+        placeholder="Add a task and press Enter…"
         aria-label="Add a task"
         className="flex-1"
       />

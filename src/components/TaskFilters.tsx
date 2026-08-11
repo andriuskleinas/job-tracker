@@ -165,69 +165,58 @@ function DueFilter({
 }
 
 /**
- * The Tasks page filter toolbar — role, due window, and a hide-completed toggle
- * — built from the same pill controls, count badges, and Clear affordance as
- * the applications board so the two lists read as one product. Fully
- * controlled: the route owns the state and passes down a single patch callback.
+ * The Tasks page filter controls — role, due window, and a hide-completed
+ * toggle — built from the same pill controls, count badges, and Clear
+ * affordance as the applications board so the two lists read as one product.
+ *
+ * Returns a bare group of controls (no wrapper) so the route can drop them into
+ * the header alongside the list/grid toggle; the "Showing X of Y" summary lives
+ * next to the list itself. Fully controlled: the route owns the state and
+ * passes down a single patch callback.
  */
 export function TaskFilters({
   tasks,
   value,
   onChange,
   onClear,
-  resultCount,
-  total,
 }: {
   tasks: TaskLike[];
   value: Filters;
   onChange: (patch: Partial<Filters>) => void;
   onClear: () => void;
-  resultCount: number;
-  total: number;
 }) {
   const roleOptions = useMemo(() => availableTaskRoles(tasks), [tasks]);
   const active = hasActiveTaskFilters(value);
 
   return (
-    <div className="mb-5 space-y-2.5">
-      <div className="flex flex-wrap items-center gap-2">
-        {roleOptions.length > 0 && (
-          <RoleFilter
-            roles={roleOptions}
-            value={value.roleIds}
-            onChange={(roleIds) => onChange({ roleIds })}
-          />
-        )}
+    <>
+      {roleOptions.length > 0 && (
+        <RoleFilter
+          roles={roleOptions}
+          value={value.roleIds}
+          onChange={(roleIds) => onChange({ roleIds })}
+        />
+      )}
 
-        <DueFilter value={value.due} onChange={(due) => onChange({ due })} />
+      <DueFilter value={value.due} onChange={(due) => onChange({ due })} />
 
-        <Button
-          variant="outline"
-          onClick={() => onChange({ hideCompleted: !value.hideCompleted })}
-          className={cn("h-9 gap-2 font-normal", value.hideCompleted && "border-brand/50")}
-        >
-          <Checkbox checked={value.hideCompleted} tabIndex={-1} className="pointer-events-none" />
-          <span className={cn(!value.hideCompleted && "text-muted-foreground")}>
-            Hide completed
-          </span>
-        </Button>
-
-        {active && (
-          <Button variant="ghost" onClick={onClear} className="h-9 text-muted-foreground">
-            <X className="h-4 w-4" /> Clear
-            <span className="ml-0.5 rounded-full bg-muted px-1.5 text-xs tabular-nums">
-              {activeTaskFilterCount(value)}
-            </span>
-          </Button>
-        )}
-      </div>
+      <Button
+        variant="outline"
+        onClick={() => onChange({ hideCompleted: !value.hideCompleted })}
+        className={cn("h-9 gap-2 font-normal", value.hideCompleted && "border-brand/50")}
+      >
+        <Checkbox checked={value.hideCompleted} tabIndex={-1} className="pointer-events-none" />
+        <span className={cn(!value.hideCompleted && "text-muted-foreground")}>Hide completed</span>
+      </Button>
 
       {active && (
-        <p className="text-xs text-muted-foreground" aria-live="polite">
-          Showing <span className="font-medium tabular-nums text-foreground">{resultCount}</span> of{" "}
-          <span className="tabular-nums">{total}</span> task{total === 1 ? "" : "s"}
-        </p>
+        <Button variant="ghost" onClick={onClear} className="h-9 text-muted-foreground">
+          <X className="h-4 w-4" /> Clear
+          <span className="ml-0.5 rounded-full bg-muted px-1.5 text-xs tabular-nums">
+            {activeTaskFilterCount(value)}
+          </span>
+        </Button>
       )}
-    </div>
+    </>
   );
 }
