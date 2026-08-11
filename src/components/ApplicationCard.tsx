@@ -189,6 +189,10 @@ function CardMeta({
     <div className="flex flex-wrap items-center gap-2">
       <span
         className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+        // The tooltip date renders in the viewer's locale, so the server (its
+        // own locale) and client can format the same day differently. That's
+        // cosmetic and unavoidable, so tell React not to flag the mismatch.
+        suppressHydrationWarning
         title={`Applied ${new Date(app.application_date).toLocaleDateString()}`}
       >
         <Clock className="h-3.5 w-3.5" /> {relativeDay(app.application_date)}

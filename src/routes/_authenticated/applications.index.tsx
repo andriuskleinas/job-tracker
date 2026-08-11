@@ -26,15 +26,36 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { LocationFields, type LocationValue } from "@/components/LocationFields";
+import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
 import { JOB_TYPES } from "@/lib/job-location";
 import { Plus, Upload, Download, List, LayoutGrid } from "lucide-react";
 import Papa from "papaparse";
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
+import {
+  EMPTY_FILTERS,
+  filterApplications,
+  hasActiveFilters,
+  type ApplicationFilters as Filters,
+} from "@/lib/application-filters";
 
 type View = "list" | "grid";
+
+// Filters live in the URL so a filtered board is shareable, survives refresh,
+// and plays nicely with the back button. Everything is optional and coerced to
+// a safe default, so a hand-edited or stale URL can never crash the page.
+const searchSchema = z.object({
+  q: z.string().catch("").optional(),
+  status: z.array(z.enum(STATUSES)).catch([]).optional(),
+  jobType: z.array(z.enum(JOB_TYPES)).catch([]).optional(),
+  company: z.string().catch("").optional(),
+  country: z.string().catch("").optional(),
+  city: z.string().catch("").optional(),
+});
+
+type ApplicationsSearch = z.infer<typeof searchSchema>;
 
 export const Route = createFileRoute("/_authenticated/applications/")({
   head: () => ({
@@ -45,6 +66,7 @@ export const Route = createFileRoute("/_authenticated/applications/")({
       { property: "og:description", content: "Your tracked job applications." },
     ],
   }),
+  validateSearch: (search): ApplicationsSearch => searchSchema.parse(search),
   component: ApplicationsPage,
 });
 
@@ -92,6 +114,43 @@ const appWithTaskSchema = appBase
 
 function ApplicationsPage() {
   const queryClient = useQueryClient();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+
+  // Normalise the loose URL search into the fully-populated filter shape the
+  // toolbar and filter helper expect. Memoised so the derived list below only
+  // recomputes when a filter actually changes.
+  const filters: Filters = useMemo(
+    () => ({
+      q: search.q ?? "",
+      status: search.status ?? [],
+      jobType: search.jobType ?? [],
+      company: search.company ?? "",
+      country: search.country ?? "",
+      city: search.city ?? "",
+    }),
+    [search.q, search.status, search.jobType, search.company, search.country, search.city],
+  );
+  const filtersActive = hasActiveFilters(filters);
+
+  // Write filters back to the URL, dropping empties so the querystring stays
+  // clean (?status=offer, not ?q=&country=&city=&status=offer).
+  const patchFilters = (patch: Partial<Filters>) => {
+    const next = { ...filters, ...patch };
+    navigate({
+      search: {
+        q: next.q.trim() || undefined,
+        status: next.status.length ? next.status : undefined,
+        jobType: next.jobType.length ? next.jobType : undefined,
+        company: next.company || undefined,
+        country: next.country || undefined,
+        city: next.city || undefined,
+      },
+      replace: true,
+    });
+  };
+  const clearFilters = () => navigate({ search: {}, replace: true });
+
   const [open, setOpen] = useState(false);
   const defaultLocation: LocationValue = { job_type: "onsite", country: "", city: "" };
   const [location, setLocation] = useState<LocationValue>(defaultLocation);
@@ -118,6 +177,8 @@ function ApplicationsPage() {
       return data as unknown as ApplicationCardData[];
     },
   });
+
+  const visibleApps = useMemo(() => filterApplications(apps, filters), [apps, filters]);
 
   const create = useMutation({
     mutationFn: async (values: z.infer<typeof appWithTaskSchema>) => {
@@ -281,7 +342,7 @@ function ApplicationsPage() {
     <main className="container-page page-body">
       <PageHeader
         title="Applications"
-        count={isLoading ? undefined : apps.length}
+        count={isLoading ? undefined : filtersActive ? visibleApps.length : apps.length}
         description="Track progress towards your dream job."
         actions={
           <>
@@ -476,18 +537,39 @@ function ApplicationsPage() {
           title="No applications yet"
           body="Add your first one to start tracking where every role stands."
         />
-      ) : view === "list" ? (
-        <div className="grid gap-3">
-          {apps.map((a) => (
-            <ApplicationCard key={a.id} app={a} variant="list" />
-          ))}
-        </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {apps.map((a) => (
-            <ApplicationCard key={a.id} app={a} variant="grid" />
-          ))}
-        </div>
+        <>
+          <ApplicationFilters
+            apps={apps}
+            value={filters}
+            onChange={patchFilters}
+            onClear={clearFilters}
+            resultCount={visibleApps.length}
+          />
+          {visibleApps.length === 0 ? (
+            <EmptyState
+              title="No matches"
+              body="No applications match these filters. Try loosening or clearing them."
+              action={
+                <Button variant="outline" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              }
+            />
+          ) : view === "list" ? (
+            <div className="grid gap-3">
+              {visibleApps.map((a) => (
+                <ApplicationCard key={a.id} app={a} variant="list" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleApps.map((a) => (
+                <ApplicationCard key={a.id} app={a} variant="grid" />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </main>
   );
