@@ -18,8 +18,8 @@ project_id = "ojhxziejichxbubmdxdb"
 # site_url should be the deployed domain so links work for real users; localhost
 # stays in additional_redirect_urls for local dev.
 [auth]
-site_url = "https://infer-and-build.lovable.app"
+site_url = "https://job-tracker-rho-khaki-34.vercel.app"
 additional_redirect_urls = [
-  "https://infer-and-build.lovable.app/**",
+  "https://job-tracker-rho-khaki-34.vercel.app/**",
   "http://localhost:8080/**",
 ]
