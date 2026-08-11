@@ -25,7 +25,7 @@ import { daysAgo, relativeDue } from "@/lib/relative-time";
 import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, List, LayoutGrid } from "lucide-react";
+import { Plus, Pencil, Trash2, List, LayoutGrid, AlertTriangle, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({
@@ -89,22 +89,41 @@ function dueBucket(due: string | null): Bucket {
   return -past <= 7 ? "week" : "later";
 }
 
-/** Colour for the due label — red once overdue, amber for today/tomorrow. */
-function dueClass(due: string): string {
-  const past = daysAgo(due);
-  if (past > 0) return "text-[var(--status-rejected-text)]";
-  if (past >= -1) return "text-[var(--status-interviewing-text)]";
-  return "text-muted-foreground";
-}
-
-/** Due date shown relative for open tasks ("2d overdue"), absolute once done. */
+/**
+ * Due date shown relative for open tasks ("2d overdue"), absolute once done.
+ *
+ * Anything owed now or imminently gets a filled pill with an icon so it reads
+ * as a warning at a glance — red once overdue, amber for today/tomorrow. Tasks
+ * further out stay plain muted text: only what needs attention should shout.
+ */
 function DueLabel({ due, done }: { due: string; done: boolean }) {
   const absolute = new Date(due).toLocaleDateString();
   if (done) {
     return <span className="text-xs text-muted-foreground">Due {absolute}</span>;
   }
+
+  const past = daysAgo(due); // positive = overdue
+  const overdue = past > 0;
+  const imminent = past >= -1; // today or tomorrow
+
+  if (overdue || imminent) {
+    const tone = overdue
+      ? "bg-[var(--status-rejected-soft)] text-[var(--status-rejected-text)]"
+      : "bg-[var(--status-interviewing-soft)] text-[var(--status-interviewing-text)]";
+    const Icon = overdue ? AlertTriangle : Clock;
+    return (
+      <span
+        className={`inline-flex w-fit items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium ${tone}`}
+        title={absolute}
+      >
+        <Icon className="h-3 w-3 shrink-0" />
+        {relativeDue(due)}
+      </span>
+    );
+  }
+
   return (
-    <span className={`text-xs ${dueClass(due)}`} title={absolute}>
+    <span className="text-xs text-muted-foreground" title={absolute}>
       {relativeDue(due)}
     </span>
   );
