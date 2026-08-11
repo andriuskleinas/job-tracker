@@ -21,6 +21,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { RoleMultiSelect, type RoleOption } from "@/components/RoleMultiSelect";
 import { statusColor, type Status } from "@/lib/status";
+import { daysAgo, relativeDue } from "@/lib/relative-time";
 import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -64,6 +65,50 @@ type TaskRow = {
 };
 
 type View = "list" | "grid";
+
+/**
+ * Urgency buckets for open tasks. Time is the whole point of a follow-up — a
+ * task due tomorrow and one due next month should never look the same — so the
+ * list is grouped by how soon it's owed rather than shown as one flat pile.
+ */
+type Bucket = "overdue" | "today" | "week" | "later" | "nodate";
+
+const BUCKET_ORDER: { key: Bucket; title: string; danger?: boolean }[] = [
+  { key: "overdue", title: "Overdue", danger: true },
+  { key: "today", title: "Today" },
+  { key: "week", title: "This week" },
+  { key: "later", title: "Later" },
+  { key: "nodate", title: "No date" },
+];
+
+function dueBucket(due: string | null): Bucket {
+  if (!due) return "nodate";
+  const past = daysAgo(due); // positive = the due date is behind us
+  if (past > 0) return "overdue";
+  if (past === 0) return "today";
+  return -past <= 7 ? "week" : "later";
+}
+
+/** Colour for the due label — red once overdue, amber for today/tomorrow. */
+function dueClass(due: string): string {
+  const past = daysAgo(due);
+  if (past > 0) return "text-[var(--status-rejected-text)]";
+  if (past >= -1) return "text-[var(--status-interviewing-text)]";
+  return "text-muted-foreground";
+}
+
+/** Due date shown relative for open tasks ("2d overdue"), absolute once done. */
+function DueLabel({ due, done }: { due: string; done: boolean }) {
+  const absolute = new Date(due).toLocaleDateString();
+  if (done) {
+    return <span className="text-xs text-muted-foreground">Due {absolute}</span>;
+  }
+  return (
+    <span className={`text-xs ${dueClass(due)}`} title={absolute}>
+      {relativeDue(due)}
+    </span>
+  );
+}
 
 function TasksPage() {
   const queryClient = useQueryClient();
@@ -188,15 +233,26 @@ function TasksPage() {
     },
   });
 
-  const ongoing = tasks.filter((t) => !t.done);
   const completed = tasks.filter((t) => t.done);
+  const openTasks = tasks.filter((t) => !t.done);
+  const byBucket = openTasks.reduce<Record<Bucket, TaskRow[]>>(
+    (acc, t) => {
+      acc[dueBucket(t.due_date)].push(t);
+      return acc;
+    },
+    { overdue: [], today: [], week: [], later: [], nodate: [] },
+  );
 
-  const renderSection = (title: string, items: TaskRow[]) => {
+  const renderSection = (title: string, items: TaskRow[], danger = false) => {
     if (items.length === 0) return null;
     return (
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
+          <h2
+            className={`text-sm font-medium ${danger ? "text-[var(--status-rejected-text)]" : "text-muted-foreground"}`}
+          >
+            {title}
+          </h2>
           <span className="text-xs text-muted-foreground">{items.length}</span>
         </div>
         {view === "list" ? (
@@ -302,7 +358,9 @@ function TasksPage() {
         />
       ) : (
         <div className="space-y-8">
-          {renderSection("Ongoing", ongoing)}
+          {BUCKET_ORDER.map(({ key, title, danger }) =>
+            renderSection(title, byBucket[key], danger),
+          )}
           {renderSection("Completed", completed)}
         </div>
       )}
@@ -380,11 +438,7 @@ function TaskListRow({
           {task.title}
         </p>
         <RoleBadges task={task} />
-        {task.due_date && (
-          <p className="text-xs text-muted-foreground">
-            Due {new Date(task.due_date).toLocaleDateString()}
-          </p>
-        )}
+        {task.due_date && <DueLabel due={task.due_date} done={task.done} />}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
         <Button
@@ -437,9 +491,7 @@ function TaskGridCard({
       </div>
       <RoleBadges task={task} />
       <div className="mt-auto flex items-center justify-between pt-1">
-        <p className="text-xs text-muted-foreground">
-          {task.due_date ? `Due ${new Date(task.due_date).toLocaleDateString()}` : ""}
-        </p>
+        {task.due_date ? <DueLabel due={task.due_date} done={task.done} /> : <span />}
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost"
