@@ -21,6 +21,16 @@ import { EmptyState } from "@/components/EmptyState";
 import { RoleMultiSelect, type RoleOption } from "@/components/RoleMultiSelect";
 import { statusColor, type Status } from "@/lib/status";
 import { daysAgo, relativeDue } from "@/lib/relative-time";
+import { TaskFilters } from "@/components/TaskFilters";
+import {
+  dueBucket,
+  DUE_WINDOW_LABEL,
+  DUE_WINDOW_ORDER,
+  EMPTY_TASK_FILTERS,
+  filterTasks,
+  type DueWindow,
+  type TaskFilters as TaskFiltersState,
+} from "@/lib/task-filters";
 import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -66,27 +76,17 @@ type TaskRow = {
 type View = "list" | "grid";
 
 /**
- * Urgency buckets for open tasks. Time is the whole point of a follow-up — a
- * task due tomorrow and one due next month should never look the same — so the
- * list is grouped by how soon it's owed rather than shown as one flat pile.
+ * Section config for the urgency buckets, in order. Time is the whole point of
+ * a follow-up — a task due tomorrow and one due next month should never look
+ * the same — so the list is grouped by how soon it's owed rather than shown as
+ * one flat pile. The windows themselves live in task-filters so the filter and
+ * the headings can never drift apart; only Overdue gets the danger tone.
  */
-type Bucket = "overdue" | "today" | "week" | "later" | "nodate";
-
-const BUCKET_ORDER: { key: Bucket; title: string; danger?: boolean }[] = [
-  { key: "overdue", title: "Overdue", danger: true },
-  { key: "today", title: "Today" },
-  { key: "week", title: "This week" },
-  { key: "later", title: "Later" },
-  { key: "nodate", title: "No date" },
-];
-
-function dueBucket(due: string | null): Bucket {
-  if (!due) return "nodate";
-  const past = daysAgo(due); // positive = the due date is behind us
-  if (past > 0) return "overdue";
-  if (past === 0) return "today";
-  return -past <= 7 ? "week" : "later";
-}
+const BUCKET_ORDER = DUE_WINDOW_ORDER.map((key) => ({
+  key,
+  title: DUE_WINDOW_LABEL[key],
+  danger: key === "overdue",
+}));
 
 /**
  * Due date shown relative for open tasks ("2d overdue"), absolute once done.
@@ -138,6 +138,7 @@ function TasksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
+  const [filters, setFilters] = useState<TaskFiltersState>(EMPTY_TASK_FILTERS);
 
   useEffect(() => {
     localStorage.setItem("tasks-view", view);
@@ -254,9 +255,10 @@ function TasksPage() {
     },
   });
 
-  const completed = tasks.filter((t) => t.done);
-  const openTasks = tasks.filter((t) => !t.done);
-  const byBucket = openTasks.reduce<Record<Bucket, TaskRow[]>>(
+  const visible = filterTasks(tasks, filters);
+  const completed = visible.filter((t) => t.done);
+  const openTasks = visible.filter((t) => !t.done);
+  const byBucket = openTasks.reduce<Record<DueWindow, TaskRow[]>>(
     (acc, t) => {
       acc[dueBucket(t.due_date)].push(t);
       return acc;
@@ -375,12 +377,34 @@ function TasksPage() {
           body="Add a follow-up yourself, or open an application and add one there — either way it'll show up here."
         />
       ) : (
-        <div className="space-y-8">
-          {BUCKET_ORDER.map(({ key, title, danger }) =>
-            renderSection(title, byBucket[key], danger),
+        <>
+          <TaskFilters
+            tasks={tasks}
+            value={filters}
+            onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+            onClear={() => setFilters(EMPTY_TASK_FILTERS)}
+            resultCount={visible.length}
+            total={tasks.length}
+          />
+          {visible.length === 0 ? (
+            <EmptyState
+              title="No tasks match these filters"
+              body="Try widening the due window or clearing a filter to see more."
+              action={
+                <Button variant="outline" onClick={() => setFilters(EMPTY_TASK_FILTERS)}>
+                  Clear filters
+                </Button>
+              }
+            />
+          ) : (
+            <div className="space-y-8">
+              {BUCKET_ORDER.map(({ key, title, danger }) =>
+                renderSection(title, byBucket[key], danger),
+              )}
+              {renderSection("Completed", completed)}
+            </div>
           )}
-          {renderSection("Completed", completed)}
-        </div>
+        </>
       )}
     </main>
   );
