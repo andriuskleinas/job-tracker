@@ -175,7 +175,12 @@ function ApplicationsPage() {
     },
   });
 
-  const visibleApps = useMemo(() => filterApplications(apps, filters), [apps, filters]);
+  // Starred opportunities pin to the top; the query's application_date-desc
+  // order is preserved among apps of equal priority (stable sort).
+  const visibleApps = useMemo(
+    () => filterApplications(apps, filters).sort((a, b) => Number(b.priority) - Number(a.priority)),
+    [apps, filters],
+  );
 
   const create = useMutation({
     mutationFn: async (values: z.infer<typeof appWithTaskSchema>) => {
@@ -249,6 +254,15 @@ function ApplicationsPage() {
       toast.success(`Imported ${rows.length} application${rows.length === 1 ? "" : "s"}`);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Import failed"),
+  });
+
+  const togglePriority = useMutation({
+    mutationFn: async ({ aid, priority }: { aid: string; priority: boolean }) => {
+      const { error } = await supabase.from("applications").update({ priority }).eq("id", aid);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["applications"] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to update priority"),
   });
 
   const handleFile = (file: File) => {
@@ -556,13 +570,23 @@ function ApplicationsPage() {
           ) : view === "list" ? (
             <div className="grid gap-3">
               {visibleApps.map((a) => (
-                <ApplicationCard key={a.id} app={a} variant="list" />
+                <ApplicationCard
+                  key={a.id}
+                  app={a}
+                  variant="list"
+                  onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
+                />
               ))}
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visibleApps.map((a) => (
-                <ApplicationCard key={a.id} app={a} variant="grid" />
+                <ApplicationCard
+                  key={a.id}
+                  app={a}
+                  variant="grid"
+                  onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
+                />
               ))}
             </div>
           )}

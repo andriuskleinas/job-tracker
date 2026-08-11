@@ -229,6 +229,16 @@ function AppDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
+  const toggleAppPriority = useMutation({
+    mutationFn: async (priority: boolean) => {
+      const { error } = await supabase.from("applications").update({ priority }).eq("id", id);
+      if (error) throw error;
+    },
+    // Prefix match invalidates both this detail query and the board list.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["applications"] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to update priority"),
+  });
+
   const deleteTask = useMutation({
     mutationFn: async (tid: string) => {
       const { error } = await supabase.from("tasks").delete().eq("id", tid);
@@ -290,9 +300,23 @@ function AppDetail() {
         </Link>
       </Button>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{app.position}</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">{app.company}</p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{app.position}</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">{app.company}</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => toggleAppPriority.mutate(!app.priority)}
+          aria-pressed={app.priority}
+          className={`shrink-0 gap-2 ${app.priority ? "border-[var(--status-interviewing-text)]/50" : ""}`}
+        >
+          <Star
+            className={`h-4 w-4 ${app.priority ? "fill-[var(--status-interviewing-text)] text-[var(--status-interviewing-text)]" : "text-muted-foreground"}`}
+          />
+          {app.priority ? "High priority" : "Mark priority"}
+        </Button>
       </div>
 
       <Card>

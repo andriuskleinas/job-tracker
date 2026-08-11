@@ -30,6 +30,7 @@ export type ApplicationCardData = {
   company: string;
   position: string;
   status: Status;
+  priority: boolean;
   application_date: string;
   notes: string | null;
   website: string | null;
@@ -240,12 +241,53 @@ function CardMeta({
   );
 }
 
+/**
+ * Priority star for the opportunity itself — pins a dream-role application to
+ * the top of the board. Lives inside the card's Link, so the click is stopped
+ * from navigating. Outline when normal, filled amber when high, reusing the
+ * same star + token as the task-level flag so priority reads the same way
+ * everywhere.
+ */
+function AppStar({
+  app,
+  onToggle,
+}: {
+  app: ApplicationCardData;
+  onToggle: (priority: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle(!app.priority);
+      }}
+      aria-pressed={app.priority}
+      aria-label={
+        app.priority
+          ? `Remove priority from ${app.position} at ${app.company}`
+          : `Mark ${app.position} at ${app.company} high priority`
+      }
+      className={`shrink-0 rounded-md p-1 transition-colors ${
+        app.priority
+          ? "text-[var(--status-interviewing-text)]"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      <Star className={`h-4 w-4 ${app.priority ? "fill-current" : ""}`} />
+    </button>
+  );
+}
+
 export function ApplicationCard({
   app,
   variant,
+  onTogglePriority,
 }: {
   app: ApplicationCardData;
   variant: "list" | "grid";
+  onTogglePriority: (priority: boolean) => void;
 }) {
   const meta = deriveMeta(app);
   const dimTitle = meta.isClosed ? "text-muted-foreground" : "";
@@ -260,10 +302,13 @@ export function ApplicationCard({
     </div>
   );
 
-  const badge = (
-    <Badge className={statusColor[app.status] + " shrink-0 capitalize"} variant="outline">
-      {app.status}
-    </Badge>
+  const rightCluster = (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <AppStar app={app} onToggle={onTogglePriority} />
+      <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
+        {app.status}
+      </Badge>
+    </div>
   );
 
   if (variant === "grid") {
@@ -272,11 +317,11 @@ export function ApplicationCard({
         <Card
           className={`flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
             meta.isClosed ? "bg-muted/30" : ""
-          }`}
+          } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
         >
           <div className="flex items-start justify-between gap-3">
             {identity}
-            {badge}
+            {rightCluster}
           </div>
           <LocationRow app={app} />
           <div className="mt-auto border-t pt-3">
@@ -292,11 +337,11 @@ export function ApplicationCard({
       <Card
         className={`p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 sm:p-5 ${
           meta.isClosed ? "bg-muted/30" : ""
-        }`}
+        } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
       >
         <div className="flex items-start justify-between gap-3">
           {identity}
-          {badge}
+          {rightCluster}
         </div>
         <div className="mt-3 space-y-2">
           <LocationRow app={app} />

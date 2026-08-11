@@ -51,6 +51,7 @@ export type Database = {
           job_type: string | null;
           notes: string | null;
           position: string;
+          priority: boolean;
           status: Database["public"]["Enums"]["application_status"];
           updated_at: string;
           user_id: string;
@@ -66,6 +67,7 @@ export type Database = {
           job_type?: string | null;
           notes?: string | null;
           position: string;
+          priority?: boolean;
           status?: Database["public"]["Enums"]["application_status"];
           updated_at?: string;
           user_id: string;
@@ -81,6 +83,7 @@ export type Database = {
           job_type?: string | null;
           notes?: string | null;
           position?: string;
+          priority?: boolean;
           status?: Database["public"]["Enums"]["application_status"];
           updated_at?: string;
           user_id?: string;
