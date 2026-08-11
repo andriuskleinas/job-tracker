@@ -14,7 +14,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/PageHeader";
@@ -25,7 +24,7 @@ import { daysAgo, relativeDue } from "@/lib/relative-time";
 import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Plus, Pencil, Trash2, List, LayoutGrid, AlertTriangle, Clock } from "lucide-react";
+import { Pencil, Trash2, List, LayoutGrid, AlertTriangle, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({
@@ -137,6 +136,7 @@ function TasksPage() {
     return (localStorage.getItem("tasks-view") as View) || "list";
   });
   const [createOpen, setCreateOpen] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
 
   useEffect(() => {
@@ -197,6 +197,7 @@ function TasksPage() {
       toast.success("Task added");
       invalidate();
       setCreateOpen(false);
+      setDraftTitle("");
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add task"),
   });
@@ -310,45 +311,37 @@ function TasksPage() {
         title="Tasks"
         description="Every follow-up across your applications."
         actions={
-          <>
-            <ToggleGroup
-              type="single"
-              value={view}
-              onValueChange={(v) => v && setView(v as View)}
-              className="justify-start"
-            >
-              <ToggleGroupItem value="list" aria-label="List view" size="sm">
-                <List className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
-                <LayoutGrid className="h-4 w-4" />
-              </ToggleGroupItem>
-            </ToggleGroup>
-            <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto">
-                  <Plus className="h-4 w-4" /> New task
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>New task</DialogTitle>
-                </DialogHeader>
-                <TaskForm
-                  roles={roles}
-                  isPending={create.isPending}
-                  onSubmit={(values) => create.mutate(values)}
-                />
-              </DialogContent>
-            </Dialog>
-          </>
+          <ToggleGroup
+            type="single"
+            value={view}
+            onValueChange={(v) => v && setView(v as View)}
+            className="justify-start"
+          >
+            <ToggleGroupItem value="list" aria-label="List view" size="sm">
+              <List className="h-4 w-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
+              <LayoutGrid className="h-4 w-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
         }
       />
 
-      <QuickAdd
-        isPending={create.isPending}
-        onAdd={(title) => create.mutate({ title, due_date: "", done: false, roleIds: [] })}
-      />
+      <QuickAdd value={draftTitle} onChange={setDraftTitle} onOpen={() => setCreateOpen(true)} />
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New task</DialogTitle>
+          </DialogHeader>
+          <TaskForm
+            roles={roles}
+            isPending={create.isPending}
+            initialValues={{ title: draftTitle, due_date: "", done: false, roleIds: [] }}
+            onSubmit={(values) => create.mutate(values)}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingTask} onOpenChange={(v) => !v && setEditingTask(null)}>
         <DialogContent>
@@ -394,35 +387,35 @@ function TasksPage() {
 }
 
 /**
- * Always-visible capture bar. Logging a follow-up should be a two-second act,
- * not a dialog: type a title, press Enter, keep going. The input clears
- * immediately so several tasks can be jotted in a row; due dates and linked
- * roles are added later via the row's edit action or the full "New task" form.
+ * Always-visible capture bar and the page's single entry point for new tasks
+ * (there's no separate "New task" button). Type a title and press Enter — or
+ * click Add — and the full task dialog opens with the title carried in, ready
+ * for a due date and linked roles before saving.
  */
-function QuickAdd({ isPending, onAdd }: { isPending: boolean; onAdd: (title: string) => void }) {
-  const [title, setTitle] = useState("");
-
+function QuickAdd({
+  value,
+  onChange,
+  onOpen,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onOpen: () => void;
+}) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    onAdd(trimmed);
-    setTitle("");
+    onOpen();
   };
 
   return (
     <form onSubmit={submit} className="mb-6 flex items-center gap-2">
-      <div className="relative flex-1">
-        <Plus className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Add a task and press Enter…"
-          aria-label="Quick add a task"
-          className="pl-9"
-        />
-      </div>
-      <Button type="submit" variant="secondary" disabled={isPending || !title.trim()}>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Add a task…"
+        aria-label="Add a task"
+        className="flex-1"
+      />
+      <Button type="submit" className="shrink-0">
         Add
       </Button>
     </form>
