@@ -50,7 +50,6 @@ const searchSchema = z.object({
   q: z.string().catch("").optional(),
   status: z.array(z.enum(STATUSES)).catch([]).optional(),
   jobType: z.array(z.enum(JOB_TYPES)).catch([]).optional(),
-  company: z.string().catch("").optional(),
   country: z.string().catch("").optional(),
   city: z.string().catch("").optional(),
 });
@@ -125,11 +124,10 @@ function ApplicationsPage() {
       q: search.q ?? "",
       status: search.status ?? [],
       jobType: search.jobType ?? [],
-      company: search.company ?? "",
       country: search.country ?? "",
       city: search.city ?? "",
     }),
-    [search.q, search.status, search.jobType, search.company, search.country, search.city],
+    [search.q, search.status, search.jobType, search.country, search.city],
   );
   const filtersActive = hasActiveFilters(filters);
 
@@ -142,7 +140,6 @@ function ApplicationsPage() {
         q: next.q.trim() || undefined,
         status: next.status.length ? next.status : undefined,
         jobType: next.jobType.length ? next.jobType : undefined,
-        company: next.company || undefined,
         country: next.country || undefined,
         city: next.city || undefined,
       },

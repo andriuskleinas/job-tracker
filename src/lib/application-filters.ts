@@ -7,15 +7,16 @@ import { JOB_TYPES, type JobType } from "@/lib/job-location";
  * with AND — narrowing on city never widens the status set. Empty in every
  * field means "show everything", which is the default view.
  *
- * `q` is a free-text match on company + position; the rest are exact
- * pick-one(-or-more) filters drawn from the values that actually exist in the
- * user's data, so a filter can never select an option that matches nothing.
+ * `q` is a free-text match on company + position — it already covers company
+ * name, which is why there's no separate company axis; the rest are exact
+ * pick-one(-or-more) filters on dimensions the text search does not touch,
+ * drawn from the values that actually exist in the user's data, so a filter
+ * can never select an option that matches nothing.
  */
 export type ApplicationFilters = {
   q: string;
   status: Status[];
   jobType: JobType[];
-  company: string;
   country: string;
   city: string;
 };
@@ -24,7 +25,6 @@ export const EMPTY_FILTERS: ApplicationFilters = {
   q: "",
   status: [],
   jobType: [],
-  company: "",
   country: "",
   city: "",
 };
@@ -35,7 +35,6 @@ export function hasActiveFilters(f: ApplicationFilters): boolean {
     f.q.trim() !== "" ||
     f.status.length > 0 ||
     f.jobType.length > 0 ||
-    f.company !== "" ||
     f.country !== "" ||
     f.city !== ""
   );
@@ -47,7 +46,6 @@ export function activeFilterCount(f: ApplicationFilters): number {
     (f.q.trim() ? 1 : 0) +
     (f.status.length ? 1 : 0) +
     (f.jobType.length ? 1 : 0) +
-    (f.company ? 1 : 0) +
     (f.country ? 1 : 0) +
     (f.city ? 1 : 0)
   );
@@ -63,32 +61,17 @@ export function filterApplications(
   const q = norm(f.q);
   const statuses = new Set(f.status);
   const jobTypes = new Set<string>(f.jobType);
-  const company = norm(f.company);
   const country = norm(f.country);
   const city = norm(f.city);
 
   return apps.filter((a) => {
     if (statuses.size && !statuses.has(a.status)) return false;
     if (jobTypes.size && !(a.job_type && jobTypes.has(a.job_type))) return false;
-    if (company && norm(a.company) !== company) return false;
     if (country && norm(a.country) !== country) return false;
     if (city && norm(a.city) !== city) return false;
     if (q && !`${norm(a.company)} ${norm(a.position)}`.includes(q)) return false;
     return true;
   });
-}
-
-/**
- * The distinct companies present in the data, sorted. Like country/city this
- * is drawn from real rows, so picking a company always returns something.
- */
-export function availableCompanies(apps: ApplicationCardData[]): string[] {
-  const seen = new Map<string, string>();
-  for (const a of apps) {
-    const name = a.company?.trim();
-    if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
-  }
-  return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
 /**

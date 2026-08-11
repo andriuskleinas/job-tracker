@@ -21,7 +21,6 @@ import { flagForCountry, JOB_TYPE_META, type JobType } from "@/lib/job-location"
 import {
   activeFilterCount,
   availableCities,
-  availableCompanies,
   availableCountries,
   availableJobTypes,
   hasActiveFilters,
@@ -244,11 +243,6 @@ export function ApplicationFilters({
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const companyOptions = useMemo<ComboboxOption[]>(() => {
-    const opts = availableCompanies(apps).map((name) => ({ value: name, label: name }));
-    return [{ value: "", label: "Any company" }, ...opts];
-  }, [apps]);
-
   const countryOptions = useMemo<ComboboxOption[]>(() => {
     const opts = availableCountries(apps).map((name) => ({
       value: name,
@@ -273,7 +267,6 @@ export function ApplicationFilters({
   const active = hasActiveFilters(value);
   const total = apps.length;
   const hasJobTypes = jobTypeOptions.length > 0;
-  const hasCompanies = companyOptions.length > 1;
   const hasCountries = countryOptions.length > 1;
   const hasCities = cityOptions.length > 1;
 
@@ -300,18 +293,6 @@ export function ApplicationFilters({
             value={value.jobType}
             onChange={(jobType) => onChange({ jobType })}
             fullWidth={stacked}
-          />
-        </Field>
-      )}
-
-      {hasCompanies && (
-        <Field label="Company" stacked={stacked}>
-          <Combobox
-            options={companyOptions}
-            value={value.company}
-            onSelect={(company) => onChange({ company })}
-            placeholder="Company"
-            searchPlaceholder="Search companies…"
           />
         </Field>
       )}
