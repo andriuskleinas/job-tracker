@@ -54,8 +54,10 @@ function StatusFilter({
         <Button
           variant="outline"
           className={cn(
-            "h-9 justify-between gap-2 font-normal",
-            fullWidth ? "w-full" : "sm:w-44",
+            "h-9 gap-2 font-normal",
+            // Inline: hug the label like a chip. Stacked (mobile sheet):
+            // full width with the count pushed to the right edge.
+            fullWidth ? "w-full justify-between" : "",
             value.length > 0 && "border-brand/50",
           )}
         >
@@ -146,8 +148,8 @@ function JobTypeFilter({
         <Button
           variant="outline"
           className={cn(
-            "h-9 justify-between gap-2 font-normal",
-            fullWidth ? "w-full" : "sm:w-40",
+            "h-9 gap-2 font-normal",
+            fullWidth ? "w-full justify-between" : "",
             value.length > 0 && "border-brand/50",
           )}
         >
