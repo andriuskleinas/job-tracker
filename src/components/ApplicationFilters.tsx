@@ -333,8 +333,9 @@ export function ApplicationFilters({
   return (
     <div className="mb-5 space-y-2.5">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        {/* Search — always visible, at both sizes. */}
-        <div className="relative sm:min-w-56 sm:flex-1">
+        {/* Search — always visible, at both sizes. Grows to fill but capped
+            so the bar reads as a tidy left-packed row, not one giant field. */}
+        <div className="relative sm:min-w-56 sm:max-w-sm sm:flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
