@@ -5,10 +5,10 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  nextDay,
   shouldHaveEvent,
   taskEventDescription,
   taskEventSummary,
+  taskEventTiming,
   type TaskEventInput,
 } from "./task-event";
 import { authenticateBearer } from "./server-auth.server";
@@ -246,15 +246,21 @@ async function getValidAccessToken(conn: Connection): Promise<string> {
 // Calendar event CRUD
 // ---------------------------------------------------------------------------
 
-function eventBody(task: TaskEventInput, appUrl: string) {
-  const due = task.due_date as string;
-  return {
+function eventBody(task: TaskEventInput, appUrl: string, tz: string) {
+  const timing = taskEventTiming(task);
+  const base = {
     summary: taskEventSummary(task),
     description: taskEventDescription(task, appUrl),
-    start: { date: due },
-    end: { date: nextDay(due) },
     transparency: "transparent", // a to-do shouldn't mark the day "busy"
   };
+  // No time → all-day (date-only). With a time → a timed event in the user's zone.
+  return timing.allDay
+    ? { ...base, start: { date: timing.start }, end: { date: timing.end } }
+    : {
+        ...base,
+        start: { dateTime: timing.start, timeZone: tz },
+        end: { dateTime: timing.end, timeZone: tz },
+      };
 }
 
 /** Create or update the event; returns the (possibly new) event id, or null if the
@@ -310,6 +316,8 @@ type TaskRow = {
   id: string;
   title: string;
   due_date: string | null;
+  due_time: string | null;
+  duration_minutes: number | null;
   done: boolean;
   task_applications: { application: { company: string; position: string } | null }[];
 };
@@ -319,7 +327,7 @@ async function loadTask(userId: string, taskId: string): Promise<TaskRow | null>
   const { data } = await admin
     .from("tasks")
     .select(
-      "id, title, due_date, done, task_applications(application:applications(company, position))",
+      "id, title, due_date, due_time, duration_minutes, done, task_applications(application:applications(company, position))",
     )
     .eq("user_id", userId)
     .eq("id", taskId)
@@ -332,11 +340,21 @@ function toEventInput(task: TaskRow): TaskEventInput {
     id: task.id,
     title: task.title,
     due_date: task.due_date,
+    due_time: task.due_time,
+    duration_minutes: task.duration_minutes,
     done: task.done,
     applications: task.task_applications
       .map((ta) => ta.application)
       .filter((a): a is { company: string; position: string } => !!a),
   };
+}
+
+/** The user's event timezone: profile zone, else the browser zone the client sent,
+ *  else UTC. Only consulted for timed tasks. */
+async function resolveTimeZone(userId: string, browserTz?: string): Promise<string> {
+  const admin = await getAdmin();
+  const { data } = await admin.from("profiles").select("time_zone").eq("id", userId).maybeSingle();
+  return (data as { time_zone: string | null } | null)?.time_zone || browserTz || "UTC";
 }
 
 export type ReconcileResult = "created" | "updated" | "deleted" | "noop" | "not_connected";
@@ -349,7 +367,7 @@ export type ReconcileResult = "created" | "updated" | "deleted" | "noop" | "not_
 export async function reconcileTask(
   userId: string,
   taskId: string,
-  { deleted = false, appUrl }: { deleted?: boolean; appUrl: string },
+  { deleted = false, appUrl, tz }: { deleted?: boolean; appUrl: string; tz?: string },
 ): Promise<ReconcileResult> {
   const conn = await getConnection(userId);
   if (!conn) return "not_connected";
@@ -373,10 +391,13 @@ export async function reconcileTask(
 
   const accessToken = await getValidAccessToken(conn);
   const calendarId = mapping?.calendar_id ?? conn.calendar_id;
+  const input = toEventInput(task as TaskRow);
+  // Timezone only matters for timed tasks — skip the profile lookup for all-day ones.
+  const zone = taskEventTiming(input).allDay ? "UTC" : await resolveTimeZone(userId, tz);
   const eventId = await pushEvent(
     accessToken,
     calendarId,
-    eventBody(toEventInput(task as TaskRow), appUrl),
+    eventBody(input, appUrl, zone),
     mapping?.event_id ?? null,
   );
   if (eventId) await saveMapping(userId, taskId, eventId, calendarId);
@@ -483,9 +504,9 @@ export async function handleGoogleDisconnect(request: Request): Promise<Response
 export async function handleGoogleSync(request: Request): Promise<Response> {
   const userId = await authenticateBearer(request);
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  let body: { taskId?: string; deleted?: boolean };
+  let body: { taskId?: string; deleted?: boolean; tz?: string };
   try {
-    body = (await request.json()) as { taskId?: string; deleted?: boolean };
+    body = (await request.json()) as { taskId?: string; deleted?: boolean; tz?: string };
   } catch {
     return Response.json({ error: "Bad request" }, { status: 400 });
   }
@@ -494,6 +515,7 @@ export async function handleGoogleSync(request: Request): Promise<Response> {
     const result = await reconcileTask(userId, body.taskId, {
       deleted: !!body.deleted,
       appUrl: new URL(request.url).origin,
+      tz: typeof body.tz === "string" ? body.tz : undefined,
     });
     return Response.json({ result });
   } catch (e) {

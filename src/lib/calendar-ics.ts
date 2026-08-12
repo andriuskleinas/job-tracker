@@ -1,7 +1,12 @@
 // Builds an RFC 5545 iCalendar (.ics) document from tasks, for the subscribable
 // calendar feed. Kept isomorphic and dependency-free so it can be unit-tested in
 // plain Node and imported anywhere — the server feed handler is its only caller.
-import { nextDay, taskEventDescription, taskEventSummary } from "./task-event";
+import {
+  localToUtcStamp,
+  taskEventDescription,
+  taskEventSummary,
+  taskEventTiming,
+} from "./task-event";
 
 /** The shape the feed needs from a task. A task's linked roles give the event context. */
 export type CalendarTask = {
@@ -9,6 +14,10 @@ export type CalendarTask = {
   title: string;
   /** DATE-only string, e.g. "2026-08-15". Tasks without one are not feed-able. */
   due_date: string | null;
+  /** Optional time-of-day ("HH:MM[:SS]"); when set the event is timed, not all-day. */
+  due_time: string | null;
+  /** Length in minutes for a timed event (defaults applied in the shared helper). */
+  duration_minutes: number | null;
   /** timestamptz ISO string; drives LAST-MODIFIED so calendars re-render on edits. */
   updated_at: string | null;
   applications: { company: string; position: string }[];
@@ -70,22 +79,30 @@ function foldLine(line: string): string {
 }
 
 /** One VEVENT block (as an array of already-folded lines). */
-function eventLines(task: CalendarTask, appUrl: string, stamp: string): string[] {
+function eventLines(task: CalendarTask, appUrl: string, stamp: string, tz: string): string[] {
   // Summary/description come from the shared task-event helpers so the feed and the
   // Google push describe a task identically.
   const summary = taskEventSummary(task);
   const description = taskEventDescription(task, appUrl);
 
   const lastModified = task.updated_at ? toStampValue(new Date(task.updated_at)) : stamp;
-  const due = task.due_date as string; // callers filter out null due dates
+
+  // Timing is shared with the Google push: an all-day DATE span, or a timed event
+  // whose local wall time is resolved to absolute UTC in the feed's timezone.
+  const timing = taskEventTiming(task);
+  const dateLines = timing.allDay
+    ? [
+        `DTSTART;VALUE=DATE:${toDateValue(timing.start)}`,
+        `DTEND;VALUE=DATE:${toDateValue(timing.end)}`,
+      ]
+    : [`DTSTART:${localToUtcStamp(timing.start, tz)}`, `DTEND:${localToUtcStamp(timing.end, tz)}`];
 
   return [
     "BEGIN:VEVENT",
     foldLine(`UID:task-${task.id}@job-tracker`),
     `DTSTAMP:${stamp}`,
     `LAST-MODIFIED:${lastModified}`,
-    `DTSTART;VALUE=DATE:${toDateValue(due)}`,
-    `DTEND;VALUE=DATE:${toDateValue(nextDay(due))}`,
+    ...dateLines,
     foldLine(`SUMMARY:${escapeText(summary)}`),
     foldLine(`DESCRIPTION:${escapeText(description)}`),
     "TRANSP:TRANSPARENT",
@@ -99,7 +116,10 @@ function eventLines(task: CalendarTask, appUrl: string, stamp: string): string[]
  * pure formatting. `appUrl` is the site origin, used for the back-link and to
  * make UIDs recognisably ours.
  */
-export function buildTasksICS(tasks: CalendarTask[], { appUrl }: { appUrl: string }): string {
+export function buildTasksICS(
+  tasks: CalendarTask[],
+  { appUrl, tz }: { appUrl: string; tz: string },
+): string {
   const stamp = toStampValue(new Date());
   const lines = [
     "BEGIN:VCALENDAR",
@@ -111,7 +131,7 @@ export function buildTasksICS(tasks: CalendarTask[], { appUrl }: { appUrl: strin
     "X-WR-CALDESC:Your open job-search follow-ups, synced from Job Tracker.",
     "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
     "X-PUBLISHED-TTL:PT6H",
-    ...tasks.flatMap((task) => eventLines(task, appUrl, stamp)),
+    ...tasks.flatMap((task) => eventLines(task, appUrl, stamp, tz)),
     "END:VCALENDAR",
   ];
   // RFC 5545 mandates CRLF line endings, with a trailing CRLF on the last line.

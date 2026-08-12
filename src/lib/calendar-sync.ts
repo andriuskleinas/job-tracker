@@ -18,10 +18,13 @@ export async function syncTaskCalendar(
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) return;
+    // Send the browser's zone as a fallback for timed events when the user's
+    // profile timezone is blank.
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const res = await fetch("/calendar/google/sync", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: JSON.stringify({ taskId, deleted: opts.deleted ?? false }),
+      body: JSON.stringify({ taskId, deleted: opts.deleted ?? false, tz }),
     });
     if (!res.ok && res.status !== 401) {
       toast.warning("Task saved, but couldn't sync to your calendar.");
