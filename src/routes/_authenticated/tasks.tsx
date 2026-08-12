@@ -10,6 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -54,12 +61,82 @@ export const Route = createFileRoute("/_authenticated/tasks")({
 const taskSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   due_date: z.string().optional().or(z.literal("")),
+  // Optional "HH:MM"; when set the task syncs as a timed event of `duration` minutes.
+  due_time: z.string().optional().or(z.literal("")),
+  duration: z.number().int().positive(),
   done: z.boolean(),
   priority: z.boolean(),
   roleIds: z.array(z.string()),
 });
 
 type TaskFormValues = z.infer<typeof taskSchema>;
+
+/** Duration choices (minutes) offered when a task is given a time. */
+const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120] as const;
+
+/** Format a stored TIME ("HH:MM[:SS]") down to "HH:MM" for display/inputs. */
+function toHhMm(time: string | null | undefined): string {
+  return time ? time.slice(0, 5) : "";
+}
+
+/** "30 min", "1 h", "1 h 30 min" — for the duration picker. */
+function formatDuration(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
+/**
+ * A styled hour:minute picker built from the app's Select, replacing the browser's
+ * native `type="time"` UI so it matches the rest of the form. Value is "HH:MM" (or
+ * "" for none); picking an hour defaults the minute to :00 and vice-versa.
+ */
+function TimeSelect({
+  id,
+  value,
+  onChange,
+  disabled,
+}: {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [h, m] = value ? value.split(":") : ["", ""];
+  return (
+    <div className="flex items-center gap-2">
+      <Select value={h} onValueChange={(hh) => onChange(`${hh}:${m || "00"}`)} disabled={disabled}>
+        <SelectTrigger id={id} className="flex-1" aria-label="Hour">
+          <SelectValue placeholder="Hour" />
+        </SelectTrigger>
+        <SelectContent className="max-h-56">
+          {HOURS.map((hh) => (
+            <SelectItem key={hh} value={hh}>
+              {hh}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-muted-foreground">:</span>
+      <Select value={m} onValueChange={(mm) => onChange(`${h || "09"}:${mm}`)} disabled={disabled}>
+        <SelectTrigger className="flex-1" aria-label="Minute">
+          <SelectValue placeholder="Min" />
+        </SelectTrigger>
+        <SelectContent className="max-h-56">
+          {MINUTES.map((mm) => (
+            <SelectItem key={mm} value={mm}>
+              {mm}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 type LinkedApplication = {
   id: string;
@@ -73,6 +150,8 @@ type TaskRow = {
   id: string;
   title: string;
   due_date: string | null;
+  due_time: string | null;
+  duration_minutes: number | null;
   done: boolean;
   priority: boolean;
   task_applications: { application: LinkedApplication | null }[];
@@ -101,10 +180,19 @@ const BUCKET_ORDER = DUE_WINDOW_ORDER.map((key) => ({
  * the tone of its section. Tasks further out stay plain muted text: only what
  * needs attention soon should shout.
  */
-function DueLabel({ due, done }: { due: string; done: boolean }) {
+function DueLabel({ due, time, done }: { due: string; time?: string | null; done: boolean }) {
   const absolute = new Date(due).toLocaleDateString();
+  // A timed task shows its start ("· 14:00") after the date so the list mirrors what
+  // lands on the calendar; a date-only task reads as before.
+  const clock = toHhMm(time);
+  const suffix = clock ? ` · ${clock}` : "";
   if (done) {
-    return <span className="text-xs text-muted-foreground">Due {absolute}</span>;
+    return (
+      <span className="text-xs text-muted-foreground">
+        Due {absolute}
+        {suffix}
+      </span>
+    );
   }
 
   const past = daysAgo(due); // positive = overdue
@@ -123,6 +211,7 @@ function DueLabel({ due, done }: { due: string; done: boolean }) {
       >
         <Icon className="h-3 w-3 shrink-0" />
         {relativeDue(due)}
+        {suffix}
       </span>
     );
   }
@@ -130,6 +219,7 @@ function DueLabel({ due, done }: { due: string; done: boolean }) {
   return (
     <span className="text-xs text-muted-foreground" title={absolute}>
       {relativeDue(due)}
+      {suffix}
     </span>
   );
 }
@@ -205,6 +295,9 @@ function TasksPage() {
           user_id: userData.user.id,
           title: values.title,
           due_date: values.due_date || null,
+          // A time (and its duration) only applies when there's a date.
+          due_time: values.due_date && values.due_time ? values.due_time : null,
+          duration_minutes: values.due_date && values.due_time ? values.duration : null,
           priority: values.priority,
         })
         .select("id")
@@ -235,6 +328,8 @@ function TasksPage() {
         .update({
           title: values.title,
           due_date: values.due_date || null,
+          due_time: values.due_date && values.due_time ? values.due_time : null,
+          duration_minutes: values.due_date && values.due_time ? values.duration : null,
           done: values.done,
           priority: values.priority,
         })
@@ -361,29 +456,40 @@ function TasksPage() {
         title="Tasks"
         description="Every follow-up across your applications."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Sync Calendar:</span>
+              <CalendarSyncDialog />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Select View:</span>
+              <ToggleGroup
+                type="single"
+                value={view}
+                onValueChange={(v) => v && setView(v as View)}
+                className="justify-start"
+              >
+                <ToggleGroupItem value="list" aria-label="List view" size="sm">
+                  <List className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
+                  <LayoutGrid className="h-4 w-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+
             {tasks.length > 0 && (
-              <TaskFilters
-                tasks={tasks}
-                value={filters}
-                onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-                onClear={() => setFilters(EMPTY_TASK_FILTERS)}
-              />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Filter Tasks:</span>
+                <TaskFilters
+                  tasks={tasks}
+                  value={filters}
+                  onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+                  onClear={() => setFilters(EMPTY_TASK_FILTERS)}
+                />
+              </div>
             )}
-            <CalendarSyncDialog />
-            <ToggleGroup
-              type="single"
-              value={view}
-              onValueChange={(v) => v && setView(v as View)}
-              className="justify-start"
-            >
-              <ToggleGroupItem value="list" aria-label="List view" size="sm">
-                <List className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
-                <LayoutGrid className="h-4 w-4" />
-              </ToggleGroupItem>
-            </ToggleGroup>
           </div>
         }
       />
@@ -401,6 +507,8 @@ function TasksPage() {
             initialValues={{
               title: draftTitle,
               due_date: "",
+              due_time: "",
+              duration: 30,
               done: false,
               priority: false,
               roleIds: [],
@@ -422,6 +530,8 @@ function TasksPage() {
               initialValues={{
                 title: editingTask.title,
                 due_date: editingTask.due_date ?? "",
+                due_time: toHhMm(editingTask.due_time),
+                duration: editingTask.duration_minutes ?? 30,
                 done: editingTask.done,
                 priority: editingTask.priority,
                 roleIds: editingTask.task_applications
@@ -607,7 +717,7 @@ function TaskListRow({
           {task.title}
         </p>
         <RoleBadges task={task} />
-        {task.due_date && <DueLabel due={task.due_date} done={task.done} />}
+        {task.due_date && <DueLabel due={task.due_date} time={task.due_time} done={task.done} />}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
         <StarButton task={task} onToggle={onTogglePriority} />
@@ -663,7 +773,11 @@ function TaskGridCard({
       </div>
       <RoleBadges task={task} />
       <div className="mt-auto flex items-center justify-between pt-1">
-        {task.due_date ? <DueLabel due={task.due_date} done={task.done} /> : <span />}
+        {task.due_date ? (
+          <DueLabel due={task.due_date} time={task.due_time} done={task.done} />
+        ) : (
+          <span />
+        )}
         <div className="flex shrink-0 items-center gap-0.5">
           <StarButton task={task} onToggle={onTogglePriority} />
           <Button
@@ -705,13 +819,23 @@ function TaskForm({
 }) {
   const [title, setTitle] = useState(initialValues?.title ?? "");
   const [dueDate, setDueDate] = useState(initialValues?.due_date ?? "");
+  const [dueTime, setDueTime] = useState(initialValues?.due_time ?? "");
+  const [duration, setDuration] = useState(initialValues?.duration ?? 30);
   const [done, setDone] = useState(initialValues?.done ?? false);
   const [priority, setPriority] = useState(initialValues?.priority ?? false);
   const [roleIds, setRoleIds] = useState<string[]>(initialValues?.roleIds ?? []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = taskSchema.safeParse({ title, due_date: dueDate, done, priority, roleIds });
+    const parsed = taskSchema.safeParse({
+      title,
+      due_date: dueDate,
+      due_time: dueTime,
+      duration,
+      done,
+      priority,
+      roleIds,
+    });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
       return;
@@ -741,15 +865,61 @@ function TaskForm({
             onChange={(e) => setDueDate(e.target.value)}
           />
         </div>
-        {showDone && (
-          <div className="flex items-end pb-2.5">
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={done} onCheckedChange={(v) => setDone(!!v)} />
-              Completed
-            </label>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="task-due-time">
+              Time <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            {dueDate && dueTime && (
+              <button
+                type="button"
+                onClick={() => setDueTime("")}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
           </div>
-        )}
+          <TimeSelect
+            id="task-due-time"
+            value={dueTime}
+            onChange={setDueTime}
+            disabled={!dueDate}
+          />
+        </div>
       </div>
+
+      {/* Duration only matters once a time is set; otherwise the task is all-day. */}
+      {dueDate && dueTime ? (
+        <div className="space-y-2">
+          <Label htmlFor="task-duration">Duration</Label>
+          <Select value={String(duration)} onValueChange={(v) => setDuration(Number(v))}>
+            <SelectTrigger id="task-duration" className="w-full sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DURATION_OPTIONS.map((min) => (
+                <SelectItem key={min} value={String(min)}>
+                  {formatDuration(min)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        dueDate && (
+          <p className="text-xs text-muted-foreground">
+            No time set — this syncs as an all-day event. Add a time to make it a timed event.
+          </p>
+        )
+      )}
+
+      {showDone && (
+        <label className="flex w-fit items-center gap-2 text-sm">
+          <Checkbox checked={done} onCheckedChange={(v) => setDone(!!v)} />
+          Completed
+        </label>
+      )}
       <label className="flex w-fit items-center gap-2 text-sm">
         <Checkbox checked={priority} onCheckedChange={(v) => setPriority(!!v)} />
         <Star

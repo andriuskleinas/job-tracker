@@ -65,6 +65,8 @@ type TaskFeedRow = {
   id: string;
   title: string;
   due_date: string | null;
+  due_time: string | null;
+  duration_minutes: number | null;
   updated_at: string | null;
   task_applications: { application: { company: string; position: string } | null }[];
 };
@@ -81,15 +83,18 @@ export async function handleCalendarFeed(request: Request): Promise<Response> {
   if (!userId) return new Response("Not found", { status: 404 });
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("tasks")
-    .select(
-      "id, title, due_date, updated_at, task_applications(application:applications(company, position))",
-    )
-    .eq("user_id", userId)
-    .eq("done", false)
-    .not("due_date", "is", null)
-    .order("due_date", { ascending: true });
+  const [{ data, error }, { data: profile }] = await Promise.all([
+    supabaseAdmin
+      .from("tasks")
+      .select(
+        "id, title, due_date, due_time, duration_minutes, updated_at, task_applications(application:applications(company, position))",
+      )
+      .eq("user_id", userId)
+      .eq("done", false)
+      .not("due_date", "is", null)
+      .order("due_date", { ascending: true }),
+    supabaseAdmin.from("profiles").select("time_zone").eq("id", userId).maybeSingle(),
+  ]);
 
   if (error) {
     console.error("[calendar-feed] task query failed", error);
@@ -100,13 +105,16 @@ export async function handleCalendarFeed(request: Request): Promise<Response> {
     id: row.id,
     title: row.title,
     due_date: row.due_date,
+    due_time: row.due_time,
+    duration_minutes: row.duration_minutes,
     updated_at: row.updated_at,
     applications: row.task_applications
       .map((ta) => ta.application)
       .filter((a): a is { company: string; position: string } => !!a),
   }));
 
-  const ics = buildTasksICS(tasks, { appUrl: appOrigin(request) });
+  const tz = (profile as { time_zone: string | null } | null)?.time_zone || "UTC";
+  const ics = buildTasksICS(tasks, { appUrl: appOrigin(request), tz });
   const download = new URL(request.url).searchParams.get("download") === "1";
   return new Response(ics, {
     status: 200,
