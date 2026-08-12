@@ -30,6 +30,7 @@ import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
+import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
 import { Plus, Upload, Download, List, LayoutGrid } from "lucide-react";
 import Papa from "papaparse";
@@ -206,6 +207,7 @@ function ApplicationsPage() {
       if (error) throw error;
 
       const taskTitle = values.task_title?.trim();
+      let taskId: string | null = null;
       if (taskTitle) {
         const { data: task, error: taskError } = await supabase
           .from("tasks")
@@ -217,13 +219,16 @@ function ApplicationsPage() {
           .from("task_applications")
           .insert({ task_id: task.id, application_id: appRow.id });
         if (linkError) throw linkError;
+        taskId = task.id as string;
       }
+      return taskId;
     },
-    onSuccess: (_data, values) => {
+    onSuccess: (taskId, values) => {
       toast.success(values.task_title?.trim() ? "Application and task added" : "Application added");
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setOpen(false);
+      if (taskId) void syncTaskCalendar(taskId);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
   });
