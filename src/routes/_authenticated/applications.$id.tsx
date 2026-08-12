@@ -31,6 +31,7 @@ import { LocationFields, type LocationValue } from "@/components/LocationFields"
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
+import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
 import { ArrowLeft, Plus, Star, Trash2 } from "lucide-react";
 
@@ -205,10 +206,12 @@ function AppDetail() {
         .from("task_applications")
         .insert({ task_id: task.id, application_id: id });
       if (linkError) throw linkError;
+      return task.id as string;
     },
-    onSuccess: () => {
+    onSuccess: (taskId) => {
       toast.success("Task added");
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void syncTaskCalendar(taskId);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
   });
@@ -218,7 +221,10 @@ function AppDetail() {
       const { error } = await supabase.from("tasks").update({ done }).eq("id", tid);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+    onSuccess: (_data, { tid }) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void syncTaskCalendar(tid);
+    },
   });
 
   const togglePriority = useMutation({
@@ -241,6 +247,8 @@ function AppDetail() {
 
   const deleteTask = useMutation({
     mutationFn: async (tid: string) => {
+      // Remove the calendar event first, while the task→event mapping still exists.
+      await syncTaskCalendar(tid, { deleted: true });
       const { error } = await supabase.from("tasks").delete().eq("id", tid);
       if (error) throw error;
     },

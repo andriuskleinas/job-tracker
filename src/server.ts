@@ -47,6 +47,34 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      // Public calendar-feed endpoints are served here, ahead of the React router,
+      // so they can return text/calendar and skip CSRF/auth middleware — calendar
+      // apps fetch the feed with no auth header, carrying only the URL token.
+      const pathname = new URL(request.url).pathname;
+      if (pathname.startsWith("/calendar/tasks/") && pathname.endsWith(".ics")) {
+        const { handleCalendarFeed } = await import("./lib/calendar-feed.server");
+        return await handleCalendarFeed(request);
+      }
+      if (pathname === "/calendar/token") {
+        const { handleCalendarTokenRequest } = await import("./lib/calendar-feed.server");
+        return await handleCalendarTokenRequest(request);
+      }
+      if (pathname.startsWith("/calendar/google/")) {
+        const google = await import("./lib/google-calendar.server");
+        switch (pathname) {
+          case "/calendar/google/callback":
+            return await google.handleGoogleCallback(request);
+          case "/calendar/google/auth-url":
+            return await google.handleGoogleAuthUrl(request);
+          case "/calendar/google/status":
+            return await google.handleGoogleStatus(request);
+          case "/calendar/google/disconnect":
+            return await google.handleGoogleDisconnect(request);
+          case "/calendar/google/sync":
+            return await google.handleGoogleSync(request);
+        }
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

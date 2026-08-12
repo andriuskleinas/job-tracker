@@ -22,6 +22,8 @@ import { RoleMultiSelect, type RoleOption } from "@/components/RoleMultiSelect";
 import { statusColor, type Status } from "@/lib/status";
 import { daysAgo, relativeDue } from "@/lib/relative-time";
 import { TaskFilters } from "@/components/TaskFilters";
+import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
+import { syncTaskCalendar } from "@/lib/calendar-sync";
 import {
   dueBucket,
   DUE_WINDOW_LABEL,
@@ -147,6 +149,23 @@ function TasksPage() {
     localStorage.setItem("tasks-view", view);
   }, [view]);
 
+  // Google Calendar OAuth bounces back to /tasks?calendar=connected|error. Surface
+  // the outcome, refresh the connection state, and strip the param from the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("calendar");
+    if (!result) return;
+    if (result === "connected") {
+      toast.success("Google Calendar connected — your dated tasks will sync automatically.");
+      queryClient.invalidateQueries({ queryKey: ["calendar-status"] });
+    } else if (result === "error") {
+      toast.error("Couldn't connect Google Calendar. Please try again.");
+    }
+    params.delete("calendar");
+    const qs = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, [queryClient]);
+
   const { data: roles = [] } = useQuery({
     queryKey: ["applications", "roleOptions"],
     queryFn: async () => {
@@ -197,12 +216,14 @@ function TasksPage() {
           .insert(values.roleIds.map((application_id) => ({ task_id: task.id, application_id })));
         if (linkError) throw linkError;
       }
+      return task.id as string;
     },
-    onSuccess: () => {
+    onSuccess: (taskId) => {
       toast.success("Task added");
       invalidate();
       setCreateOpen(false);
       setDraftTitle("");
+      void syncTaskCalendar(taskId);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add task"),
   });
@@ -233,10 +254,11 @@ function TasksPage() {
         if (linkError) throw linkError;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, { id }) => {
       toast.success("Task updated");
       invalidate();
       setEditingTask(null);
+      void syncTaskCalendar(id);
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to save task"),
   });
@@ -246,7 +268,10 @@ function TasksPage() {
       const { error } = await supabase.from("tasks").update({ done }).eq("id", tid);
       if (error) throw error;
     },
-    onSuccess: invalidate,
+    onSuccess: (_data, { tid }) => {
+      invalidate();
+      void syncTaskCalendar(tid);
+    },
   });
 
   const togglePriority = useMutation({
@@ -259,6 +284,8 @@ function TasksPage() {
 
   const remove = useMutation({
     mutationFn: async (tid: string) => {
+      // Remove the calendar event first, while the task→event mapping still exists.
+      await syncTaskCalendar(tid, { deleted: true });
       const { error } = await supabase.from("tasks").delete().eq("id", tid);
       if (error) throw error;
     },
@@ -343,6 +370,7 @@ function TasksPage() {
                 onClear={() => setFilters(EMPTY_TASK_FILTERS)}
               />
             )}
+            <CalendarSyncDialog />
             <ToggleGroup
               type="single"
               value={view}
