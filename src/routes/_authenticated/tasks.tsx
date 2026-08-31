@@ -176,7 +176,7 @@ const BUCKET_ORDER = DUE_WINDOW_ORDER.map((key) => ({
  * Due date shown relative for open tasks ("2d overdue"), absolute once done.
  *
  * Anything owed this week gets a filled pill with an icon so it reads as a
- * warning at a glance — red once overdue, amber for the days ahead — matching
+ * warning at a glance — red once overdue, gold for the days ahead — matching
  * the tone of its section. Tasks further out stay plain muted text: only what
  * needs attention soon should shout.
  */
@@ -666,9 +666,9 @@ function RoleBadges({ task }: { task: TaskRow }) {
 }
 
 /**
- * Priority star: outline when normal, filled amber when high. The one control
+ * Priority star: outline when normal, filled gold when high. The one control
  * that says "this matters more than the routine follow-ups" — one click, no
- * menu. Reuses the amber token so a starred task and the "This week" pill speak
+ * menu. Reuses the gold token so a starred task and the "This week" pill speak
  * the same colour language.
  */
 function StarButton({ task, onToggle }: { task: TaskRow; onToggle: (priority: boolean) => void }) {

@@ -119,22 +119,40 @@
    *   --status-X-soft   tinted badge background
    *   --status-X-text   type on that tint (all >= 5.9:1)
    *
-   * The steps are not eyeballed. Green and red sit either side of amber, and
+   * The whole product spends five colours and no more: ink, gold, green, red,
+   * grey. That is the chrome palette (black / red / dark grey) plus exactly
+   * two earned hues — gold for work in flight, green for the win.
+   *
+   * `applied` is ink rather than a hue on purpose. It is the status two out of
+   * three rows carry, and a page of applications should read as black type on
+   * white, not as a wall of colour; spending a hue on the default state leaves
+   * nothing for the states that actually want the eye. It is also what keeps
+   * the palette to the five above — the blue that used to sit here was the one
+   * colour in the app that belonged to no brand.
+   *
+   * The steps are not eyeballed. Green and red sit either side of gold, and
    * under protanopia/deuteranopia all three collapse onto one yellow axis —
    * so lightness, not hue, has to separate them. These L values were solved
    * for that: worst adjacent CVD dE 8.1, normal-vision dE 24.0 (targets 8
    * and 15). Red is as bright as that budget allows — a step lighter and it
-   * collapses into green for a deuteranope. Amber is 2.2:1 on white, below
+   * collapses into green for a deuteranope. Gold is 2.2:1 on white, below
    * the 3:1 mark floor, which the
    * charts repay with permanent value labels and a data table; never let a
    * bar carry meaning on fill alone. Re-run the validator before editing.
+   *
+   * Ink and grey are both chroma 0, so hue cannot tell `applied` from
+   * `withdrawn` — the 0.34 L gap between the marks does, and on the badges the
+   * separation is type weight plus an edge: `applied` is near-black type
+   * inside an ink hairline (open, still yours), `withdrawn` is mid-grey type
+   * on a flat fill with no edge at all (closed, receding). See statusColor in
+   * lib/status.ts, which is where those two rules are written down.
    */
-  --status-applied: oklch(0.575 0.163 255.5); /* blue   — in the pipeline */
-  --status-applied-soft: color-mix(in oklch, var(--status-applied) 14%, transparent);
-  --status-applied-text: oklch(0.454 0.166 257.7);
-  --status-interviewing: oklch(0.76 0.155 74.5); /* amber  — live and moving */
-  --status-interviewing-soft: color-mix(in oklch, var(--status-interviewing) 20%, transparent);
-  --status-interviewing-text: oklch(0.471 0.105 66.1);
+  --status-applied: oklch(0.28 0 0); /* ink    — in the pipeline */
+  --status-applied-soft: color-mix(in oklch, var(--status-applied) 8%, transparent);
+  --status-applied-text: oklch(0.25 0 0);
+  --status-interviewing: oklch(0.755 0.152 86); /* gold   — live and moving */
+  --status-interviewing-soft: color-mix(in oklch, var(--status-interviewing) 24%, transparent);
+  --status-interviewing-text: oklch(0.465 0.105 72);
   --status-offer: oklch(0.582 0.187 144.3); /* green  — the good outcome */
   --status-offer-soft: color-mix(in oklch, var(--status-offer) 14%, transparent);
   --status-offer-text: oklch(0.445 0.152 142.5);
@@ -187,17 +205,22 @@
   /*
    * Status hues re-solved against the dark card — same five meanings, not a
    * flip of the light steps. Worst adjacent CVD dE 8.7, normal-vision 23.7,
-   * and every fill clears 3:1 here (amber no longer needs the label relief).
-   * Amber sits brighter than a conventional dark-mode band would put it;
+   * and every fill clears 3:1 here (gold no longer needs the label relief).
+   * Gold sits brighter than a conventional dark-mode band would put it;
    * that headroom is what holds it apart from green once hue is simulated
    * away, and contrast is measured, so the brightness is bought, not spent.
+   *
+   * `applied` inverts rather than translates: ink on white becomes chalk on
+   * black, so the default status stays the page's own type colour in both
+   * modes. That puts it 0.23 L above `withdrawn` — the two neutrals are
+   * separated here by the same gap, in the other direction.
    */
-  --status-applied: oklch(0.619 0.161 255.3);
-  --status-applied-soft: color-mix(in oklch, var(--status-applied) 22%, transparent);
-  --status-applied-text: oklch(0.795 0.107 251.3);
-  --status-interviewing: oklch(0.821 0.15 78.2);
+  --status-applied: oklch(0.92 0 0);
+  --status-applied-soft: color-mix(in oklch, var(--status-applied) 14%, transparent);
+  --status-applied-text: oklch(0.96 0 0);
+  --status-interviewing: oklch(0.83 0.148 88);
   --status-interviewing-soft: color-mix(in oklch, var(--status-interviewing) 22%, transparent);
-  --status-interviewing-text: oklch(0.86 0.13 84.9);
+  --status-interviewing-text: oklch(0.87 0.128 90);
   --status-offer: oklch(0.66 0.185 144.9);
   --status-offer-soft: color-mix(in oklch, var(--status-offer) 22%, transparent);
   --status-offer-text: oklch(0.82 0.16 145);
@@ -276,6 +299,68 @@
   width: 100%;
   max-width: 26rem;
   padding-inline: 1.25rem;
+}
+
+/*
+ * Bar growth for the dashboard charts.
+ *
+ * recharts 3.10.1 animates <Area> under React 19 but not <Bar> — an animating
+ * bar renders no path at all — so the bars are drawn at final geometry with
+ * `isAnimationActive={false}` and grown here instead. See the comment above
+ * ENTER_MS in dashboard.tsx.
+ *
+ * Only `.recharts-bar-rectangles` is scaled, never the chart. Its value labels
+ * are a sibling group (`.recharts-label-list`), so they hold their type size
+ * and position while the bars behind them grow. `transform-box: fill-box` is
+ * what makes `transform-origin` resolve against the group's own bounds rather
+ * than the SVG viewport — without it both keyframes pivot from the wrong edge.
+ *
+ * Horizontal bars grow from the category axis they sit against; columns grow
+ * from the baseline. Nothing here runs when the viewer asks for less motion —
+ * the rules only exist inside the no-preference query, so the default state is
+ * the finished one and a reduced-motion viewer simply gets the drawn chart.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .chart-bars-h .recharts-bar-rectangles,
+  .chart-bars-v .recharts-bar-rectangles {
+    transform-box: fill-box;
+    /*
+     * Deliberately no fill-mode. The resting state is the drawn chart, and the
+     * keyframes only borrow it for 480ms — so if the animation never runs, the
+     * bars are simply there. With `both` the group would hold the 0%
+     * scale(0) frame instead, and any page whose animation clock is stalled —
+     * a dashboard opened in a background tab, where rAF and CSS animations are
+     * throttled until focus — would show empty charts. Fail visible.
+     */
+    animation: 480ms cubic-bezier(0.2, 0.8, 0.2, 1) bar-grow-x;
+  }
+
+  .chart-bars-h .recharts-bar-rectangles {
+    transform-origin: left center;
+  }
+
+  .chart-bars-v .recharts-bar-rectangles {
+    transform-origin: center bottom;
+    animation-name: bar-grow-y;
+  }
+}
+
+@keyframes bar-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes bar-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 
 /* Vertical rhythm for an app screen, below the 4rem sticky header. */

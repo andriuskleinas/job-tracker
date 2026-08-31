@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -14,7 +13,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { ACTIVE_STATUSES, CLOSED_STATUSES, statusColor, type Status } from "@/lib/status";
-import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { flagForCountry, jobTypeMeta, type JobType } from "@/lib/job-location";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
 
@@ -67,59 +66,27 @@ function deriveMeta(app: ApplicationCardData) {
   };
 }
 
-function CompanyLogo({
-  company,
-  website,
-  dim,
-}: {
-  company: string;
-  website: string | null;
-  dim?: boolean;
-}) {
-  const [failed, setFailed] = useState(false);
-  const url = faviconUrl(website);
-  const showImg = !!url && !failed;
-  const initial = company.trim().charAt(0).toUpperCase() || "?";
-
-  return (
-    <div
-      className={`flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border text-sm font-medium ${
-        showImg ? "bg-white" : "bg-muted"
-      } ${dim ? "text-muted-foreground" : "text-foreground/70"}`}
-    >
-      {showImg ? (
-        <img
-          src={url}
-          alt=""
-          width={36}
-          height={36}
-          loading="lazy"
-          className="h-full w-full object-contain p-1"
-          onError={() => setFailed(true)}
-          onLoad={(e) => {
-            // A domain with no real favicon comes back as a 16px generic globe —
-            // treat only that (not a smaller-but-real mark) as a miss.
-            if (e.currentTarget.naturalWidth <= GENERIC_FAVICON_SIZE) setFailed(true);
-          }}
-        />
-      ) : (
-        initial
-      )}
-    </div>
-  );
-}
-
 const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
   remote: Globe,
   hybrid: Blend,
   onsite: Building2,
 };
 
-const JOB_TYPE_CHIP: Record<JobType, string> = {
-  remote: "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300",
-  hybrid: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
-  onsite: "bg-stone-200/70 text-stone-700 dark:bg-stone-800/60 dark:text-stone-300",
-};
+/*
+ * Job type is metadata, not status, so it spends no hue.
+ *
+ * These three chips used to be sky / violet / stone straight from the Tailwind
+ * palette — the only colours in the app outside the token system, so a
+ * "Remote" chip read as a status badge on a card that carries a real one two
+ * inches to the right, and stone is a warm neutral in a palette whose rule is
+ * that neutrals are chroma 0 and never drift warm or blue.
+ *
+ * What separates this chip from the location pill beside it is now weight
+ * rather than colour: bordered with foreground text here, flat muted fill
+ * there. The icon — globe, blend, building — already tells the three types
+ * apart without help.
+ */
+const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
 
 /** Job type pill + a location pill (flag · City, Country) when we have either. */
 function LocationRow({ app }: { app: ApplicationCardData }) {
@@ -136,9 +103,7 @@ function LocationRow({ app }: { app: ApplicationCardData }) {
     <div className="flex flex-wrap items-center gap-1.5">
       {meta && Icon && (
         <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-            JOB_TYPE_CHIP[app.job_type as JobType]
-          }`}
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
         >
           <Icon className="h-3.5 w-3.5" /> {meta.short}
         </span>
@@ -187,9 +152,23 @@ function TaskChip({
   );
 }
 
+/**
+ * Stalled is an observation about silence, not a status, so it holds no status
+ * hue.
+ *
+ * It used to wear `--status-interviewing` — gold, the token whose documented
+ * meaning is "live and moving". Stalled means the exact opposite: active, and
+ * nothing has happened in thirty days. On a card whose badge already reads
+ * `Interviewing` in that same gold, the two sat inches apart saying opposite
+ * things in one colour, against the rule that a shared hue is a shared
+ * meaning.
+ *
+ * The dashed edge is doing the work colour was: it reads as dormancy — an
+ * outline round nothing — which is the state it is reporting.
+ */
 function StalledPill() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--status-interviewing-soft)] px-2 py-0.5 text-xs text-[var(--status-interviewing-text)]">
+    <span className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground">
       <TriangleAlert className="h-3.5 w-3.5" /> Stalled
     </span>
   );
@@ -244,9 +223,11 @@ function CardMeta({
 /**
  * Priority star for the opportunity itself — pins a dream-role application to
  * the top of the board. Lives inside the card's Link, so the click is stopped
- * from navigating. Outline when normal, filled amber when high, reusing the
+ * from navigating. Outline when normal, filled gold when high, reusing the
  * same star + token as the task-level flag so priority reads the same way
- * everywhere.
+ * everywhere. Gold is the right hue for it twice over: it is the palette's
+ * "this is live" colour, and a gold star is already what a starred thing
+ * looks like.
  */
 function AppStar({
   app,

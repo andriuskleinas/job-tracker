@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as DevPreviewRouteImport } from './routes/dev-preview'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -22,6 +23,11 @@ import { Route as AuthenticatedApplicationsIdRouteImport } from './routes/_authe
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevPreviewRoute = DevPreviewRouteImport.update({
+  id: '/dev-preview',
+  path: '/dev-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -69,6 +75,7 @@ const AuthenticatedApplicationsIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/dev-preview': typeof DevPreviewRoute
   '/reset-password': typeof ResetPasswordRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/dev-preview': typeof DevPreviewRoute
   '/reset-password': typeof ResetPasswordRoute
   '/account': typeof AuthenticatedAccountRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/dev-preview': typeof DevPreviewRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/dev-preview'
     | '/reset-password'
     | '/account'
     | '/dashboard'
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/dev-preview'
     | '/reset-password'
     | '/account'
     | '/dashboard'
@@ -124,6 +135,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/dev-preview'
     | '/reset-password'
     | '/_authenticated/account'
     | '/_authenticated/dashboard'
@@ -136,6 +148,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  DevPreviewRoute: typeof DevPreviewRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
@@ -146,6 +159,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dev-preview': {
+      id: '/dev-preview'
+      path: '/dev-preview'
+      fullPath: '/dev-preview'
+      preLoaderRoute: typeof DevPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -230,6 +250,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  DevPreviewRoute: DevPreviewRoute,
   ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport

@@ -5,26 +5,37 @@ export type Status = (typeof STATUSES)[number];
 /**
  * Badge classes — shared by the applications list, detail page, and dashboard.
  *
- * Each status owns a hue, and the outcome hues are the ones people already
- * read without a legend:
+ * Five statuses, five marks, and only two of them spend a hue:
  *
- *   applied      blue   in the pipeline, nothing owed
- *   interviewing amber  live and moving
+ *   applied      ink    in the pipeline, nothing owed
+ *   interviewing gold   live and moving
  *   offer        green  the good outcome
  *   rejected     red    closed, not by you
  *   withdrawn    grey   closed, by you
  *
  * Tinted fill rather than solid: five solid blocks compete with the content,
  * and a tint leaves room for type that clears 4.5:1 (measured 5.9–7.8:1 in
- * both modes). Grey for `withdrawn` is deliberate — it is the one status that
- * should recede, so it is the one that gets no hue.
+ * both modes).
+ *
+ * `applied` and `withdrawn` are both neutral, so the badge cannot lean on hue
+ * to tell them apart and leans on two other channels instead:
+ *
+ *   applied    faint tint, near-black type, and an ink hairline — an open
+ *              edge, the row still yours to act on
+ *   withdrawn  flat fill, mid-grey type, no edge at all — closed, receding
+ *
+ * That is also why `applied` is the one badge here with a visible border: it
+ * is the commonest status on the board, and an outline reads as lighter than
+ * a fill at the same darkness, so a page of open applications stays calm
+ * rather than turning into a column of dark blocks.
  *
  * The steps live in styles.css and were solved against colour-blind
  * simulation, not picked by eye; see the comment there before changing them.
  * Colour is never the only channel — every badge carries its own label.
  */
 export const statusColor: Record<Status, string> = {
-  applied: "border-transparent bg-[var(--status-applied-soft)] text-[var(--status-applied-text)]",
+  applied:
+    "border-[var(--status-applied)]/25 bg-[var(--status-applied-soft)] text-[var(--status-applied-text)]",
   interviewing:
     "border-transparent bg-[var(--status-interviewing-soft)] text-[var(--status-interviewing-text)]",
   offer: "border-transparent bg-[var(--status-offer-soft)] text-[var(--status-offer-text)]",
