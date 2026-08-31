@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/Footer";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { Badge } from "@/components/ui/badge";
+import { statusColor, statusFill } from "@/lib/status";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -36,12 +39,39 @@ function Index() {
   return (
     <main>
       <Hero />
+      <LogoBand />
       <Features />
       <ClosingCta />
       <Footer />
     </main>
   );
 }
+
+/*
+ * The companies shown across this page.
+ *
+ * `website` is the whole point: it is the same field the application form
+ * collects, and it goes through the same CompanyLogo component the board uses,
+ * so every mark on this page is fetched live exactly the way a real row
+ * fetches it. Nothing here is a bundled asset or a screenshot — if the logo
+ * pipeline breaks, the homepage shows it first.
+ *
+ * These are examples of employers a person might be tracking, not customers,
+ * partners or endorsers, and the copy beside them says so. Keep it that way:
+ * the moment this strip reads as a client list it is a claim we cannot make.
+ */
+const COMPANIES = [
+  { name: "Stripe", website: "https://stripe.com" },
+  { name: "Figma", website: "https://figma.com" },
+  { name: "Notion", website: "https://notion.so" },
+  { name: "Linear", website: "https://linear.app" },
+  { name: "Spotify", website: "https://spotify.com" },
+  { name: "Airbnb", website: "https://airbnb.com" },
+  { name: "Shopify", website: "https://shopify.com" },
+  { name: "Vercel", website: "https://vercel.com" },
+  { name: "Datadog", website: "https://datadoghq.com" },
+  { name: "Klarna", website: "https://klarna.com" },
+] as const;
 
 /* ------------------------------------------------------------------ hero -- */
 
@@ -155,36 +185,39 @@ const kpis = [
   { label: "Due today", value: "2", accent: true },
 ];
 
+/*
+ * Three rows of a real-looking board. Each borrows a company from COMPANIES so
+ * the preview renders the same live mark the app would, and each carries a
+ * genuine `Status` rather than a label — the badge below is the product's own
+ * statusColor, so the colour a visitor learns here is the colour they meet on
+ * their first application.
+ *
+ * It used to have a private three-tone scale (solid / brand / muted) that
+ * agreed with nothing: "Offer" was brand red on the homepage and green in the
+ * app, so the one screen whose job is to teach the vocabulary taught the wrong
+ * one.
+ */
 const pipeline = [
   {
-    company: "Northwind Labs",
+    company: COMPANIES[0],
     role: "Senior Product Designer",
-    status: "Interviewing",
-    tone: "solid" as const,
+    status: "interviewing" as const,
     meta: "Round 2 · Thursday",
   },
   {
-    company: "Alder & Finch",
+    company: COMPANIES[1],
     role: "Design Lead",
-    status: "Offer",
-    tone: "brand" as const,
+    status: "offer" as const,
     meta: "Respond by Friday",
     flagged: true,
   },
   {
-    company: "Meridian",
+    company: COMPANIES[3],
     role: "Product Designer",
-    status: "Applied",
-    tone: "muted" as const,
+    status: "applied" as const,
     meta: "Sent 6 days ago",
   },
 ];
-
-const statusTone = {
-  solid: "bg-foreground text-background",
-  brand: "bg-brand text-brand-foreground",
-  muted: "bg-muted text-muted-foreground",
-};
 
 /**
  * A representative view of the product, drawn in markup rather than shipped as
@@ -222,28 +255,85 @@ function ProductPreview() {
 
         <ul className="divide-y">
           {pipeline.map((row) => (
-            <li key={row.company} className="relative flex items-center gap-4 px-5 py-4">
+            <li key={row.company.name} className="relative flex items-center gap-4 px-5 py-4">
               {row.flagged && (
                 <span className="absolute inset-y-0 left-0 w-[3px] bg-brand" aria-hidden="true" />
               )}
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-foreground text-sm font-semibold text-background">
-                {row.company.charAt(0)}
-              </span>
+              <CompanyLogo company={row.company.name} website={row.company.website} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{row.company}</span>
+                <span className="block truncate text-sm font-medium">{row.company.name}</span>
                 <span className="block truncate text-xs text-muted-foreground">{row.role}</span>
               </span>
               <span className="hidden text-xs text-muted-foreground sm:block">{row.meta}</span>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[0.7rem] font-medium ${statusTone[row.tone]}`}
-              >
+              <Badge variant="outline" className={`${statusColor[row.status]} capitalize`}>
                 {row.status}
-              </span>
+              </Badge>
             </li>
           ))}
         </ul>
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------- logo band -- */
+
+/**
+ * The proof strip.
+ *
+ * Every other tracker's homepage puts a row of customer logos here and means
+ * "these companies bought this". This one means the opposite, and the heading
+ * has to carry that or the strip is a lie: these are the employers you are
+ * chasing, and the marks are the ones your own board will draw the moment you
+ * paste a careers URL into it.
+ *
+ * Which makes the strip an honest demo rather than decoration — it is the
+ * logo pipeline running in public, on the same component and the same live
+ * favicon lookup the application list uses. If a mark here falls back to a
+ * monogram, that is exactly what it would do on your board too.
+ *
+ * No marquee. A scrolling strip would put motion directly under a hero that
+ * already has a lot going on, and it makes the logos unreadable at the moment
+ * you want them read. Ten marks fit a static grid at every width.
+ */
+function LogoBand() {
+  return (
+    <section aria-labelledby="companies-heading" className="border-b bg-muted/40">
+      <div className="container-page py-14 sm:py-16">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2
+            id="companies-heading"
+            className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-accent"
+          >
+            Your shortlist, not ours
+          </h2>
+          <p className="mt-3 text-lg font-medium tracking-tight sm:text-xl">
+            Every company you apply to arrives with its own logo.
+          </p>
+          <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+            Paste the careers page URL and the mark resolves itself — so your board looks like the
+            companies you're chasing, not a column of grey initials.
+          </p>
+        </div>
+
+        <ul className="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {COMPANIES.map((company) => (
+            <li
+              key={company.name}
+              className="flex items-center gap-3 rounded-xl border bg-card px-3.5 py-3 transition-colors hover:border-foreground/20"
+            >
+              <CompanyLogo company={company.name} website={company.website} />
+              <span className="truncate text-sm font-medium">{company.name}</span>
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-8 text-center text-xs text-muted-foreground">
+          Company names and logos are the property of their respective owners, shown here as
+          examples of roles you might track. No affiliation or endorsement is implied.
+        </p>
+      </div>
+    </section>
   );
 }
 
@@ -364,11 +454,17 @@ function FeatureCard({
   );
 }
 
+/*
+ * A miniature of the dashboard's "Stage reach" chart, and it has to be exactly
+ * that: same three stages, same three fills, same value labels on the right.
+ * It previously drew Applied and Interviewing in one black and Offer in brand
+ * red, which is the colour this product uses for a rejection.
+ */
 const funnel = [
-  { label: "Applied", count: 14, width: "100%" },
-  { label: "Interviewing", count: 3, width: "42%" },
-  { label: "Offer", count: 1, width: "18%", accent: true },
-];
+  { label: "Applied", count: 14, width: "100%", status: "applied" },
+  { label: "Interviewing", count: 3, width: "42%", status: "interviewing" },
+  { label: "Offer", count: 1, width: "18%", status: "offer" },
+] as const;
 
 function FunnelVisual() {
   return (
@@ -378,8 +474,8 @@ function FunnelVisual() {
           <span className="w-24 shrink-0 text-xs text-muted-foreground">{stage.label}</span>
           <span className="h-7 flex-1 overflow-hidden rounded-md bg-muted">
             <span
-              className={`block h-full rounded-md ${stage.accent ? "bg-brand" : "bg-foreground"}`}
-              style={{ width: stage.width }}
+              className="block h-full rounded-md"
+              style={{ width: stage.width, background: statusFill[stage.status] }}
             />
           </span>
           <span className="w-6 shrink-0 text-right text-xs font-medium tabular-nums">
@@ -392,8 +488,8 @@ function FunnelVisual() {
 }
 
 const tasks = [
-  { label: "Send portfolio to Northwind", done: true },
-  { label: "Thank-you note — Alder & Finch", done: false, overdue: true },
+  { label: "Send portfolio to Stripe", done: true },
+  { label: "Thank-you note — Figma", done: false, overdue: true },
   { label: "Prep system design round", done: false },
 ];
 
@@ -405,7 +501,7 @@ function TasksVisual() {
           <span
             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
               task.done ? "border-foreground bg-foreground" : "bg-background"
-            } ${task.overdue ? "border-brand" : ""}`}
+            } ${task.overdue ? "border-[var(--status-rejected)]" : ""}`}
             aria-hidden="true"
           >
             {task.done && <Check className="h-3 w-3 text-background" />}
@@ -413,8 +509,9 @@ function TasksVisual() {
           <span className={task.done ? "text-muted-foreground line-through" : ""}>
             {task.label}
           </span>
+          {/* The overdue pill on the tasks page, to the token. */}
           {task.overdue && (
-            <span className="ml-auto shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-[0.65rem] font-medium text-brand-accent">
+            <span className="ml-auto shrink-0 rounded-full bg-[var(--status-rejected-soft)] px-2 py-0.5 text-[0.65rem] font-medium text-[var(--status-rejected-text)]">
               Overdue
             </span>
           )}
@@ -426,25 +523,36 @@ function TasksVisual() {
 
 const weeks = [38, 55, 30, 72, 48, 90, 64];
 
+/*
+ * Volume, so ink — the same reasoning as the dashboard's per-week chart, where
+ * a bar counts applications rather than outcomes. The busiest week is picked
+ * out in gold rather than red: it is the week worth noticing, not a warning.
+ */
 function BarsVisual() {
+  const peak = Math.max(...weeks);
   return (
     <div className="flex h-24 items-end gap-1.5">
       {weeks.map((height, i) => (
         <span
           key={i}
-          className={`flex-1 rounded-sm ${i === weeks.length - 2 ? "bg-brand" : "bg-foreground/80"}`}
-          style={{ height: `${height}%` }}
+          className="flex-1 rounded-sm"
+          style={{
+            height: `${height}%`,
+            background: height === peak ? statusFill.interviewing : statusFill.applied,
+          }}
         />
       ))}
     </div>
   );
 }
 
+/* Each dot wears the status it records — the trail reads as the same pipeline
+ * the badges do, newest first. */
 const timeline = [
-  { label: "Offer", date: "Jul 24", current: true },
-  { label: "Interviewing", date: "Jul 09" },
-  { label: "Applied", date: "Jun 30" },
-];
+  { label: "Offer", date: "Jul 24", status: "offer" },
+  { label: "Interviewing", date: "Jul 09", status: "interviewing" },
+  { label: "Applied", date: "Jun 30", status: "applied" },
+] as const;
 
 function TimelineVisual() {
   return (
@@ -452,9 +560,8 @@ function TimelineVisual() {
       {timeline.map((entry) => (
         <li key={entry.label} className="relative text-xs">
           <span
-            className={`absolute -left-[1.31rem] top-1 h-2 w-2 rounded-full ring-2 ring-card ${
-              entry.current ? "bg-brand" : "bg-border"
-            }`}
+            className="absolute -left-[1.31rem] top-1 h-2 w-2 rounded-full ring-2 ring-card"
+            style={{ background: statusFill[entry.status] }}
             aria-hidden="true"
           />
           <span className="font-medium">{entry.label}</span>
@@ -467,9 +574,9 @@ function TimelineVisual() {
 
 const csvPreview = [
   { cells: ["company", "position", "status"], head: true },
-  { cells: ["Northwind Labs", "Sr. Product Designer", "interviewing"] },
-  { cells: ["Alder & Finch", "Design Lead", "offer"] },
-  { cells: ["Meridian", "Product Designer", "applied"] },
+  { cells: ["Stripe", "Sr. Product Designer", "interviewing"] },
+  { cells: ["Figma", "Design Lead", "offer"] },
+  { cells: ["Linear", "Product Designer", "applied"] },
 ];
 
 function ImportVisual() {

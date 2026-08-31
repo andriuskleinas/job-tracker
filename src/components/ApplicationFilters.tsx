@@ -90,7 +90,12 @@ function StatusFilter({
               <Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
               <span
                 className={cn(
-                  "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium capitalize",
+                  // `border` is required, not decorative: statusColor gives
+                  // `applied` a coloured edge and the other four a transparent
+                  // one, so without a border width here the ink badge silently
+                  // loses the channel that separates it from `withdrawn`.
+                  // Every chip carries the 1px so they stay the same size.
+                  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium capitalize",
                   statusColor[s],
                 )}
               >

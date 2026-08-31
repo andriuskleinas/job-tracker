@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import {
@@ -82,8 +83,15 @@ const linkedRoles = (t: TaskWithApp): LinkedRole[] =>
  * is a key to the whole vocabulary, not an index of these particular charts.
  *
  * Where a chart counts applications generally rather than by outcome
- * (per-week volume, cohort size) it takes `applied` blue: those are
- * applications you sent, which is what blue means everywhere else here.
+ * (per-week volume, cohort size) it takes `applied` ink: those are
+ * applications you sent, which is what ink means everywhere else here.
+ *
+ * Ink as the default mark is also what lets gold and green mean something on
+ * this page. The trend line and the cohort totals are the two biggest shapes
+ * on the dashboard, and drawing them in a hue would have made every chart
+ * equally loud; in black they are the ground, and the only colour on screen
+ * lands on the two things worth looking up for — an interview in flight
+ * (gold) and an offer (green).
  */
 const barConfig = {
   count: { label: "Applications", color: "var(--status-applied)" },
@@ -99,14 +107,29 @@ const cohortConfig = {
 } satisfies ChartConfig;
 
 /**
- * Every <Bar> below sets `isAnimationActive={false}` deliberately.
+ * Enter animation, split by mark type — <Area> from recharts, <Bar> from CSS.
  *
- * recharts 2.15.4 animates bars in via react-smooth, which does not run under
- * React 19.2 — the enter animation never advances, so the rectangles stay at
- * zero size and the chart renders axes with no bars at all. Disabling the
- * animation makes them draw at their final geometry. Revisit if recharts is
- * upgraded to a version that supports React 19 properly.
+ * The 2.15.4 note this replaces said react-smooth's enter animation never
+ * advanced under React 19, leaving bars unrendered. recharts 3.10.1 declares
+ * React 19 support, so that should be fixed; <Area> is animated here on that
+ * basis and draws correctly.
+ *
+ * The bars still opt out with `isAnimationActive={false}` and grow via CSS
+ * instead (`chart-bars-h` / `chart-bars-v` in styles.css). That is not a claim
+ * that 3.x bars are broken — it is that the two failure modes are not
+ * symmetric. A bar that opts out is drawn at full geometry by recharts and
+ * merely scaled by a stylesheet, so the worst case is a chart that appears
+ * without motion. A bar that relies on react-smooth and does not get a
+ * ticking clock renders no path at all, which is the failure the old comment
+ * describes. The cheap side of that trade is the one worth taking on a screen
+ * whose whole job is showing numbers.
+ *
+ * The line runs a beat longer than the bars so the eye lands on the
+ * distribution before the trend. `prefers-reduced-motion` zeroes the duration
+ * here and suppresses the keyframes in CSS — recharts has no notion of the
+ * setting, so both halves have to carry it themselves.
  */
+const ENTER_MS = 480;
 
 function DashboardPage() {
   // Same query keys as the applications and tasks pages, so navigating between
@@ -179,6 +202,8 @@ export function DashboardView({
    * drop their percentage suffix.
    */
   const isMobile = useIsMobile();
+  const reducedMotion = useReducedMotion();
+  const trendMs = reducedMotion ? 0 : ENTER_MS + 160;
   // 86px is the measured width of the longest tick ("Interviewing") at 11px —
   // anything narrower clips its first character rather than wrapping.
   const axisWidth = isMobile ? 86 : 92;
@@ -273,7 +298,10 @@ export function DashboardView({
             <CardDescription>Where all {kpis.total} applications stand right now.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={barConfig} className="aspect-auto h-[220px] w-full">
+            <ChartContainer
+              config={barConfig}
+              className="chart-bars-h aspect-auto h-[220px] w-full"
+            >
               <BarChart
                 accessibilityLayer
                 data={breakdown}
@@ -334,7 +362,10 @@ export function DashboardView({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={stageConfig} className="aspect-auto h-[220px] w-full">
+            <ChartContainer
+              config={stageConfig}
+              className="chart-bars-h aspect-auto h-[220px] w-full"
+            >
               <BarChart
                 accessibilityLayer
                 data={funnel}
@@ -371,11 +402,15 @@ export function DashboardView({
                     // Without an explicit width recharts inherits the bar's own
                     // width, and a short bar wraps its label onto two lines.
                     width={isMobile ? 28 : 88}
-                    formatter={(value: number) =>
-                      kpis.total === 0 || isMobile
-                        ? `${value}`
-                        : `${value} (${Math.round((value / kpis.total) * 100)}%)`
-                    }
+                    // recharts 3 types this as RenderableText (string | number
+                    // | boolean | null | undefined), so the share is computed
+                    // only once the value is known to be a real number.
+                    formatter={(value: string | number | boolean | null | undefined) => {
+                      if (typeof value !== "number" || kpis.total === 0 || isMobile) {
+                        return `${value ?? ""}`;
+                      }
+                      return `${value} (${Math.round((value / kpis.total) * 100)}%)`;
+                    }}
                   />
                 </Bar>
               </BarChart>
@@ -433,7 +468,7 @@ export function DashboardView({
                 // legible where the line runs through them.
                 dot={{ r: 3.5, strokeWidth: 2, stroke: "var(--card)" }}
                 activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }}
-                isAnimationActive={false}
+                animationDuration={trendMs}
               />
             </AreaChart>
           </ChartContainer>
@@ -455,7 +490,10 @@ export function DashboardView({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={cohortConfig} className="aspect-auto h-[220px] w-full">
+            <ChartContainer
+              config={cohortConfig}
+              className="chart-bars-v aspect-auto h-[220px] w-full"
+            >
               <BarChart
                 accessibilityLayer
                 data={cohorts}
@@ -481,6 +519,8 @@ export function DashboardView({
                   maxBarSize={24}
                   isAnimationActive={false}
                 />
+                {/* The subset lands after the total it sits inside, so the
+                    nesting is legible as the pair draws. */}
                 <Bar
                   dataKey="reachedInterview"
                   fill="var(--color-reachedInterview)"
@@ -614,11 +654,19 @@ function PageHeading() {
 }
 
 /**
- * `accent` ties a tile to the status it counts. It rides a dot next to the
- * label rather than the figure: a number is text, and text stays in text ink
- * so it keeps its full contrast — the swatch beside it is what carries the
- * hue. `alert` is the one exception, because an overdue count is a warning
- * rather than an identity, and its label says so in words either way.
+ * `accent` ties a tile to the status it counts, and `alert` marks the one tile
+ * that is a warning rather than an identity.
+ *
+ * Either way the hue rides the tile's top edge, never the figure: a number is
+ * text, and text stays in text ink so it keeps its full contrast. The rule
+ * replaces a 2px dot that sat beside the label. The dot was correct and
+ * unreadable — at that size gold on white is a smudge, which meant the three
+ * tiles that carry the page's only colour were the three you couldn't see it
+ * on. A 3px edge is the same claim at a size that survives the trip to the
+ * screen, and it costs the tile no contrast anywhere.
+ *
+ * Only three of the six tiles take an accent. That restraint is the point:
+ * an accent on every tile is a stripe, and a stripe is wallpaper.
  */
 function StatTile({
   label,
@@ -635,19 +683,21 @@ function StatTile({
   alert?: boolean;
   accent?: Status;
 }) {
+  // Overdue work is the one warning on this page, and it wears the same red the
+  // overdue chips on the cards and tasks list wear.
+  const edge = alert ? "var(--status-rejected)" : accent ? statusFill[accent] : null;
+
   return (
-    <Card>
+    <Card className="relative overflow-hidden">
+      {edge && (
+        <span
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-[3px]"
+          style={{ background: edge }}
+        />
+      )}
       <CardContent className="p-5">
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          {accent && (
-            <span
-              aria-hidden
-              className="h-2 w-2 shrink-0 rounded-full"
-              style={{ background: statusFill[accent] }}
-            />
-          )}
-          {label}
-        </p>
+        <p className="text-sm text-muted-foreground">{label}</p>
         <div className="mt-1 flex items-baseline gap-2">
           {/* Proportional figures: tabular-nums makes a display-size number look loose. */}
           <span
