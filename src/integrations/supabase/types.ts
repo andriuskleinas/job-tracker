@@ -53,6 +53,7 @@ export type Database = {
           position: string;
           priority: boolean;
           status: Database["public"]["Enums"]["application_status"];
+          time_zone: string | null;
           updated_at: string;
           user_id: string;
           website: string | null;
@@ -69,6 +70,7 @@ export type Database = {
           position: string;
           priority?: boolean;
           status?: Database["public"]["Enums"]["application_status"];
+          time_zone?: string | null;
           updated_at?: string;
           user_id: string;
           website?: string | null;
@@ -85,6 +87,7 @@ export type Database = {
           position?: string;
           priority?: boolean;
           status?: Database["public"]["Enums"]["application_status"];
+          time_zone?: string | null;
           updated_at?: string;
           user_id?: string;
           website?: string | null;

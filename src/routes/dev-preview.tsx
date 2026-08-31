@@ -101,6 +101,7 @@ const cards: ApplicationCardData[] = [
     job_type: "remote",
     country: "Germany",
     city: "Berlin",
+    time_zone: null,
     task_applications: [
       { task: { id: "t1", due_date: iso(2), done: false, priority: true } },
       { task: { id: "t2", due_date: iso(-3), done: false, priority: false } },
@@ -118,6 +119,7 @@ const cards: ApplicationCardData[] = [
     job_type: "hybrid",
     country: "United Kingdom",
     city: "London",
+    time_zone: null,
     task_applications: [{ task: { id: "t3", due_date: iso(-8), done: false, priority: false } }],
   },
   {
@@ -132,6 +134,7 @@ const cards: ApplicationCardData[] = [
     job_type: "onsite",
     country: "Lithuania",
     city: "Vilnius",
+    time_zone: null,
     task_applications: [],
   },
   {
@@ -147,6 +150,7 @@ const cards: ApplicationCardData[] = [
     job_type: "hybrid",
     country: "Poland",
     city: "Warsaw",
+    time_zone: "America/Los_Angeles",
     task_applications: [],
   },
   {
@@ -161,6 +165,7 @@ const cards: ApplicationCardData[] = [
     job_type: "remote",
     country: "United States",
     city: null,
+    time_zone: null,
     task_applications: [],
   },
 ];

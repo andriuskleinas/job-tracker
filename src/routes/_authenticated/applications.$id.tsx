@@ -28,6 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { LocationFields, type LocationValue } from "@/components/LocationFields";
+import { WorkingHours } from "@/components/WorkingHours";
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
@@ -58,6 +59,7 @@ const editSchema = z
     job_type: z.enum(JOB_TYPES).or(z.literal("")).optional(),
     country: z.string().trim().max(120).optional().or(z.literal("")),
     city: z.string().trim().max(120).optional().or(z.literal("")),
+    time_zone: z.string().trim().max(64).optional().or(z.literal("")),
   })
   // On-site and hybrid roles need a physical base; remote leaves it optional.
   .superRefine((val, ctx) => {
@@ -139,6 +141,7 @@ function AppDetail() {
     job_type: "" as LocationValue["job_type"],
     country: "",
     city: "",
+    time_zone: "",
   });
 
   useEffect(() => {
@@ -153,6 +156,7 @@ function AppDetail() {
         job_type: (app.job_type ?? "") as LocationValue["job_type"],
         country: app.country ?? "",
         city: app.city ?? "",
+        time_zone: app.time_zone ?? "",
       });
     }
   }, [app]);
@@ -168,6 +172,7 @@ function AppDetail() {
           job_type: values.job_type || null,
           country: values.country || null,
           city: values.city || null,
+          time_zone: values.time_zone || null,
         })
         .eq("id", id);
       if (error) throw error;
@@ -402,6 +407,11 @@ function AppDetail() {
             <LocationFields
               value={{ job_type: form.job_type, country: form.country, city: form.city }}
               onChange={(v) => setForm({ ...form, ...v })}
+            />
+            <WorkingHours
+              app={{ city: form.city || null, country: form.country || null }}
+              value={form.time_zone}
+              onChange={(time_zone) => setForm({ ...form, time_zone })}
             />
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>

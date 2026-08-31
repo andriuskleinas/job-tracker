@@ -6,6 +6,7 @@ import {
   Blend,
   Building2,
   Clock,
+  Clock3,
   Globe,
   ListChecks,
   Star,
@@ -15,6 +16,8 @@ import {
 import { ACTIVE_STATUSES, CLOSED_STATUSES, statusColor, type Status } from "@/lib/status";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { flagForCountry, jobTypeMeta, type JobType } from "@/lib/job-location";
+import { formatOffset, offsetBetween, zoneForApplication } from "@/lib/time-zone";
+import { useUserZone } from "@/hooks/use-user-zone";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
 
 export type LinkedTask = {
@@ -36,6 +39,7 @@ export type ApplicationCardData = {
   job_type: string | null;
   country: string | null;
   city: string | null;
+  time_zone: string | null;
   task_applications?: { task: LinkedTask | null }[];
 };
 
@@ -90,11 +94,20 @@ const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
 
 /** Job type pill + a location pill (flag · City, Country) when we have either. */
 function LocationRow({ app }: { app: ApplicationCardData }) {
+  const userZone = useUserZone();
   const meta = jobTypeMeta(app.job_type);
   const city = app.city?.trim();
   const country = app.country?.trim();
   const place = [city, country].filter(Boolean).join(", ");
-  if (!meta && !place) return null;
+
+  // How far this role sits from the user's own clock. Computed per render
+  // rather than stored: offsets move with DST, and in the weeks when the US
+  // and EU disagree about it a saved number is wrong for everyone.
+  const zone = zoneForApplication(app);
+  const offset = zone && userZone ? offsetBetween(zone, userZone) : null;
+  const apart = offset !== null && offset !== 0 ? formatOffset(offset) : null;
+
+  if (!meta && !place && !apart) return null;
 
   const Icon = meta ? JOB_TYPE_ICON[app.job_type as JobType] : null;
   const flag = flagForCountry(country);
@@ -112,6 +125,14 @@ function LocationRow({ app }: { app: ApplicationCardData }) {
         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
           {flag ? <span aria-hidden>{flag}</span> : null}
           {place}
+        </span>
+      )}
+      {apart && (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+          title={`${zone} — ${apart} from your ${userZone}`}
+        >
+          <Clock3 className="h-3.5 w-3.5" /> {apart}
         </span>
       )}
     </div>
