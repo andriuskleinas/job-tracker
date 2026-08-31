@@ -119,6 +119,10 @@
    *   --status-X-soft   tinted badge background
    *   --status-X-text   type on that tint (all >= 5.9:1)
    *
+   * `applied` carries no -soft. Its badge is an outline with no fill (see
+   * statusColor in lib/status.ts), so a tint for it would be a token nothing
+   * renders.
+   *
    * The whole product spends five colours and no more: ink, gold, green, red,
    * grey. That is the chrome palette (black / red / dark grey) plus exactly
    * two earned hues — gold for work in flight, green for the win.
@@ -142,13 +146,12 @@
    *
    * Ink and grey are both chroma 0, so hue cannot tell `applied` from
    * `withdrawn` — the 0.34 L gap between the marks does, and on the badges the
-   * separation is type weight plus an edge: `applied` is near-black type
-   * inside an ink hairline (open, still yours), `withdrawn` is mid-grey type
-   * on a flat fill with no edge at all (closed, receding). See statusColor in
+   * separation is fill against edge: `applied` is near-black type in an ink
+   * outline with no fill (open, still yours), `withdrawn` is mid-grey type on
+   * a flat fill with no edge at all (closed, receding). See statusColor in
    * lib/status.ts, which is where those two rules are written down.
    */
   --status-applied: oklch(0.28 0 0); /* ink    — in the pipeline */
-  --status-applied-soft: color-mix(in oklch, var(--status-applied) 8%, transparent);
   --status-applied-text: oklch(0.25 0 0);
   --status-interviewing: oklch(0.755 0.152 86); /* gold   — live and moving */
   --status-interviewing-soft: color-mix(in oklch, var(--status-interviewing) 24%, transparent);
@@ -216,7 +219,6 @@
    * separated here by the same gap, in the other direction.
    */
   --status-applied: oklch(0.92 0 0);
-  --status-applied-soft: color-mix(in oklch, var(--status-applied) 14%, transparent);
   --status-applied-text: oklch(0.96 0 0);
   --status-interviewing: oklch(0.83 0.148 88);
   --status-interviewing-soft: color-mix(in oklch, var(--status-interviewing) 22%, transparent);
