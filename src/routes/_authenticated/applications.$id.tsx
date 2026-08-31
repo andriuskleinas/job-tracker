@@ -28,6 +28,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { LocationFields, type LocationValue } from "@/components/LocationFields";
+import { JobAdFields } from "@/components/JobAdFields";
+import {
+  EMPTY_JOB_AD,
+  jobAdColumns,
+  jobAdFromRow,
+  jobAdSchema,
+  type JobAdColumns,
+  type JobAdValue,
+} from "@/lib/job-ad-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES } from "@/lib/status";
@@ -140,6 +149,7 @@ function AppDetail() {
     country: "",
     city: "",
   });
+  const [jobAd, setJobAd] = useState<JobAdValue>(EMPTY_JOB_AD);
 
   useEffect(() => {
     if (app) {
@@ -154,11 +164,12 @@ function AppDetail() {
         country: app.country ?? "",
         city: app.city ?? "",
       });
+      setJobAd(jobAdFromRow(app));
     }
   }, [app]);
 
   const update = useMutation({
-    mutationFn: async (values: z.infer<typeof editSchema>) => {
+    mutationFn: async (values: z.infer<typeof editSchema> & JobAdColumns) => {
       const { error } = await supabase
         .from("applications")
         .update({
@@ -284,7 +295,12 @@ function AppDetail() {
       toast.error(parsed.error.issues[0].message);
       return;
     }
-    update.mutate(parsed.data);
+    const ad = jobAdSchema.safeParse(jobAd);
+    if (!ad.success) {
+      toast.error(ad.error.issues[0].message);
+      return;
+    }
+    update.mutate({ ...parsed.data, ...jobAdColumns(jobAd, app.captured_at) });
   };
 
   const onAddTask = (e: React.FormEvent<HTMLFormElement>) => {
@@ -403,6 +419,7 @@ function AppDetail() {
               value={{ job_type: form.job_type, country: form.country, city: form.city }}
               onChange={(v) => setForm({ ...form, ...v })}
             />
+            <JobAdFields value={jobAd} onChange={setJobAd} capturedAt={app.captured_at} />
             <div className="space-y-2">
               <Label htmlFor="notes">Notes</Label>
               <Textarea

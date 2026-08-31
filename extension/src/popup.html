@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Clip to Job Tracker</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Clip to Job Tracker</h1>
+      <button id="settings" type="button" title="Disconnect" hidden>Disconnect</button>
+    </header>
+
+    <main id="root">
+      <p class="status" id="loading">Reading this page…</p>
+
+      <!-- Not paired yet -->
+      <section id="connect" hidden>
+        <p class="lede">
+          Connect this extension to your Job Tracker account once, and clipping is a single click
+          from then on.
+        </p>
+        <ol class="steps">
+          <li>
+            Open
+            <a id="pair-link" href="#" target="_blank" rel="noreferrer"
+              >Job Tracker → Account → Browser extension</a
+            >
+          </li>
+          <li>Copy the pairing code shown there</li>
+          <li>Paste it below</li>
+        </ol>
+        <label for="pair-code">Pairing code</label>
+        <input
+          id="pair-code"
+          type="text"
+          placeholder="Paste the code"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <label for="api-base">Job Tracker address</label>
+        <input id="api-base" type="url" autocomplete="off" spellcheck="false" />
+        <button id="pair-save" class="primary" type="button">Connect</button>
+        <p class="error" id="pair-error" hidden></p>
+      </section>
+
+      <!-- Paired: the review form -->
+      <section id="form" hidden>
+        <p class="read-note" id="read-note"></p>
+
+        <label for="target">Save to</label>
+        <select id="target">
+          <option value="">A new application</option>
+        </select>
+
+        <div class="row">
+          <div>
+            <label for="company">Company</label>
+            <input id="company" type="text" autocomplete="off" />
+          </div>
+          <div>
+            <label for="position">Job title</label>
+            <input id="position" type="text" autocomplete="off" />
+          </div>
+        </div>
+
+        <label>Salary</label>
+        <div class="row four">
+          <input
+            id="salary_min"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="From"
+            aria-label="Salary minimum"
+          />
+          <input
+            id="salary_max"
+            type="number"
+            min="0"
+            step="any"
+            placeholder="To"
+            aria-label="Salary maximum"
+          />
+          <select id="salary_currency" aria-label="Currency"></select>
+          <select id="salary_period" aria-label="Period"></select>
+        </div>
+        <p class="found" id="salary-found" hidden></p>
+
+        <details>
+          <summary>Requirements <span class="count" id="req-count"></span></summary>
+          <textarea id="requirements" rows="6"></textarea>
+        </details>
+
+        <details>
+          <summary>Full ad <span class="count" id="desc-count"></span></summary>
+          <textarea id="description" rows="8"></textarea>
+        </details>
+
+        <button id="save" class="primary" type="button">Save to Job Tracker</button>
+        <p class="error" id="save-error" hidden></p>
+      </section>
+
+      <!-- Done -->
+      <section id="done" hidden>
+        <p class="done-mark">Saved</p>
+        <p class="lede" id="done-text"></p>
+        <a id="done-link" class="primary as-link" href="#" target="_blank" rel="noreferrer"
+          >Open it in Job Tracker</a
+        >
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

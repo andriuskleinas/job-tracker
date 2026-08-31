@@ -43,15 +43,24 @@ export type Database = {
       applications: {
         Row: {
           application_date: string;
+          captured_at: string | null;
           city: string | null;
           company: string;
           country: string | null;
           created_at: string;
+          description: string | null;
           id: string;
           job_type: string | null;
+          job_url: string | null;
           notes: string | null;
           position: string;
           priority: boolean;
+          requirements: string | null;
+          salary_currency: string | null;
+          salary_max: number | null;
+          salary_min: number | null;
+          salary_period: string | null;
+          salary_source: string | null;
           status: Database["public"]["Enums"]["application_status"];
           updated_at: string;
           user_id: string;
@@ -59,15 +68,24 @@ export type Database = {
         };
         Insert: {
           application_date?: string;
+          captured_at?: string | null;
           city?: string | null;
           company: string;
           country?: string | null;
           created_at?: string;
+          description?: string | null;
           id?: string;
           job_type?: string | null;
+          job_url?: string | null;
           notes?: string | null;
           position: string;
           priority?: boolean;
+          requirements?: string | null;
+          salary_currency?: string | null;
+          salary_max?: number | null;
+          salary_min?: number | null;
+          salary_period?: string | null;
+          salary_source?: string | null;
           status?: Database["public"]["Enums"]["application_status"];
           updated_at?: string;
           user_id: string;
@@ -75,15 +93,24 @@ export type Database = {
         };
         Update: {
           application_date?: string;
+          captured_at?: string | null;
           city?: string | null;
           company?: string;
           country?: string | null;
           created_at?: string;
+          description?: string | null;
           id?: string;
           job_type?: string | null;
+          job_url?: string | null;
           notes?: string | null;
           position?: string;
           priority?: boolean;
+          requirements?: string | null;
+          salary_currency?: string | null;
+          salary_max?: number | null;
+          salary_min?: number | null;
+          salary_period?: string | null;
+          salary_source?: string | null;
           status?: Database["public"]["Enums"]["application_status"];
           updated_at?: string;
           user_id?: string;

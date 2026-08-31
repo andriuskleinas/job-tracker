@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Combobox } from "@/components/Combobox";
 import { COUNTRIES, CITIES, flagEmoji, flagForCountry } from "@/lib/job-location";
 import { fetchProfile } from "@/lib/profile";
+import { ExtensionPairing } from "@/components/ExtensionPairing";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Clock, LocateFixed, MapPin } from "lucide-react";
@@ -325,6 +326,8 @@ function AccountPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ExtensionPairing />
 
       <Card className="mt-4">
         <CardHeader>

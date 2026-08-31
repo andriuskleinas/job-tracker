@@ -26,6 +26,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { LocationFields, type LocationValue } from "@/components/LocationFields";
+import { JobAdFields } from "@/components/JobAdFields";
+import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/job-ad-form";
 import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -103,6 +105,9 @@ const requireLocation = (val: z.infer<typeof appBase>, ctx: z.RefinementCtx) => 
 
 const appSchema = appBase.superRefine(requireLocation);
 
+/** One CSV row: the application itself plus its job-ad block. */
+type ImportRow = { app: z.infer<typeof appSchema>; ad: JobAdValue };
+
 // The New application dialog can also seed a first follow-up task, linked to the
 // application that gets created. Both task fields are optional.
 const appWithTaskSchema = appBase
@@ -152,6 +157,7 @@ function ApplicationsPage() {
   const [open, setOpen] = useState(false);
   const defaultLocation: LocationValue = { job_type: "onsite", country: "", city: "" };
   const [location, setLocation] = useState<LocationValue>(defaultLocation);
+  const [jobAd, setJobAd] = useState<JobAdValue>(EMPTY_JOB_AD);
   const [importOpen, setImportOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -201,6 +207,7 @@ function ApplicationsPage() {
           job_type: values.job_type || null,
           country: values.country || null,
           city: values.city || null,
+          ...jobAdColumns(jobAd),
         })
         .select("id")
         .single();
@@ -234,12 +241,12 @@ function ApplicationsPage() {
   });
 
   const importMut = useMutation({
-    mutationFn: async (rows: z.infer<typeof appSchema>[]) => {
+    mutationFn: async (rows: ImportRow[]) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not signed in");
       const userId = userData.user.id;
       const { error } = await supabase.from("applications").insert(
-        rows.map((r) => ({
+        rows.map(({ app: r, ad }) => ({
           user_id: userId,
           company: r.company,
           position: r.position,
@@ -250,6 +257,7 @@ function ApplicationsPage() {
           job_type: r.job_type || null,
           country: r.country || null,
           city: r.city || null,
+          ...jobAdColumns(ad),
         })),
       );
       if (error) throw error;
@@ -277,7 +285,7 @@ function ApplicationsPage() {
       skipEmptyLines: true,
       transformHeader: (h) => h.trim().toLowerCase(),
       complete: (results) => {
-        const valid: z.infer<typeof appSchema>[] = [];
+        const valid: ImportRow[] = [];
         const errs: { row: number; reason: string }[] = [];
         const today = new Date().toISOString().slice(0, 10);
         results.data.forEach((raw, i) => {
@@ -293,14 +301,29 @@ function ApplicationsPage() {
             country: (raw.country ?? "").trim(),
             city: (raw.city ?? "").trim(),
           });
-          if (parsed.success) valid.push(parsed.data);
-          else
+          const ad = jobAdSchema.safeParse({
+            ...EMPTY_JOB_AD,
+            job_url: (raw.job_url ?? "").trim(),
+            description: (raw.description ?? "").trim(),
+            requirements: (raw.requirements ?? "").trim(),
+            salary_min: (raw.salary_min ?? "").trim(),
+            salary_max: (raw.salary_max ?? "").trim(),
+            salary_currency: (raw.salary_currency ?? "").trim().toUpperCase(),
+            salary_period: (raw.salary_period ?? "").trim().toLowerCase(),
+            salary_source: (raw.salary_source ?? "").trim().toLowerCase(),
+          });
+          if (parsed.success && ad.success) {
+            valid.push({ app: parsed.data, ad: ad.data as JobAdValue });
+          } else {
+            const issues = [
+              ...(parsed.success ? [] : parsed.error.issues),
+              ...(ad.success ? [] : ad.error.issues),
+            ];
             errs.push({
               row: rowNum,
-              reason: parsed.error.issues
-                .map((x) => `${x.path.join(".")}: ${x.message}`)
-                .join("; "),
+              reason: issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; "),
             });
+          }
         });
         setImportErrors(errs);
         if (valid.length === 0) {
@@ -319,9 +342,11 @@ function ApplicationsPage() {
 
   const downloadTemplate = () => {
     const csv =
-      "company,position,status,application_date,website,notes\n" +
-      "Acme Inc,Frontend Engineer,applied,2026-07-01,https://acme.com,Referred by Alice\n" +
-      "Globex,Product Designer,interviewing,2026-07-15,globex.com,\n";
+      "company,position,status,application_date,website,notes," +
+      "job_url,salary_min,salary_max,salary_currency,salary_period,salary_source,requirements,description\n" +
+      "Acme Inc,Frontend Engineer,applied,2026-07-01,https://acme.com,Referred by Alice," +
+      "https://boards.greenhouse.io/acme/jobs/1,65000,80000,EUR,year,posted,5+ years with React,Full ad text\n" +
+      "Globex,Product Designer,interviewing,2026-07-15,globex.com,,,,,,,,\n";
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -349,6 +374,11 @@ function ApplicationsPage() {
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    const ad = jobAdSchema.safeParse(jobAd);
+    if (!ad.success) {
+      toast.error(ad.error.issues[0].message);
       return;
     }
     create.mutate(parsed.data);
@@ -393,8 +423,14 @@ function ApplicationsPage() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <p className="text-sm leading-relaxed text-muted-foreground">
-                    Columns: <code>company, position, status, application_date, notes</code>.
-                    Missing status defaults to <code>applied</code>; missing date defaults to today.
+                    Columns: <code>company, position, status, application_date, notes</code>, plus
+                    optional{" "}
+                    <code>
+                      job_url, salary_min, salary_max, salary_currency, salary_period,
+                      salary_source, requirements, description
+                    </code>
+                    . Missing status defaults to <code>applied</code>; missing date defaults to
+                    today. A salary needs a currency with it.
                   </p>
                   <Button variant="ghost" size="sm" onClick={downloadTemplate} type="button">
                     <Download className="h-4 w-4" /> Download template
@@ -445,7 +481,10 @@ function ApplicationsPage() {
               open={open}
               onOpenChange={(v) => {
                 setOpen(v);
-                if (v) setLocation(defaultLocation);
+                if (v) {
+                  setLocation(defaultLocation);
+                  setJobAd(EMPTY_JOB_AD);
+                }
               }}
             >
               <DialogTrigger asChild>
@@ -468,6 +507,7 @@ function ApplicationsPage() {
                       <Input id="position" name="position" required />
                     </div>
                   </div>
+                  <JobAdFields value={jobAd} onChange={setJobAd} />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="status">Status</Label>
