@@ -18,24 +18,29 @@ export type Status = (typeof STATUSES)[number];
  * both modes).
  *
  * `applied` and `withdrawn` are both neutral, so the badge cannot lean on hue
- * to tell them apart and leans on two other channels instead:
+ * to tell them apart and leans on fill and edge instead — inverses of each
+ * other, which is the point:
  *
- *   applied    faint tint, near-black type, and an ink hairline — an open
- *              edge, the row still yours to act on
- *   withdrawn  flat fill, mid-grey type, no edge at all — closed, receding
+ *   applied    no fill at all, ink border, near-black type — an open outline,
+ *              the row still yours to act on
+ *   withdrawn  flat grey fill, mid-grey type, no edge — closed, receding
  *
- * That is also why `applied` is the one badge here with a visible border: it
- * is the commonest status on the board, and an outline reads as lighter than
- * a fill at the same darkness, so a page of open applications stays calm
- * rather than turning into a column of dark blocks.
+ * `applied` is the only unfilled badge in the set, and that is deliberate on
+ * two counts. It is the status roughly six rows in ten carry, so a fill —
+ * solid black most of all — would make the least informative state the
+ * loudest mark on the board and let gold and green lose a fight they must
+ * win: the eye belongs on the two rows that need something today, not the
+ * seven where nothing has happened. An earlier version tinted it faintly
+ * instead, which failed the other way — it read as washed out, and sat too
+ * close to `withdrawn`, so open and dead work looked alike. An outline is
+ * the shape that is emphatic without being heavy.
  *
  * The steps live in styles.css and were solved against colour-blind
  * simulation, not picked by eye; see the comment there before changing them.
  * Colour is never the only channel — every badge carries its own label.
  */
 export const statusColor: Record<Status, string> = {
-  applied:
-    "border-[var(--status-applied)]/25 bg-[var(--status-applied-soft)] text-[var(--status-applied-text)]",
+  applied: "border-[var(--status-applied)] bg-transparent text-[var(--status-applied-text)]",
   interviewing:
     "border-transparent bg-[var(--status-interviewing-soft)] text-[var(--status-interviewing-text)]",
   offer: "border-transparent bg-[var(--status-offer-soft)] text-[var(--status-offer-text)]",
