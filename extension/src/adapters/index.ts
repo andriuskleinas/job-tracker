@@ -19,6 +19,8 @@ export type Extracted = {
   rawText: string;
   adapter: string;
   fellBack: boolean;
+  /** How many collapsed sections were opened before reading. */
+  expanded?: number;
 };
 
 export type Adapter = {
@@ -126,7 +128,7 @@ function largestTextBlock(doc: Document, minChars = 400): string {
 
 /** Headings that belong to the page's furniture rather than to a job. */
 const CHROME_HEADING =
-  /^(linkedin|jobs?|search|notifications?|messaging|my network|home|menu|\d+\s+(new\s+)?(notifications?|messages?|invitations?))$/i;
+  /^(?:linkedin|jobs?|search|notifications?|messaging|my network|home|menu|\d+\s+(?:new\s+)?(?:notifications?|messages?|invitations?)|about\s+the\s+job|job\s+description|are\s+these\s+results\s+helpful\??|is\s+this\s+information\s+helpful\??|people\s+also\s+viewed|similar\s+jobs|jobs?\s+based\s+on\s+your\s+preferences|darbo\s+skelbimai|pana[sš][uū]s\s+skelbimai|prisijungti)$/i;
 
 function inChrome(el: Element): boolean {
   return !!el.closest("nav, header, aside, footer, [role='navigation'], [role='banner']");
@@ -145,8 +147,8 @@ function headingTitle(doc: Document, within?: Element | null): string {
   for (let el = within ?? null; el; el = el.parentElement) roots.push(el);
   roots.push(doc);
 
-  for (const root of roots) {
-    for (const tag of ["h1", "h2"]) {
+  for (const tag of ["h1", "h2"]) {
+    for (const root of roots) {
       for (const el of Array.from(root.querySelectorAll(tag))) {
         const text = textOf(el);
         if (text.length < 3 || text.length > 150) continue;
