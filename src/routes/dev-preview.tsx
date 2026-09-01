@@ -105,6 +105,7 @@ const cards: ApplicationCardData[] = [
     salary_max: 130000,
     salary_currency: "EUR",
     salary_period: "year",
+    time_zone: null,
     task_applications: [
       { task: { id: "t1", due_date: iso(2), done: false, priority: true } },
       { task: { id: "t2", due_date: iso(-3), done: false, priority: false } },
@@ -126,6 +127,7 @@ const cards: ApplicationCardData[] = [
     salary_max: 90000,
     salary_currency: "GBP",
     salary_period: "year",
+    time_zone: null,
     task_applications: [{ task: { id: "t3", due_date: iso(-8), done: false, priority: false } }],
   },
   {
@@ -144,6 +146,7 @@ const cards: ApplicationCardData[] = [
     salary_max: 7000,
     salary_currency: "EUR",
     salary_period: "month",
+    time_zone: null,
     task_applications: [],
   },
   {
@@ -163,6 +166,7 @@ const cards: ApplicationCardData[] = [
     salary_max: null,
     salary_currency: null,
     salary_period: null,
+    time_zone: "America/Los_Angeles",
     task_applications: [],
   },
   {
@@ -181,6 +185,7 @@ const cards: ApplicationCardData[] = [
     salary_max: null,
     salary_currency: "USD",
     salary_period: "year",
+    time_zone: null,
     task_applications: [],
   },
 ];
