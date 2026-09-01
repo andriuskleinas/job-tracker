@@ -211,8 +211,9 @@ function render(data: Extracted) {
   // adapter for means that adapter is broken — usually the site changed its
   // markup — and that is a different message from an unknown site, because it
   // is a bug to report rather than a limitation to accept.
+  const expandedNote = data.expanded ? " Expanded the collapsed description first." : "";
   $("read-note").textContent = !data.fellBack
-    ? `Read the ad from ${data.adapter}.`
+    ? `Read the ad from ${data.adapter}.${expandedNote}`
     : data.adapter === "generic"
       ? "Read the whole visible page — this site isn't one we know in detail, so check the fields below."
       : `Couldn't find the ad on this ${data.adapter} page, so the whole visible page was read instead. Check the fields below — and the ${data.adapter} layout may have changed.`;
