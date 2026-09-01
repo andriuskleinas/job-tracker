@@ -59,6 +59,22 @@ export default {
         const { handleCalendarTokenRequest } = await import("./lib/calendar-feed.server");
         return await handleCalendarTokenRequest(request);
       }
+      // Browser-extension endpoints. Routed here for the same reason as the
+      // calendar feed: they answer cross-origin requests from the extension
+      // with their own bearer-token auth, ahead of the app's middleware.
+      if (pathname === "/clip" || pathname.startsWith("/clip/")) {
+        const ext = await import("./lib/extension.server");
+        if (request.method === "OPTIONS") return ext.handleExtensionPreflight(request);
+        switch (pathname) {
+          case "/clip":
+            return await ext.handleClip(request);
+          case "/clip/token":
+            return await ext.handleClipTokenRequest(request);
+          case "/clip/applications":
+            return await ext.handleClipApplications(request);
+        }
+      }
+
       if (pathname.startsWith("/calendar/google/")) {
         const google = await import("./lib/google-calendar.server");
         switch (pathname) {

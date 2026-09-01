@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  Banknote,
   Blend,
   Building2,
   Clock,
@@ -16,6 +17,7 @@ import {
 import { ACTIVE_STATUSES, CLOSED_STATUSES, statusColor, type Status } from "@/lib/status";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { flagForCountry, jobTypeMeta, type JobType } from "@/lib/job-location";
+import { formatSalary, type SalaryPeriod } from "@/lib/job-ad";
 import { formatOffset, offsetBetween, zoneForApplication } from "@/lib/time-zone";
 import { useUserZone } from "@/hooks/use-user-zone";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
@@ -39,6 +41,10 @@ export type ApplicationCardData = {
   job_type: string | null;
   country: string | null;
   city: string | null;
+  salary_min: number | null;
+  salary_max: number | null;
+  salary_currency: string | null;
+  salary_period: string | null;
   time_zone: string | null;
   task_applications?: { task: LinkedTask | null }[];
 };
@@ -92,13 +98,23 @@ const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
  */
 const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
 
-/** Job type pill + a location pill (flag · City, Country) when we have either. */
+/**
+ * The facts row: how the role is worked, where it's based, and what it pays.
+ * Salary is the one a user scans for, so it carries the foreground weight the
+ * location pill doesn't.
+ */
 function LocationRow({ app }: { app: ApplicationCardData }) {
   const userZone = useUserZone();
   const meta = jobTypeMeta(app.job_type);
   const city = app.city?.trim();
   const country = app.country?.trim();
   const place = [city, country].filter(Boolean).join(", ");
+  const salary = formatSalary({
+    salary_min: app.salary_min,
+    salary_max: app.salary_max,
+    salary_currency: app.salary_currency,
+    salary_period: app.salary_period as SalaryPeriod | null,
+  });
 
   // How far this role sits from the user's own clock. Computed per render
   // rather than stored: offsets move with DST, and in the weeks when the US
@@ -107,7 +123,7 @@ function LocationRow({ app }: { app: ApplicationCardData }) {
   const offset = zone && userZone ? offsetBetween(zone, userZone) : null;
   const apart = offset !== null && offset !== 0 ? formatOffset(offset) : null;
 
-  if (!meta && !place && !apart) return null;
+  if (!meta && !place && !salary && !apart) return null;
 
   const Icon = meta ? JOB_TYPE_ICON[app.job_type as JobType] : null;
   const flag = flagForCountry(country);
@@ -125,6 +141,13 @@ function LocationRow({ app }: { app: ApplicationCardData }) {
         <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
           {flag ? <span aria-hidden>{flag}</span> : null}
           {place}
+        </span>
+      )}
+      {salary && (
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
+        >
+          <Banknote className="h-3.5 w-3.5" /> {salary}
         </span>
       )}
       {apart && (
