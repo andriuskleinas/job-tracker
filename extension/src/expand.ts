@@ -23,7 +23,7 @@ const EXPAND_LABEL =
  * rather than clicked on a technicality.
  */
 const NEVER_CLICK =
-  /apply|submit|send|save|sign\s?(?:in|up)|log\s?in|register|follow|connect|message|subscribe|delete|remove|report|kandidatuoti|prisijungti|registruotis|i[sš]saugoti|si[uų]sti|pateikti/i;
+  /apply|submit|send|save|sign\s?(?:in|up)|log\s?in|register|follow|connect|message|subscribe|delete|remove|report|premium|insight|match\s+details|tailor|stand\s+out|compare|kandidatuoti|prisijungti|registruotis|i[sš]saugoti|si[uų]sti|pateikti/i;
 
 /** Controls known to expand a job description, by markup rather than label. */
 const EXPAND_SELECTORS = [
@@ -44,7 +44,7 @@ function labelOf(el: Element): string {
  * Expand what we can, then let the page settle. Resolves with how many
  * controls were clicked, so the UI can say the description was expanded.
  */
-export async function expandCollapsedSections(doc: Document, max = 6): Promise<number> {
+export async function expandCollapsedSections(doc: Document, max = 3): Promise<number> {
   const seen = new Set<Element>();
   const candidates: Element[] = [];
 

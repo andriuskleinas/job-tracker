@@ -121,6 +121,106 @@ function bestContentElement(root: Document | Element, minChars = 400): Element |
   return best;
 }
 
+/* ------------------------------------------------------------------ *
+ * Finding the ad by its section heading
+ * ------------------------------------------------------------------ */
+
+/**
+ * Headings that introduce the ad body itself.
+ *
+ * This is the anchor that actually works. Diagnostics from a live LinkedIn
+ * search page showed no `h1` anywhere, and a link density of 0.02 even at
+ * `body` — so neither "the page's main heading" nor "the block that isn't
+ * link-heavy" can locate the job. "About the job" can, and boards across
+ * languages all label the section.
+ */
+const SECTION_ANCHOR =
+  /^(?:about\s+the\s+job|job\s+description|about\s+the\s+role|the\s+role|role\s+description|position\s+summary|darbo\s+pob[uū]dis|apie\s+darb[aą]|pareigyb[eė]s\s+apra[sš]ymas|apie\s+pozicij[aą])\b/i;
+
+/**
+ * Headings that begin something after the ad rather than part of it. Walking
+ * forward from "About the job" otherwise runs straight on into whatever the
+ * board appends — on LinkedIn an "Exclusive Job Seeker Insights" panel complete
+ * with a tenure chart.
+ */
+const SECTION_STOP =
+  /^(?:exclusive\s+job\s+seeker\s+insights|job\s+seeker\s+insights|premium\b|people\s+also\s+viewed|similar\s+jobs|more\s+jobs|related\s+jobs|others?\s+(?:also\s+)?viewed|about\s+the\s+company|company\s+insights|salary\s+insights|set\s+alert|pana[sš][uū]s\s+skelbimai|kiti\s+skelbimai)\b/i;
+
+/**
+ * The ad body: everything following the section heading, taken in document
+ * order rather than by containment.
+ *
+ * Containment was the wrong model — on LinkedIn the heading and the body are
+ * not wrapped together, so any ancestor big enough to hold both also holds the
+ * results list. Walking forward from the heading and climbing only when the
+ * text runs short keeps the ad and leaves the rest of the page alone.
+ */
+function sectionAfterAnchor(
+  doc: Document,
+  minChars = 300,
+): { text: string; anchor: Element } | null {
+  const candidates = Array.from(doc.querySelectorAll("h1, h2, h3, h4, strong, b, span, div, p"));
+
+  for (const el of candidates) {
+    const label = textOf(el);
+    if (label.length > 60 || !SECTION_ANCHOR.test(label)) continue;
+
+    let node: Element = el;
+    for (let up = 0; up < 6 && node.parentElement; up++) {
+      let acc = "";
+      for (let sib = node.nextElementSibling; sib; sib = sib.nextElementSibling) {
+        const text = textOf(sib);
+        // Stop where the ad stops, rather than running on into the page's
+        // trailing panels.
+        if (SECTION_STOP.test(text.split("\n")[0].trim())) break;
+        acc += "\n" + text;
+      }
+      if (acc.trim().length >= minChars) return { text: acc.trim(), anchor: el };
+      node = node.parentElement;
+    }
+  }
+  return null;
+}
+
+/**
+ * The job title, by visual prominence.
+ *
+ * LinkedIn renders it in no heading tag at all, so tag names can't find it —
+ * but it is the largest text in the pane, which is exactly how a person picks
+ * it out. Restricted to the ad's own neighbourhood so the site's wordmark and
+ * search box can't win.
+ */
+function titleByProminence(doc: Document, near?: Element | null): string {
+  let scope: Element | Document = doc;
+  if (near) {
+    let up: Element = near;
+    for (let i = 0; i < 4 && up.parentElement; i++) up = up.parentElement;
+    scope = up;
+  }
+
+  let best = "";
+  let bestSize = 0;
+  for (const el of Array.from(scope.querySelectorAll("h1, h2, h3, div, span, a, strong, p"))) {
+    const text = textOf(el);
+    if (text.length < 3 || text.length > 120) continue;
+    if (CHROME_HEADING.test(text) || SECTION_ANCHOR.test(text) || inChrome(el)) continue;
+    // Skip wrappers that merely repeat their only child's text.
+    if (el.children.length === 1 && textOf(el.children[0]).length === text.length) continue;
+
+    let size = 0;
+    try {
+      size = parseFloat(getComputedStyle(el as HTMLElement).fontSize) || 0;
+    } catch {
+      size = 0;
+    }
+    if (size > bestSize) {
+      bestSize = size;
+      best = text;
+    }
+  }
+  return best;
+}
+
 /**
  * The region of the page belonging to the job the user is actually looking at.
  *
@@ -284,11 +384,16 @@ const linkedin: Adapter = {
   id: "linkedin",
   match: (url) => /(^|\.)linkedin\.com$/.test(url.hostname),
   extract: (doc) => {
-    const job = findJobRegion(doc);
-    const scope: Document | Element = job?.region ?? doc;
+    const section = sectionAfterAnchor(doc);
+    const named = pick(doc, [
+      ".jobs-description__content",
+      ".jobs-box__html-content",
+      ".description__text",
+      "#job-details",
+      ".jobs-description-content__text",
+    ]);
     const place = pick(doc, [
       ".job-details-jobs-unified-top-card__bullet",
-      ".job-details-jobs-unified-top-card__primary-description-container span:first-child",
       ".topcard__flavor--bullet",
     ]);
     return {
@@ -297,31 +402,14 @@ const linkedin: Adapter = {
           ".job-details-jobs-unified-top-card__company-name",
           ".topcard__org-name-link",
           ".jobs-unified-top-card__company-name",
-        ]) ||
-        // Every LinkedIn job links its company; take the one inside this job's
-        // own region so a neighbouring listing can never supply it.
-        textOf(scope.querySelector('a[href*="/company/"]')) ||
-        textOf(doc.querySelector('a[href*="/company/"]')),
+        ]) || textOf(doc.querySelector('a[href*="/company/"]')),
       position:
         pick(doc, [
           ".job-details-jobs-unified-top-card__job-title",
           ".topcard__title",
           ".jobs-unified-top-card__job-title",
-        ]) ||
-        job?.title ||
-        headingTitle(doc),
-      // Strictly inside the selected job. Reading the page at large is what
-      // pulled another posting's salary into this one.
-      rawText:
-        pick(doc, [
-          ".jobs-description__content",
-          ".jobs-box__html-content",
-          ".description__text",
-          "#job-details",
-          ".jobs-description-content__text",
-        ]) ||
-        largestTextBlock(scope) ||
-        textOf(job?.region ?? null),
+        ]) || titleByProminence(doc, section?.anchor ?? null),
+      rawText: named || section?.text || "",
       ...splitPlace(place),
     };
   },
@@ -350,15 +438,17 @@ const generic: Adapter = {
   id: "generic",
   match: () => true,
   extract: (doc) => {
-    const job = findJobRegion(doc);
-    const scope: Document | Element = job?.region ?? doc;
+    const section = sectionAfterAnchor(doc);
+    const job = section ? null : findJobRegion(doc);
     return {
       company: "",
-      // Page titles are usually "Job Title - Company | Board".
-      position: job?.title || (doc.title.split(/[|–—-]/)[0] ?? "").trim(),
+      position:
+        titleByProminence(doc, section?.anchor ?? null) ||
+        job?.title ||
+        (doc.title.split(/[|–—-]/)[0] ?? "").trim(),
       city: "",
       country: "",
-      rawText: largestTextBlock(scope) || textOf(job?.region ?? null),
+      rawText: section?.text || largestTextBlock(job?.region ?? doc) || textOf(job?.region ?? null),
     };
   },
 };
@@ -394,5 +484,65 @@ export function extractFromPage(doc: Document, href: string): Extracted {
     job_url: href,
     adapter: adapter.id,
     fellBack,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Diagnostics
+ * ------------------------------------------------------------------ */
+
+/**
+ * A compact picture of what the extractor saw on a real page.
+ *
+ * Reconstructing a site's markup from a screenshot is guesswork, and guesswork
+ * has already produced several fixes that passed against a fixture and failed
+ * against the real thing. This reports the actual headings, the region that was
+ * chosen, and the link density at each step out from it — which is enough to
+ * see exactly where the choice went wrong without anyone reading a DOM dump.
+ */
+export function diagnose(doc: Document, href: string) {
+  const headings = [
+    ...Array.from(doc.querySelectorAll("h1")),
+    ...Array.from(doc.querySelectorAll("h2")),
+  ]
+    .slice(0, 24)
+    .map((el) => ({
+      t: el.tagName,
+      text: textOf(el).slice(0, 70),
+      skipped: CHROME_HEADING.test(textOf(el)) || inChrome(el),
+      len: textOf(regionAround(el)).length,
+    }));
+
+  const job = findJobRegion(doc);
+  const chain: { tag: string; cls: string; len: number; density: number }[] = [];
+  for (
+    let el: Element | null = job?.region ?? null;
+    el && chain.length < 8;
+    el = el.parentElement
+  ) {
+    chain.push({
+      tag: el.tagName,
+      cls: String((el as HTMLElement).className ?? "").slice(0, 44),
+      len: textOf(el).length,
+      density: Number(linkDensity(el).toFixed(2)),
+    });
+  }
+
+  const out = extractFromPage(doc, href);
+  return {
+    url: href.slice(0, 140),
+    headings,
+    anchor: job ? job.title.slice(0, 80) : null,
+    regionLen: job ? textOf(job.region).length : 0,
+    chain,
+    result: {
+      company: out.company.slice(0, 60),
+      position: out.position.slice(0, 60),
+      adapter: out.adapter,
+      fellBack: out.fellBack,
+      chars: out.rawText.length,
+    },
+    head: out.rawText.slice(0, 240),
+    tail: out.rawText.slice(-160),
   };
 }
