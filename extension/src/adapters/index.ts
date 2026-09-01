@@ -85,11 +85,11 @@ function score(el: Element): number {
   return textOf(el).length * (1 - density) ** 2;
 }
 
-function bestContentElement(doc: Document, minChars = 400): Element | null {
+function bestContentElement(root: Document | Element, minChars = 400): Element | null {
   let best: Element | null = null;
   let bestScore = 0;
 
-  for (const el of Array.from(doc.querySelectorAll("div, section, article, main, td"))) {
+  for (const el of Array.from(root.querySelectorAll("div, section, article, main, td"))) {
     if ((el.textContent ?? "").trim().length < minChars) continue;
     const s = score(el);
     if (s > bestScore) {
@@ -121,9 +121,65 @@ function bestContentElement(doc: Document, minChars = 400): Element | null {
   return best;
 }
 
+/**
+ * The region of the page belonging to the job the user is actually looking at.
+ *
+ * This is the part "find the biggest block of prose" got wrong. A jobs search
+ * page shows two panes — a results list and the selected job — and the list is
+ * longer. Reading the biggest block meant reading the list, which is how a
+ * neighbouring listing's "65K EUR/yr" became the salary for an ad that quotes
+ * no salary at all.
+ *
+ * So anchor on the job's own heading and grow outward from it, stopping as soon
+ * as the surrounding element turns link-heavy. That boundary is the results
+ * list: a pane of prose sits well under the threshold, a list of postings sits
+ * far above it. Nothing here knows about LinkedIn.
+ */
+function regionAround(anchor: Element, maxDensity = 0.25): Element {
+  let region: Element = anchor.parentElement ?? anchor;
+  for (let el: Element = region; el.parentElement; el = el.parentElement) {
+    const parent = el.parentElement;
+    if (parent.tagName === "BODY" || parent.tagName === "HTML") break;
+    if (linkDensity(parent) > maxDensity) break;
+    region = parent;
+  }
+  return region;
+}
+
+export type JobRegion = { title: string; region: Element };
+
+/**
+ * Locate the chosen job: its heading, and the region that heading governs.
+ *
+ * Headings are tried h1 first — job titles are h1 essentially everywhere — and
+ * the winner is the one governing the most prose, so a stray heading in a promo
+ * card loses to the real one.
+ */
+function findJobRegion(doc: Document): JobRegion | null {
+  const anchors = [
+    ...Array.from(doc.querySelectorAll("h1")),
+    ...Array.from(doc.querySelectorAll("h2")),
+  ].filter((el) => {
+    const text = textOf(el);
+    return text.length >= 3 && text.length <= 150 && !CHROME_HEADING.test(text) && !inChrome(el);
+  });
+
+  let best: JobRegion | null = null;
+  let bestLength = 0;
+  for (const anchor of anchors) {
+    const region = regionAround(anchor);
+    const length = textOf(region).length;
+    if (length > bestLength) {
+      best = { title: textOf(anchor), region };
+      bestLength = length;
+    }
+  }
+  return best;
+}
+
 /** The ad body as text, or "" when nothing on the page looks like one. */
-function largestTextBlock(doc: Document, minChars = 400): string {
-  return textOf(bestContentElement(doc, minChars));
+function largestTextBlock(root: Document | Element, minChars = 400): string {
+  return textOf(bestContentElement(root, minChars));
 }
 
 /** Headings that belong to the page's furniture rather than to a job. */
@@ -228,7 +284,8 @@ const linkedin: Adapter = {
   id: "linkedin",
   match: (url) => /(^|\.)linkedin\.com$/.test(url.hostname),
   extract: (doc) => {
-    const found = bestContentElement(doc);
+    const job = findJobRegion(doc);
+    const scope: Document | Element = job?.region ?? doc;
     const place = pick(doc, [
       ".job-details-jobs-unified-top-card__bullet",
       ".job-details-jobs-unified-top-card__primary-description-container span:first-child",
@@ -240,17 +297,21 @@ const linkedin: Adapter = {
           ".job-details-jobs-unified-top-card__company-name",
           ".topcard__org-name-link",
           ".jobs-unified-top-card__company-name",
-          ".artdeco-entity-lockup__title",
         ]) ||
-        // Every LinkedIn job links its company; the first such link is it.
+        // Every LinkedIn job links its company; take the one inside this job's
+        // own region so a neighbouring listing can never supply it.
+        textOf(scope.querySelector('a[href*="/company/"]')) ||
         textOf(doc.querySelector('a[href*="/company/"]')),
       position:
         pick(doc, [
           ".job-details-jobs-unified-top-card__job-title",
           ".topcard__title",
           ".jobs-unified-top-card__job-title",
-          ".jobs-search__job-details--wrapper h1",
-        ]) || headingTitle(doc, found),
+        ]) ||
+        job?.title ||
+        headingTitle(doc),
+      // Strictly inside the selected job. Reading the page at large is what
+      // pulled another posting's salary into this one.
       rawText:
         pick(doc, [
           ".jobs-description__content",
@@ -258,7 +319,9 @@ const linkedin: Adapter = {
           ".description__text",
           "#job-details",
           ".jobs-description-content__text",
-        ]) || textOf(found),
+        ]) ||
+        largestTextBlock(scope) ||
+        textOf(job?.region ?? null),
       ...splitPlace(place),
     };
   },
@@ -282,19 +345,22 @@ const workday: Adapter = {
   },
 };
 
-/** Last resort: whatever the page shows. Registered last, matches everything. */
+/** Last resort: no site knowledge at all. Registered last, matches everything. */
 const generic: Adapter = {
   id: "generic",
   match: () => true,
-  extract: (doc) => ({
-    company: "",
-    // Page titles are usually "Job Title - Company | Board".
-    position:
-      headingTitle(doc, bestContentElement(doc)) || (doc.title.split(/[|–—-]/)[0] ?? "").trim(),
-    city: "",
-    country: "",
-    rawText: largestTextBlock(doc) || pick(doc, ["main", "article", '[role="main"]']),
-  }),
+  extract: (doc) => {
+    const job = findJobRegion(doc);
+    const scope: Document | Element = job?.region ?? doc;
+    return {
+      company: "",
+      // Page titles are usually "Job Title - Company | Board".
+      position: job?.title || (doc.title.split(/[|–—-]/)[0] ?? "").trim(),
+      city: "",
+      country: "",
+      rawText: largestTextBlock(scope) || textOf(job?.region ?? null),
+    };
+  },
 };
 
 const ADAPTERS: Adapter[] = [greenhouse, lever, ashby, linkedin, workday, generic];
