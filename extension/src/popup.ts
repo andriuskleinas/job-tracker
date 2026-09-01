@@ -82,14 +82,39 @@ async function api(path: string, init?: RequestInit): Promise<Response> {
 function showConnect() {
   show("loading", false);
   show("form", false);
+  show("done", false);
+  show("settings", false);
   show("connect", true);
   ($("api-base") as HTMLInputElement).value = apiBase;
   ($("pair-link") as HTMLAnchorElement).href = `${apiBase}/account`;
 }
 
+/**
+ * Tidy up an address someone typed.
+ *
+ * A bare host gets a scheme, and `https://localhost` becomes `http://` —
+ * local dev servers are plain HTTP, the field is `type="url"` so browsers
+ * nudge towards https, and the resulting connection failure otherwise looks
+ * exactly like a bad pairing code.
+ */
+function normaliseBase(input: string): string {
+  let base = input.trim().replace(/\/+$/, "");
+  if (!base) return DEFAULT_API;
+  if (!/^https?:\/\//i.test(base)) base = `http://${base}`;
+  try {
+    const url = new URL(base);
+    if (url.protocol === "https:" && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(url.hostname)) {
+      url.protocol = "http:";
+    }
+    return url.origin;
+  } catch {
+    return base;
+  }
+}
+
 async function pair() {
   const code = ($("pair-code") as HTMLInputElement).value.trim();
-  const base = ($("api-base") as HTMLInputElement).value.trim().replace(/\/+$/, "");
+  const typed = ($("api-base") as HTMLInputElement).value;
   const error = $("pair-error");
 
   if (!code) {
@@ -98,16 +123,33 @@ async function pair() {
     return;
   }
 
-  apiBase = base || DEFAULT_API;
+  const base = normaliseBase(typed);
+  ($("api-base") as HTMLInputElement).value = base;
+  apiBase = base;
   token = code;
 
-  // Prove the code works before storing it, so a typo fails here rather than
-  // silently at the first clip.
+  // Prove the code works before storing it, so a mistake surfaces here rather
+  // than silently at the first clip. The two ways this fails want different
+  // fixes, so they get different messages: an unreachable server is an address
+  // problem, a 401 is a code problem.
+  let res: Response;
   try {
-    const res = await api("/clip/applications");
-    if (!res.ok) throw new Error("rejected");
+    res = await api("/clip/applications");
   } catch {
+    error.textContent = `Couldn't reach ${base}. Check the address, and that Job Tracker is running there.`;
+    show("pair-error", true);
+    token = "";
+    return;
+  }
+
+  if (res.status === 401) {
     error.textContent = "That code didn't work. Copy it again from your account page.";
+    show("pair-error", true);
+    token = "";
+    return;
+  }
+  if (!res.ok) {
+    error.textContent = `${base} answered ${res.status}. Is that the right address?`;
     show("pair-error", true);
     token = "";
     return;
@@ -165,11 +207,15 @@ function render(data: Extracted) {
     : "· none found";
   $("desc-count").textContent = `· ${parsed.description.length.toLocaleString()} chars`;
 
-  // Say plainly how the page was read. When an adapter's selectors miss, the
-  // capture still works off the visible text — the user should know which.
-  $("read-note").textContent = data.fellBack
-    ? "Read the whole visible page — this site isn't one we know in detail, so check the fields below."
-    : `Read the ad from ${data.adapter}.`;
+  // Say plainly how the page was read. Falling back on a site we *do* have an
+  // adapter for means that adapter is broken — usually the site changed its
+  // markup — and that is a different message from an unknown site, because it
+  // is a bug to report rather than a limitation to accept.
+  $("read-note").textContent = !data.fellBack
+    ? `Read the ad from ${data.adapter}.`
+    : data.adapter === "generic"
+      ? "Read the whole visible page — this site isn't one we know in detail, so check the fields below."
+      : `Couldn't find the ad on this ${data.adapter} page, so the whole visible page was read instead. Check the fields below — and the ${data.adapter} layout may have changed.`;
 
   show("loading", false);
   show("form", true);

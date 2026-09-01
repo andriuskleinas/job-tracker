@@ -25,6 +25,18 @@
   box-sizing: border-box;
 }
 
+/*
+ * The popup swaps screens with the `hidden` property while `section` below
+ * sets `display: flex`. Current browsers already resolve that correctly — the
+ * UA rule is `[hidden]:not([hidden=until-found]) { display: none !important }`
+ * — so this is belt-and-braces, not a fix for a live bug. It is kept so that
+ * adding a `display` to `.error`, `.status` or a future screen can never
+ * quietly resurrect a hidden one.
+ */
+[hidden] {
+  display: none !important;
+}
+
 body {
   width: 380px;
   margin: 0;

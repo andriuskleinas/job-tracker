@@ -122,8 +122,15 @@ function detectCurrency(window: string): string | null {
  * Numbers
  * ------------------------------------------------------------------ */
 
-/** A number as written in an ad: 65,000 · 65.000 · 65 000 · 65k · 65.5k · 1,234.56 */
-const NUMBER = String.raw`\d{1,3}(?:[.,\u00A0\u202F ]\d{3})*(?:[.,]\d{1,2})?k?|\d+(?:[.,]\d{1,2})?k?`;
+/**
+ * A number as written in an ad: 65,000 · 65.000 · 65 000 · 65000 · 65k · 1,234.56
+ *
+ * The grouped branch requires at least one separator (`+`, not `*`). With `*`
+ * it matched only the first three digits of an unseparated number and stopped,
+ * so "65000 - 80000" tokenised as "650" and no salary was found at all — while
+ * the identical band written "65,000 - 80,000" read fine.
+ */
+const NUMBER = String.raw`\d{1,3}(?:[.,\u00A0\u202F ]\d{3})+(?:[.,]\d{1,2})?k?|\d+(?:[.,]\d{1,2})?k?`;
 
 /**
  * Turn an ad's number into a real one.
@@ -160,16 +167,248 @@ export function parseAmount(raw: string): number | null {
 }
 
 /* ------------------------------------------------------------------ *
+ * Language packs
+ * ------------------------------------------------------------------ */
+
+/**
+ * Everything in this file that depends on the language of the ad.
+ *
+ * Adding a language is a data change: append a pack below and every regex
+ * derived from it picks the terms up. Entries are regex fragments, not literal
+ * strings, so `m[eė]n\.?` covers both spellings — keep them anchored to whole
+ * words by the builders rather than adding \b here.
+ *
+ * English and Lithuanian ship today. The two behave differently in ways that
+ * matter: Lithuanian ads usually quote a *monthly* figure, write ranges as
+ * "nuo X iki Y", and mark gross pay with "neatskaičius mokesčių".
+ */
+type LanguagePack = {
+  /** Joins the two ends of a range: "to", "iki". */
+  rangeJoin: string[];
+  /** Marks the number that follows as a ceiling rather than a floor. */
+  ceiling: string[];
+  period: Record<SalaryPeriod, string[]>;
+  /** Near a number, these mean it is pay. */
+  salaryWords: string[];
+  /** Near a number, these mean it is not. */
+  notSalaryWords: string[];
+  requirementHeadings: string[];
+  closingHeadings: string[];
+  /** Whole lines of job-board furniture, dropped from a captured ad. */
+  chromeLines: string[];
+};
+
+const LANGUAGES: LanguagePack[] = [
+  // ---- English ----
+  {
+    rangeJoin: ["to", "and", "up\\s+to"],
+    ceiling: ["up\\s+to"],
+    period: {
+      year: [
+        "per\\s+year",
+        "per\\s+annum",
+        "p\\.\\s?a\\.(?![a-z])",
+        "annual(?:ly)?",
+        "a\\s+year",
+        "/\\s?(?:yr|year)",
+      ],
+      month: ["per\\s+month", "monthly", "a\\s+month", "/\\s?(?:mo|month)"],
+      week: ["per\\s+week", "weekly", "a\\s+week", "/\\s?(?:wk|week)"],
+      day: ["per\\s+day", "day\\s+rate", "daily", "a\\s+day", "/\\s?day"],
+      hour: ["per\\s+hour", "hourly", "an\\s+hour", "/\\s?(?:hr|hour)"],
+    },
+    salaryWords: [
+      "salary",
+      "compensation",
+      "remuneration",
+      "pay",
+      "paid",
+      "base",
+      "package",
+      "OTE",
+      "earn",
+      "wage",
+      "rate",
+      "budget",
+      "range",
+      "bracket",
+      "gross",
+      "net",
+    ],
+    notSalaryWords: [
+      "employees",
+      "customers",
+      "users",
+      "revenue",
+      "funding",
+      "raised",
+      "valuation",
+      "founded",
+      "clients",
+      "countries",
+      "team\\s+of",
+      "arr",
+      "series\\s+[a-e]",
+      "applicants",
+    ],
+    requirementHeadings: [
+      "(?:the\\s+)?requirements?",
+      "qualifications?",
+      "what\\s+you(?:\'|’)?ll\\s+bring",
+      "what\\s+we(?:\'|’)?re\\s+looking\\s+for",
+      "who\\s+you\\s+are",
+      "about\\s+you",
+      "you\\s+(?:have|will\\s+have|bring)",
+      "must[-\\s]haves?",
+      "nice[-\\s]to[-\\s]haves?",
+      "skills?(?:\\s*(?:&|and)\\s*experience)?",
+      "your\\s+(?:profile|experience|background)",
+      "we(?:\'|’)?d\\s+love\\s+to\\s+see",
+      "minimum\\s+qualifications?",
+      "basic\\s+qualifications?",
+    ],
+    closingHeadings: [
+      "benefits?",
+      "what\\s+we\\s+offer",
+      "(?:the\\s+)?perks?",
+      "compensation(?:\\s*(?:&|and)\\s*benefits)?",
+      "salary",
+      "about\\s+(?:us|the\\s+company|the\\s+team)",
+      "why\\s+(?:join|us|work)",
+      "how\\s+to\\s+apply",
+      "application\\s+process",
+      "(?:our\\s+)?(?:hiring|interview)\\s+process",
+      "equal\\s+opportunit\\w*",
+      "diversity",
+      "privacy",
+      "next\\s+steps?",
+    ],
+    chromeLines: [
+      "sign\\s+in",
+      "sign\\s+up",
+      "log\\s?in",
+      "join\\s+now",
+      "easy\\s+apply",
+      "apply\\s+now",
+      "save(?:\\s+job)?",
+      "saved",
+      "share",
+      "show\\s+(?:more|less)",
+      "see\\s+more",
+      "read\\s+more",
+      "report\\s+(?:this\\s+)?job",
+      "people\\s+also\\s+viewed",
+      "similar\\s+jobs",
+      "more\\s+jobs",
+      "jobs\\s+you\\s+may\\s+be\\s+interested\\s+in",
+      "back\\s+to\\s+(?:search|jobs)",
+      "skip\\s+to\\s+(?:main\\s+)?content",
+      "accept\\s+(?:all\\s+)?cookies",
+      "cookie\\s+(?:policy|settings|preferences)",
+      "manage\\s+preferences",
+      "we\\s+use\\s+cookies",
+    ],
+  },
+  // ---- Lithuanian ----
+  {
+    rangeJoin: ["iki"],
+    ceiling: ["iki"],
+    period: {
+      year: ["per\\s+metus", "metinis", "kasmet", "/\\s?met\\.?", "eur/met"],
+      month: [
+        "per\\s+m[eė]nes[iį]",
+        "m[eė]nesinis",
+        "kas\\s+m[eė]nes[iį]",
+        "/\\s?m[eė]n\\.?",
+        "m[eė]n\\.",
+      ],
+      week: ["per\\s+savait[eę]", "savaitinis", "/\\s?sav\\.?"],
+      day: ["per\\s+dien[aą]", "dienos\\s+[iį]kainis", "/\\s?d\\.?"],
+      hour: ["per\\s+valand[aą]", "valandinis", "/\\s?val\\.?", "val\\."],
+    },
+    salaryWords: [
+      "atlyginimas",
+      "atlyginim[aą]",
+      "atlygis",
+      "alga",
+      "u[zž]mokestis",
+      "darbo\\s+u[zž]mokestis",
+      "neatskai[cč]ius\\s+mokes[cč]i[uų]",
+      "[iį]\\s+rankas",
+      "bruto",
+      "neto",
+      "nuo",
+    ],
+    notSalaryWords: [
+      "darbuotoj",
+      "[sš]alyse",
+      "apyvarta",
+      "pajamos",
+      "[iį]steigta",
+      "investicij",
+      "kandidat[uų]",
+    ],
+    requirementHeadings: [
+      "reikalavimai(?:\\s+kandidatui)?",
+      "ko\\s+tikim[eė]s",
+      "ko\\s+i[sš]\\s+j[uū]s[uų]\\s+tikim[eė]s",
+      "j[uū]s[uų]\\s+profilis",
+      "j[uū]s[uų]\\s+patirtis",
+      "tikim[eė]s",
+      "kvalifikacija",
+      "b[uū]tina",
+      "privalumai",
+      "k[aą]\\s+turite\\s+mok[eė]ti",
+    ],
+    closingHeadings: [
+      "(?:m[eė]s\\s+)?si[uū]lome",
+      "k[aą]\\s+m[eė]s\\s+si[uū]lome",
+      "m[uū]s[uų]\\s+pasi[uū]lymas",
+      "apie\\s+(?:mus|[iį]mon[eę]|komand[aą])",
+      "kandidatavimas",
+      "kandidatuoti",
+      "papildoma\\s+informacija",
+      "atlyginimas",
+      "darbo\\s+u[zž]mokestis",
+      "duomen[uų]\\s+apsauga",
+    ],
+    chromeLines: [
+      "prisijungti",
+      "registruotis",
+      "kandidatuoti",
+      "i[sš]saugoti",
+      "i[sš]saugota",
+      "rodyti\\s+(?:daugiau|ma[zž]iau)",
+      "daugiau",
+      "pana[sš][uū]s\\s+skelbimai",
+      "pana[sš][uū]s\\s+darbo\\s+pasi[uū]lymai",
+      "gr[iį][zž]ti",
+      "dalintis",
+      "prane[sš]ti\\s+apie\\s+skelbim[aą]",
+      "sutinku",
+      "slapukai",
+      "slapuk[uų]\\s+nustatymai",
+    ],
+  },
+];
+
+/** `(?:a|b|c)` from every pack's entries for one field. */
+function alt(pick: (pack: LanguagePack) => string[]): string {
+  const terms = LANGUAGES.flatMap(pick);
+  return `(?:${terms.join("|")})`;
+}
+
+/* ------------------------------------------------------------------ *
  * Period
  * ------------------------------------------------------------------ */
 
-const PERIOD_PATTERNS: [pattern: RegExp, period: SalaryPeriod][] = [
-  [/per\s+year|per\s+annum|p\.?a\.?\b|annual(?:ly)?|a\s+year|\/\s?(?:yr|year)|\bpy\b/i, "year"],
-  [/per\s+month|monthly|a\s+month|\/\s?(?:mo|month)/i, "month"],
-  [/per\s+week|weekly|a\s+week|\/\s?(?:wk|week)/i, "week"],
-  [/per\s+day|day\s+rate|daily|a\s+day|\/\s?day/i, "day"],
-  [/per\s+hour|hourly|an\s+hour|\/\s?(?:hr|hour)/i, "hour"],
-];
+const PERIOD_PATTERNS: [pattern: RegExp, period: SalaryPeriod][] = SALARY_PERIODS.map((period) => [
+  new RegExp(
+    alt((pack) => pack.period[period]),
+    "i",
+  ),
+  period,
+]);
 
 function detectPeriod(window: string): SalaryPeriod | null {
   for (const [pattern, period] of PERIOD_PATTERNS) {
@@ -194,16 +433,14 @@ function inferPeriod(amount: number): SalaryPeriod {
  * Salary
  * ------------------------------------------------------------------ */
 
-const RANGE_SEPARATOR = String.raw`\s*(?:-|–|—|‑|to|and|up\s+to)\s*`;
+const RANGE_SEPARATOR = `\\s*(?:-|–|—|‑|${alt((p) => p.rangeJoin)})\\s*`;
 const CURRENCY_MARK = String.raw`(?:[€£₹₪₴$]|zł|Kč|CHF|EUR|USD|GBP|PLN|SEK|NOK|DKK|CZK|HUF|RON|BGN|INR|JPY|CAD|AUD|NZD|SGD|ZAR|BRL|MXN|TRY|UAH|ILS|AED)`;
 
 /** Words that mean "the number near here is pay, not headcount or revenue". */
-const SALARY_KEYWORD =
-  /salary|compensation|remuneration|\bpay\b|paid|base|package|\bOTE\b|earn|wage|rate|budget|range|bracket|atlyginimas|gehalt|salaire/i;
+const SALARY_KEYWORD = new RegExp(`\\b${alt((p) => p.salaryWords)}`, "i");
 
 /** Words that mean the opposite — a number near these is almost never pay. */
-const NEGATIVE_KEYWORD =
-  /employees|customers|users|revenue|funding|raised|valuation|founded|clients|countries|team\s+of|arr\b|series\s+[a-e]\b/i;
+const NEGATIVE_KEYWORD = new RegExp(`\\b${alt((p) => p.notSalaryWords)}`, "i");
 
 type Candidate = {
   index: number;
@@ -283,6 +520,13 @@ export function parseSalary(text: string): SalaryGuess | null {
   const window = text.slice(Math.max(0, best.index - 90), best.index + best.text.length + 60);
   const currency = detectCurrency(best.text) ?? detectCurrency(window);
   const readPeriod = detectPeriod(window);
+
+  // With neither a currency nor a stated period, the only thing vouching for
+  // these digits is a nearby word like "range" or "rate" — which is how "4 - 8"
+  // out of a sidebar once became a salary of 4–8 per hour. Small bare numbers
+  // are rejected outright; large ones are still plausibly a band.
+  if (!currency && !readPeriod && (best.min ?? 0) < 1000) return null;
+
   const period = readPeriod ?? (best.min !== null ? inferPeriod(best.min) : null);
 
   // "up to 80k" is a ceiling, not a floor.
@@ -303,12 +547,16 @@ export function parseSalary(text: string): SalaryGuess | null {
  * ------------------------------------------------------------------ */
 
 /** Headings that open the "what we need from you" part of an ad. */
-const REQUIREMENT_HEADING =
-  /^[\s#*\-•>]*(?:(?:the\s+)?requirements?|qualifications?|what\s+you(?:'|’)?ll\s+bring|what\s+we(?:'|’)?re\s+looking\s+for|who\s+you\s+are|about\s+you|you\s+(?:have|will\s+have|bring)|must[-\s]haves?|nice[-\s]to[-\s]haves?|skills?(?:\s*(?:&|and)\s*experience)?|your\s+(?:profile|experience|background)|we(?:'|’)?d\s+love\s+to\s+see|minimum\s+qualifications?|basic\s+qualifications?)\s*[:.]?\s*$/i;
+const REQUIREMENT_HEADING = new RegExp(
+  `^[\\s#*\\-•>]*${alt((p) => p.requirementHeadings)}\\s*[:.]?\\s*$`,
+  "i",
+);
 
 /** Headings that close it — everything after these is not a requirement. */
-const CLOSING_HEADING =
-  /^[\s#*\-•>]*(?:benefits?|what\s+we\s+offer|(?:the\s+)?perks?|compensation(?:\s*(?:&|and)\s*benefits)?|salary|about\s+(?:us|the\s+company|the\s+team)|why\s+(?:join|us|work)|how\s+to\s+apply|application\s+process|(?:our\s+)?(?:hiring|interview)\s+process|equal\s+opportunit\w*|diversity|privacy|next\s+steps?)\s*[:.]?\s*$/i;
+const CLOSING_HEADING = new RegExp(
+  `^[\\s#*\\-•>]*${alt((p) => p.closingHeadings)}\\s*[:.]?\\s*$`,
+  "i",
+);
 
 /**
  * Pull the requirements section out of an ad body.
@@ -333,8 +581,9 @@ export function splitRequirements(text: string): string | null {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  // A heading with two words under it caught the wrong thing.
-  return section.length >= 40 ? section : null;
+  // A heading with a couple of words under it caught the wrong thing — but a
+  // real list can be two short bullets, so the floor is low.
+  return section.length >= 20 ? section : null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -346,8 +595,7 @@ export function splitRequirements(text: string): string | null {
  * trimmed lines only, so a sentence that merely contains one of these words
  * survives — this removes furniture, never ad copy.
  */
-const CHROME_LINE =
-  /^(?:sign\s+in|sign\s+up|log\s?in|join\s+now|easy\s+apply|apply\s+now|save(?:\s+job)?|saved|share|show\s+(?:more|less)|see\s+more|read\s+more|report\s+(?:this\s+)?job|people\s+also\s+viewed|similar\s+jobs|more\s+jobs|jobs\s+you\s+may\s+be\s+interested\s+in|back\s+to\s+(?:search|jobs)|skip\s+to\s+(?:main\s+)?content|accept\s+(?:all\s+)?cookies|cookie\s+(?:policy|settings|preferences)|manage\s+preferences|we\s+use\s+cookies|·|•|—|-{2,})$/i;
+const CHROME_LINE = new RegExp(`^(?:${alt((p) => p.chromeLines)}|·|•|—|-{2,})$`, "i");
 
 /**
  * Normalise a pasted ad into something worth reading six weeks later:
