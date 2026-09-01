@@ -218,3 +218,12 @@ details summary {
   font-weight: 600;
   color: var(--good);
 }
+
+/* Small escape hatch: dumps what the extractor actually saw on this page. */
+.diag {
+  align-self: flex-start;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  background: none;
+  border: 1px dashed var(--rule);
+}

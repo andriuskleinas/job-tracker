@@ -9,7 +9,7 @@
  * boards keep the ad body out of the DOM until that control is clicked, so
  * reading without expanding captures the page furniture instead of the job.
  */
-import { extractFromPage } from "./adapters";
+import { extractFromPage, diagnose } from "./adapters";
 import { expandCollapsedSections } from "./expand";
 
 declare const chrome: {
@@ -21,6 +21,7 @@ async function run() {
   chrome.runtime.sendMessage({
     type: "jobtracker:extracted",
     payload: { ...extractFromPage(document, location.href), expanded },
+    diag: { ...diagnose(document, location.href), expanded },
   });
 }
 

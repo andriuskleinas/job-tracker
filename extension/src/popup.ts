@@ -36,7 +36,7 @@ declare const chrome: {
   runtime: {
     onMessage: {
       addListener: (
-        fn: (msg: { type: string; payload?: Extracted; message?: string }) => void,
+        fn: (msg: { type: string; payload?: Extracted; diag?: unknown; message?: string }) => void,
       ) => void;
     };
     lastError?: { message: string };
@@ -51,6 +51,7 @@ const show = (id: string, on = true) => ($(id).hidden = !on);
 let apiBase = DEFAULT_API;
 let token = "";
 let extracted: Extracted | null = null;
+let diagnostic: unknown = null;
 
 /* ------------------------------------------------------------------ */
 
@@ -309,7 +310,10 @@ async function start() {
   }
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === "jobtracker:extracted" && msg.payload) render(msg.payload);
+    if (msg.type === "jobtracker:extracted" && msg.payload) {
+      diagnostic = msg.diag ?? null;
+      render(msg.payload);
+    }
     if (msg.type === "jobtracker:error")
       $("loading").textContent = msg.message ?? "Could not read this page.";
   });
@@ -329,6 +333,10 @@ async function boot() {
 
   $("pair-save").addEventListener("click", () => void pair());
   $("save").addEventListener("click", () => void save());
+  $("copy-diag").addEventListener("click", () => {
+    void navigator.clipboard.writeText(JSON.stringify(diagnostic, null, 1));
+    $("copy-diag").textContent = "Copied — paste it to Claude";
+  });
   $("settings").addEventListener("click", () => void disconnect());
 
   if (token) await start();
