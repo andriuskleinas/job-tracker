@@ -10,11 +10,26 @@ import {
   Clock3,
   Globe,
   ListChecks,
+  MoveRight,
   Star,
   StickyNote,
   TriangleAlert,
 } from "lucide-react";
-import { ACTIVE_STATUSES, CLOSED_STATUSES, statusColor, type Status } from "@/lib/status";
+import {
+  ACTIVE_STATUSES,
+  CLOSED_STATUSES,
+  STATUSES,
+  statusColor,
+  statusLabel,
+  type Status,
+} from "@/lib/status";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { flagForCountry, jobTypeMeta, type JobType } from "@/lib/job-location";
 import { formatSalary, type SalaryPeriod } from "@/lib/job-ad";
@@ -234,7 +249,9 @@ function CardMeta({
         // own locale) and client can format the same day differently. That's
         // cosmetic and unavoidable, so tell React not to flag the mismatch.
         suppressHydrationWarning
-        title={`Applied ${new Date(app.application_date).toLocaleDateString()}`}
+        title={`${app.status === "wishlist" ? "Saved" : "Applied"} ${new Date(
+          app.application_date,
+        ).toLocaleDateString()}`}
       >
         <Clock className="h-3.5 w-3.5" /> {relativeDay(app.application_date)}
       </span>
@@ -283,6 +300,9 @@ function AppStar({
   return (
     <button
       type="button"
+      // The board makes the whole card draggable, so a press that lands on the
+      // star must not also be the start of a drag.
+      onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -305,14 +325,64 @@ function AppStar({
   );
 }
 
+/**
+ * The board's keyboard and screen-reader path to the thing the board is for.
+ *
+ * Dragging is the fast way to move a card and the only way a pointer offers,
+ * which makes it useless to anyone not using one. This menu is the same action
+ * spelled out: one tab stop per card, six destinations, no gesture. It is not
+ * a fallback bolted on for compliance — for a long column it is quicker than
+ * dragging a card three screens sideways, and it is the only route that names
+ * the destination out loud before you commit to it.
+ */
+function MoveMenu({
+  app,
+  onMoveTo,
+}: {
+  app: ApplicationCardData;
+  onMoveTo: (status: Status) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          // Inside a draggable card and inside a Link: neither may claim this
+          // press.
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          aria-label={`Move ${app.position} at ${app.company} to another status`}
+          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          <MoveRight className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuLabel>Move to</DropdownMenuLabel>
+        {STATUSES.filter((s) => s !== app.status).map((s) => (
+          <DropdownMenuItem key={s} onSelect={() => onMoveTo(s)}>
+            {statusLabel(s)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function ApplicationCard({
   app,
   variant,
   onTogglePriority,
+  onMoveTo,
 }: {
   app: ApplicationCardData;
-  variant: "list" | "grid";
+  variant: "list" | "board";
   onTogglePriority: (priority: boolean) => void;
+  /** Board only: change this application's status without opening it. */
+  onMoveTo?: (status: Status) => void;
 }) {
   const meta = deriveMeta(app);
   const dimTitle = meta.isClosed ? "text-muted-foreground" : "";
@@ -330,28 +400,34 @@ export function ApplicationCard({
   const rightCluster = (
     <div className="flex shrink-0 items-center gap-1.5">
       <AppStar app={app} onToggle={onTogglePriority} />
-      <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
-        {app.status}
-      </Badge>
+      {/* On the board the column heading already says the status, so a badge
+          repeating it is six identical badges down one column — noise where a
+          badge is meant to be a signal. The move control takes the slot the
+          badge held, which is also the slot the eye already goes to. */}
+      {variant === "board" ? (
+        onMoveTo && <MoveMenu app={app} onMoveTo={onMoveTo} />
+      ) : (
+        <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
+          {app.status}
+        </Badge>
+      )}
     </div>
   );
 
-  if (variant === "grid") {
+  if (variant === "board") {
     return (
-      <Link to="/applications/$id" params={{ id: app.id }} className="block h-full">
+      <Link to="/applications/$id" params={{ id: app.id }} className="block">
         <Card
-          className={`flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
+          className={`gap-2 p-3 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
             meta.isClosed ? "bg-muted/30" : ""
           } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
         >
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-2">
             {identity}
             {rightCluster}
           </div>
           <LocationRow app={app} />
-          <div className="mt-auto border-t pt-3">
-            <CardMeta app={app} meta={meta} />
-          </div>
+          <CardMeta app={app} meta={meta} />
         </Card>
       </Link>
     );

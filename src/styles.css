@@ -54,6 +54,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-status-wishlist: var(--status-wishlist);
   --color-status-applied: var(--status-applied);
   --color-status-interviewing: var(--status-interviewing);
   --color-status-offer: var(--status-offer);
@@ -119,13 +120,17 @@
    *   --status-X-soft   tinted badge background
    *   --status-X-text   type on that tint (all >= 5.9:1)
    *
-   * `applied` carries no -soft. Its badge is an outline with no fill (see
-   * statusColor in lib/status.ts), so a tint for it would be a token nothing
-   * renders.
+   * `wishlist` and `applied` carry no -soft. Both badges are outlines with no
+   * fill (see statusColor in lib/status.ts), so a tint for either would be a
+   * token nothing renders.
    *
    * The whole product spends five colours and no more: ink, gold, green, red,
    * grey. That is the chrome palette (black / red / dark grey) plus exactly
-   * two earned hues — gold for work in flight, green for the win.
+   * two earned hues — gold for work in flight, green for the win. `wishlist`
+   * arrived after that rule and did not break it: it is a third value on the
+   * chroma-0 axis, not a sixth hue. A saved job is the least committed thing
+   * on the board and has no business drawing the eye, so it gets the least
+   * colour there is — none.
    *
    * `applied` is ink rather than a hue on purpose. It is the status two out of
    * three rows carry, and a page of applications should read as black type on
@@ -144,13 +149,25 @@
    * charts repay with permanent value labels and a data table; never let a
    * bar carry meaning on fill alone. Re-run the validator before editing.
    *
-   * Ink and grey are both chroma 0, so hue cannot tell `applied` from
-   * `withdrawn` — the 0.34 L gap between the marks does, and on the badges the
-   * separation is fill against edge: `applied` is near-black type in an ink
-   * outline with no fill (open, still yours), `withdrawn` is mid-grey type on
-   * a flat fill with no edge at all (closed, receding). See statusColor in
-   * lib/status.ts, which is where those two rules are written down.
+   * Ink, slate and grey are all chroma 0, so hue cannot tell `wishlist`,
+   * `applied` and `withdrawn` apart. Lightness does it in the charts: measured
+   * L* 16.6 / 38.7 / 55.9, adjacent gaps of dE 22.1 and 17.2 against the same
+   * 15 target the hues are held to. Chroma 0 means dE2000 collapses to the
+   * lightness term, so those are also the CVD numbers — a neutral cannot
+   * confuse a colour-blind eye, which is the one advantage this axis has and
+   * the reason a third status went here rather than into a sixth hue. On the
+   * badges the separation is edge against fill:
+   *
+   *   wishlist   dashed slate edge, no fill  — provisional, not yet real
+   *   applied    solid ink edge, no fill     — open, still yours to act on
+   *   withdrawn  flat grey fill, no edge     — closed, receding
+   *
+   * Edge means open, fill means closed, and a broken edge means not yet
+   * committed. See statusColor in lib/status.ts, which is where those rules
+   * are written down.
    */
+  --status-wishlist: oklch(0.47 0 0); /* slate  — saved, not applied yet */
+  --status-wishlist-text: oklch(0.44 0 0);
   --status-applied: oklch(0.28 0 0); /* ink    — in the pipeline */
   --status-applied-text: oklch(0.25 0 0);
   --status-interviewing: oklch(0.755 0.152 86); /* gold   — live and moving */
@@ -218,6 +235,8 @@
    * modes. That puts it 0.23 L above `withdrawn` — the two neutrals are
    * separated here by the same gap, in the other direction.
    */
+  --status-wishlist: oklch(0.52 0 0);
+  --status-wishlist-text: oklch(0.68 0 0);
   --status-applied: oklch(0.92 0 0);
   --status-applied-text: oklch(0.96 0 0);
   --status-interviewing: oklch(0.83 0.148 88);

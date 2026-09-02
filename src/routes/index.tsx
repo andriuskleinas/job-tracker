@@ -447,7 +447,7 @@ function StandingSection() {
       <FeatureCard
         icon={Layers}
         title="See the whole pipeline at a glance"
-        body="Every role sorted by the stage it's actually in — applied, interviewing, offer, rejected, withdrawn. One board, always current."
+        body="Every role sorted by the stage it's actually in — wishlist, applied, interviewing, offer — and drag a card to move it on. One board, always current."
         visual={<FunnelVisual />}
       />
       <FeatureCard

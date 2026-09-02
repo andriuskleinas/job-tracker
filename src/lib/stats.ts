@@ -1,5 +1,5 @@
 import { addDays, format, startOfWeek, subWeeks } from "date-fns";
-import { ACTIVE_STATUSES, STATUSES, type Status } from "./status";
+import { ACTIVE_STATUSES, STATUSES, hasApplied, type Status } from "./status";
 
 /**
  * Structural row shapes — deliberately narrower than the generated Supabase
@@ -41,8 +41,28 @@ export function statusCounts(apps: StatsApplication[]): Record<Status, number> {
   return counts;
 }
 
+/**
+ * Rows that represent an application actually sent.
+ *
+ * Nearly everything below is a rate or a rhythm — applications per week, days
+ * since the last one, share that reached interview — and every one of those
+ * divides by, or is keyed to, the act of applying. A `wishlist` row records
+ * only that a posting looked interesting, and it carries an
+ * `application_date` purely because the column is NOT NULL, so letting one
+ * through does not just add noise, it adds a *wrong* date to a time series
+ * and a wrong denominator to a rate.
+ *
+ * Filter here rather than in the dashboard, so a new chart cannot forget.
+ * `statusCounts` and `statusBreakdown` are the deliberate exceptions: they
+ * report on statuses themselves, so they must see all six.
+ */
+export function appliedOnly<T extends { status: Status }>(rows: T[]): T[] {
+  return rows.filter((r) => hasApplied(r.status));
+}
+
 export type Kpis = {
   total: number;
+  saved: number;
   active: number;
   offers: number;
   lastSeven: number;
@@ -57,22 +77,26 @@ export function computeKpis(
   tasks: StatsTask[],
   today: Date = new Date(),
 ): Kpis {
+  // Status counts see every row; everything time-based sees only sent
+  // applications, whose application_date means something.
   const counts = statusCounts(apps);
-  const total = apps.length;
+  const sent = appliedOnly(apps);
+  const total = sent.length;
 
   const inWindow = (app: StatsApplication, fromDaysAgo: number, toDaysAgo: number) => {
     const age = daysBetween(parseLocalDate(app.application_date), today);
     return age >= toDaysAgo && age <= fromDaysAgo;
   };
 
-  const lastSeven = apps.filter((a) => inWindow(a, 6, 0)).length;
-  const priorSeven = apps.filter((a) => inWindow(a, 13, 7)).length;
+  const lastSeven = sent.filter((a) => inWindow(a, 6, 0)).length;
+  const priorSeven = sent.filter((a) => inWindow(a, 13, 7)).length;
 
-  const ages = apps.map((a) => daysBetween(parseLocalDate(a.application_date), today));
+  const ages = sent.map((a) => daysBetween(parseLocalDate(a.application_date), today));
   const futureSafeAges = ages.filter((d) => d >= 0);
 
   return {
     total,
+    saved: counts.wishlist,
     active: ACTIVE_STATUSES.reduce((sum, s) => sum + counts[s], 0),
     // Interview rate deliberately lives in `funnelStages`, not here: it needs
     // the event log to count applications that moved past interviewing, and
@@ -90,7 +114,11 @@ export function computeKpis(
 
 export type WeekBucket = { weekStart: string; label: string; count: number };
 
-/** Applications per ISO week (Monday-start) for the trailing `weeks` weeks. */
+/**
+ * Applications per ISO week (Monday-start) for the trailing `weeks` weeks.
+ * Wishlist rows are excluded — their application_date is the day the row was
+ * created, not a day anything was sent, so they would draw phantom volume.
+ */
 export function weeklyApplications(
   apps: StatsApplication[],
   today: Date = new Date(),
@@ -109,7 +137,7 @@ export function weeklyApplications(
 
   const indexByWeek = new Map(buckets.map((b, i) => [b.weekStart, i]));
 
-  for (const app of apps) {
+  for (const app of appliedOnly(apps)) {
     const key = format(
       startOfWeek(parseLocalDate(app.application_date), { weekStartsOn: 1 }),
       "yyyy-MM-dd",
@@ -150,13 +178,27 @@ function pipelineRank(status: Status): number {
  * current-status-only view reported.
  */
 export function furthestStageRank(app: StatsApplication, events: StatsStatusEvent[] = []): number {
-  // Floor at `applied`: a terminal status ranks -1 on the ladder, but every
-  // application was applied by definition, so that is the true baseline. Without
-  // this floor a rejected application with no logged events would drop out of
-  // the "Applied" bar entirely, making the funnel's top stage under-count.
-  let rank = Math.max(pipelineRank(app.status), 0);
+  let rank = statusFloor(app.status);
   for (const e of events) rank = Math.max(rank, pipelineRank(e.status));
   return rank;
+}
+
+/**
+ * The rank a status alone vouches for, before the event log is consulted.
+ *
+ * `rejected` and `withdrawn` rank -1 on the ladder, but an application cannot
+ * be rejected without having been sent, so they floor at `applied` — without
+ * that, a rejected row with no logged events would drop out of the "Applied"
+ * bar and the funnel's top stage would under-count.
+ *
+ * `wishlist` is the one status that vouches for nothing. It is the only way to
+ * say "I have not applied to this", so it must stay below the floor and score
+ * -1. A wishlist row whose log *does* contain an `applied` event still climbs
+ * to 0 in the loop above — that is someone who applied and then dragged the
+ * card back, and the history is the honest record.
+ */
+function statusFloor(status: Status): number {
+  return hasApplied(status) ? Math.max(pipelineRank(status), 0) : -1;
 }
 
 export function groupEventsByApplication(
@@ -181,11 +223,15 @@ export function funnelStages(
   events: StatsStatusEvent[] = [],
 ): FunnelStage[] {
   const byApp = groupEventsByApplication(events);
-  const total = apps.length;
+  // Anything that never reached `applied` is not in this funnel — it never
+  // entered it. That is exactly the wishlist, and dropping it here keeps the
+  // top bar at 100% and every share below it a share *of applications sent*.
+  const sent = apps.filter((a) => furthestStageRank(a, byApp.get(a.id) ?? []) >= 0);
+  const total = sent.length;
 
   const reachedCounts = PIPELINE.map(
     (_, stageIndex) =>
-      apps.filter((a) => furthestStageRank(a, byApp.get(a.id) ?? []) >= stageIndex).length,
+      sent.filter((a) => furthestStageRank(a, byApp.get(a.id) ?? []) >= stageIndex).length,
   );
 
   return PIPELINE.map((status, i) => ({
@@ -208,10 +254,10 @@ export function eventsBeyondCurrentStatus(
   const byApp = groupEventsByApplication(events);
   return apps.filter((a) => {
     const withEvents = furthestStageRank(a, byApp.get(a.id) ?? []);
-    // Compare against the same `applied` floor. A rejected application whose
-    // only logged event is `applied` tells us nothing new — every application
-    // applied — so it must not count as history revealing extra reach.
-    return withEvents > Math.max(pipelineRank(a.status), 0);
+    // Compare against the same floor. A rejected application whose only logged
+    // event is `applied` tells us nothing new — it was applied by definition —
+    // so it must not count as history revealing extra reach.
+    return withEvents > statusFloor(a.status);
   }).length;
 }
 
@@ -269,6 +315,8 @@ export type CohortBucket = {
  * Applications grouped by the month they were sent, and how many of each month's
  * cohort ever reached an interview.
  *
+ * Only sent applications form a cohort; a saved posting has no send-month.
+ *
  * Cohorting by send-month (not by event date) is what makes the comparison fair:
  * a recent month has had less time to convert, which the UI notes rather than
  * hiding. `rate` is null for an empty month so the caller renders a gap instead
@@ -296,7 +344,7 @@ export function monthlyCohorts(
 
   const indexByMonth = new Map(buckets.map((b, i) => [b.month, i]));
 
-  for (const app of apps) {
+  for (const app of appliedOnly(apps)) {
     const key = format(parseLocalDate(app.application_date), "yyyy-MM");
     const index = indexByMonth.get(key);
     if (index === undefined) continue;

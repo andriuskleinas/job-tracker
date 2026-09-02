@@ -279,8 +279,10 @@ async function save() {
 
     show("form", false);
     show("done", true);
+    // A clip lands in the wishlist, not in Applied — say so, or the first
+    // thing the user does is go looking for it in the wrong column.
     $("done-text").textContent = result.created
-      ? "Added as a new application, with the ad kept in full."
+      ? "Saved to your wishlist, with the ad kept in full."
       : "Updated the application you already had for this posting.";
     ($("done-link") as HTMLAnchorElement).href = `${apiBase}/applications/${result.id}`;
   } catch (e) {

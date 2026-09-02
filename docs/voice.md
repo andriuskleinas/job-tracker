@@ -27,15 +27,15 @@ the copy beside it.
 **5. Goal-oriented.** Frame everything as movement towards the offer, not as
 relief from a chore. Say what the reader gets, not what they avoid.
 
-| Instead of | Write |
-| --- | --- |
-| Built for people running a real job search | Built for people going after the job they want |
+| Instead of                                      | Write                                                   |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| Built for people running a real job search      | Built for people going after the job they want          |
 | Nothing slips between applying and hearing back | Stay in front of every employer, from applying to offer |
-| Follow-ups that never slip | Today's follow-ups, first in line |
-| Know whether the search is actually working | See exactly what's moving you closer to an offer |
-| Clip a posting before it disappears | Clip a posting the moment you find it |
-| Stop rebuilding the spreadsheet | Every offer starts with one tracked application |
-| No stale tabs, no guessing | One board, always current |
+| Follow-ups that never slip                      | Today's follow-ups, first in line                       |
+| Know whether the search is actually working     | See exactly what's moving you closer to an offer        |
+| Clip a posting before it disappears             | Clip a posting the moment you find it                   |
+| Stop rebuilding the spreadsheet                 | Every offer starts with one tracked application         |
+| No stale tabs, no guessing                      | One board, always current                               |
 
 The pattern in that table: the left column is defined by what goes wrong, the
 right column by what the reader is trying to achieve. Negation ("nothing", "no",

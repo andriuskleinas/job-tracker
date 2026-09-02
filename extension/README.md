@@ -23,7 +23,7 @@ Developer mode → **Load unpacked** → select `extension/dist`.
 
 ## Connect
 
-1. Job Tracker → **Account** → *Browser extension* → **Show my pairing code**
+1. Job Tracker → **Account** → _Browser extension_ → **Show my pairing code**
 2. Copy it, open the extension, paste it, **Connect**
 
 The pairing code is a signed token scoped to one user. It is deliberately
@@ -35,12 +35,12 @@ tokens.
 
 ## How it's put together
 
-| File | Role |
-| --- | --- |
-| `manifest.json` | MV3. Permissions: `activeTab`, `scripting`, `storage`. **No `content_scripts`** — nothing runs on any page until the toolbar button is clicked. |
-| `src/content.ts` | Injected on click. Reads the DOM, posts the result back, exits. |
-| `src/adapters/` | Per-site selectors: Greenhouse, Lever, Ashby, LinkedIn, Workday, and a generic fallback. |
-| `src/popup.ts` | Pairing, the review form, and the save. All the logic lives here — there is no service worker, because there is nothing to do in the background. |
+| File             | Role                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `manifest.json`  | MV3. Permissions: `activeTab`, `scripting`, `storage`. **No `content_scripts`** — nothing runs on any page until the toolbar button is clicked.  |
+| `src/content.ts` | Injected on click. Reads the DOM, posts the result back, exits.                                                                                  |
+| `src/adapters/`  | Per-site selectors: Greenhouse, Lever, Ashby, LinkedIn, Workday, and a generic fallback.                                                         |
+| `src/popup.ts`   | Pairing, the review form, and the save. All the logic lives here — there is no service worker, because there is nothing to do in the background. |
 
 The parser is **not** in this folder: the popup imports `src/lib/job-ad.ts`
 from the app. One parser serves both the website's paste box and the
@@ -57,11 +57,11 @@ happened, so the user knows whether to check the fields.
 
 ## Endpoints it talks to
 
-| Route | Purpose |
-| --- | --- |
-| `POST /clip` | Create or update an application. Dedupes on `(user_id, job_url)`, so re-clipping a posting updates it instead of duplicating. |
+| Route                    | Purpose                                                                                                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /clip`             | Create or update an application. Dedupes on `(user_id, job_url)`, so re-clipping a posting updates it instead of duplicating.                                  |
 | `GET /clip/applications` | Open applications, for the "save to an existing one" picker. Also the check run at pairing, so a mistyped code fails at connect rather than at the first clip. |
-| `POST /clip/token` | Mints a pairing code. Called by the app's own account page with a Supabase session — never by the extension. |
+| `POST /clip/token`       | Mints a pairing code. Called by the app's own account page with a Supabase session — never by the extension.                                                   |
 
 Payload validation reuses `jobAdSchema` from `src/lib/job-ad-form.ts`, the same
 schema the web form validates against.

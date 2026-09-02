@@ -116,6 +116,9 @@ export async function handleClipTokenRequest(request: Request): Promise<Response
  * instead of always creating a new row — people clip while researching and
  * again while prepping, and those want different destinations.
  *
+ * Wishlist rows are included: the first clip creates one, so leaving them out
+ * would hide exactly the row a second clip most wants to attach to.
+ *
  * Doubles as the check the extension runs when pairing, so a mistyped code
  * fails at connect time rather than silently at the first clip.
  */
@@ -130,7 +133,7 @@ export async function handleClipApplications(request: Request): Promise<Response
     .from("applications")
     .select("id, company, position")
     .eq("user_id", userId)
-    .in("status", ["applied", "interviewing", "offer"])
+    .in("status", ["wishlist", "applied", "interviewing", "offer"])
     .order("updated_at", { ascending: false })
     .limit(50);
 
@@ -264,6 +267,14 @@ export async function handleClip(request: Request): Promise<Response> {
       city: city || null,
       country: country || null,
       job_type: job_type || null,
+      // A clip is interest, not an application. The column defaults to
+      // `applied`, which was right when clipping was the only way in and wrong
+      // now that the board has somewhere to put a job you have merely found:
+      // defaulting to `applied` quietly claimed you had sent something you
+      // hadn't, and every conversion rate on the dashboard was divided by it.
+      // The re-clip path above deliberately does not touch status — clipping a
+      // posting again must never drag an interviewing application backwards.
+      status: "wishlist" as const,
       ...columns,
     })
     .select("id")
