@@ -41,7 +41,10 @@ function Index() {
   return (
     <main>
       <Hero />
-      <Features />
+      <CaptureSection />
+      <FollowThroughSection />
+      <StandingSection />
+      <OwnershipSection />
       <LogoBand />
       <ClosingCta />
       <Footer />
@@ -342,83 +345,149 @@ function LogoBand() {
 
 /* -------------------------------------------------------------- features -- */
 
-function Features() {
+/**
+ * One beat of the product story.
+ *
+ * The features used to be a single section with seven cards in it, which read
+ * as a specification rather than an argument. Each beat now carries its own
+ * claim and two or three cards at most, in the order the work actually
+ * happens: capture it, stay on top of it, see where it got you, keep it yours.
+ *
+ * The headings are deliberately a size down from the hero's — four of them at
+ * `text-4xl` would each compete with the one line the page is actually built
+ * around.
+ */
+function StorySection({
+  id,
+  eyebrow,
+  title,
+  lede,
+  muted = false,
+  children,
+}: {
+  id?: string;
+  eyebrow: string;
+  title: string;
+  lede: string;
+  /** Alternated down the page so consecutive beats read as separate sections. */
+  muted?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <section id="features" className="scroll-mt-20 border-b bg-muted/40">
-      <div className="container-page py-20 sm:py-24">
+    <section id={id} className={`scroll-mt-20 border-b ${muted ? "bg-muted/40" : ""}`}>
+      <div className="container-page py-16 sm:py-20">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-accent">
-            One workspace
+            {eyebrow}
           </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
-            Everything the search needs. Nothing it doesn't.
-          </h2>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-            A spreadsheet tells you what you typed. This tells you where you stand.
-          </p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">{title}</h2>
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground">{lede}</p>
         </div>
-
-        <div className="mt-12 grid gap-4 lg:grid-cols-3">
-          <FeatureCard
-            className="lg:col-span-3"
-            layout="row"
-            icon={Scissors}
-            title="Clip a posting before it disappears"
-            body="A browser extension reads the job ad already open in your tab — LinkedIn, Greenhouse, Lever, Ashby, Workday, or almost anything else — and saves the salary, requirements and full text in one click. It never fetches the page itself, so there's nothing to break when a site redesigns."
-            visual={<ClipVisual />}
-          />
-          <FeatureCard
-            className="lg:col-span-3"
-            layout="row"
-            icon={CalendarSync}
-            title="Every follow-up, already on your calendar"
-            body="Connect Google Calendar once and open, dated tasks push to it automatically — create, reschedule or complete one and the event follows. Prefer Outlook or Apple Calendar? Subscribe to a private iCal feed instead."
-            visual={<CalendarSyncVisual />}
-          />
-          <FeatureCard
-            className="lg:col-span-2"
-            icon={Layers}
-            title="See the whole pipeline at a glance"
-            body="Every role you've applied to, sorted by the stage it's actually in — applied, interviewing, offer, rejected, withdrawn. No stale tabs, no guessing."
-            visual={<FunnelVisual />}
-          />
-          <FeatureCard
-            id="follow-ups"
-            icon={CalendarClock}
-            title="Follow-ups that never slip"
-            body="Attach tasks with due dates to any application. Overdue work surfaces first."
-            visual={<TasksVisual />}
-          />
-          <FeatureCard
-            id="insights"
-            icon={LineChart}
-            title="Momentum you can measure"
-            body="Weekly volume, stage conversion and response times — so you can adjust while it still matters."
-            visual={<BarsVisual />}
-          />
-          <FeatureCard
-            icon={History}
-            title="Every status change, remembered"
-            body="A dated trail for each role, so you can see how long a stage really took."
-            visual={<TimelineVisual />}
-          />
-          <FeatureCard
-            icon={Lock}
-            title="Private by default"
-            body="Row-level security on every table. Your search is visible to you and nobody else."
-            visual={<PrivacyVisual />}
-          />
-          <FeatureCard
-            className="lg:col-span-3"
-            layout="row"
-            icon={FileUp}
-            title="Already have a spreadsheet? Bring it."
-            body="Import your existing tracker as CSV — company, position, status, date and notes. Download the template, drop the file in, and every row that doesn't parse is reported back to you instead of being silently dropped."
-            visual={<ImportVisual />}
-          />
-        </div>
+        <div className="mt-10 grid gap-4 lg:grid-cols-3">{children}</div>
       </div>
     </section>
+  );
+}
+
+/* The nav's "Features" link lands here, on the first beat of the story. */
+function CaptureSection() {
+  return (
+    <StorySection
+      id="features"
+      eyebrow="Capture"
+      title="The ad lands in your tracker, not your clipboard."
+      lede="Postings get pulled. Take the whole thing with you — salary, requirements, the full text — while you're still reading it."
+    >
+      <FeatureCard
+        className="lg:col-span-3"
+        layout="row"
+        icon={Scissors}
+        title="Clip a posting before it disappears"
+        body="A browser extension reads the job ad already open in your tab — LinkedIn, Greenhouse, Lever, Ashby, Workday, or almost anything else — and saves it in one click. It never fetches the page itself, so there's nothing to break when a site redesigns."
+        visual={<ClipVisual />}
+      />
+    </StorySection>
+  );
+}
+
+function FollowThroughSection() {
+  return (
+    <StorySection
+      id="follow-ups"
+      muted
+      eyebrow="Follow through"
+      title="Nothing slips between applying and hearing back."
+      lede="Every open role carries its next move and a date — and the ones due today show up where you already look."
+    >
+      <FeatureCard
+        className="lg:col-span-2"
+        icon={CalendarSync}
+        title="Every follow-up, already on your calendar"
+        body="Connect Google Calendar once and open, dated tasks push to it automatically — create, reschedule or complete one and the event follows. Prefer Outlook or Apple Calendar? Subscribe to a private iCal feed instead."
+        visual={<CalendarSyncVisual />}
+      />
+      <FeatureCard
+        icon={CalendarClock}
+        title="Follow-ups that never slip"
+        body="Attach tasks with due dates to any application. Overdue work surfaces first."
+        visual={<TasksVisual />}
+      />
+    </StorySection>
+  );
+}
+
+function StandingSection() {
+  return (
+    <StorySection
+      id="insights"
+      eyebrow="Where you stand"
+      title="Know whether the search is actually working."
+      lede="Not a list of what you typed — a read on where each role sits, and how long it took to get there."
+    >
+      <FeatureCard
+        icon={Layers}
+        title="See the whole pipeline at a glance"
+        body="Every role sorted by the stage it's actually in — applied, interviewing, offer, rejected, withdrawn. No stale tabs, no guessing."
+        visual={<FunnelVisual />}
+      />
+      <FeatureCard
+        icon={LineChart}
+        title="Momentum you can measure"
+        body="Weekly volume, stage conversion and response times — so you can adjust while it still matters."
+        visual={<BarsVisual />}
+      />
+      <FeatureCard
+        icon={History}
+        title="Every status change, remembered"
+        body="A dated trail for each role, so you can see how long a stage really took."
+        visual={<TimelineVisual />}
+      />
+    </StorySection>
+  );
+}
+
+function OwnershipSection() {
+  return (
+    <StorySection
+      muted
+      eyebrow="Your data"
+      title="Bring what you have. Keep what's yours."
+      lede="Start from the spreadsheet you're already keeping, and know the whole thing is visible to you alone."
+    >
+      <FeatureCard
+        className="lg:col-span-2"
+        icon={FileUp}
+        title="Already have a spreadsheet? Bring it."
+        body="Import your existing tracker as CSV — company, position, status, date and notes. Download the template, drop the file in, and every row that doesn't parse is reported back to you instead of being silently dropped."
+        visual={<ImportVisual />}
+      />
+      <FeatureCard
+        icon={Lock}
+        title="Private by default"
+        body="Row-level security on every table. Your search is visible to you and nobody else."
+        visual={<PrivacyVisual />}
+      />
+    </StorySection>
   );
 }
 
@@ -528,7 +597,9 @@ function ClipVisual() {
           linkedin.com/jobs/view/4213558042
         </span>
       </div>
-      <div className="relative bg-muted/30 px-4 py-6 sm:py-10">
+      {/* min-height so the absolutely-positioned popup always clears the bottom
+          edge — it used to get cut off by the wrapper's overflow-hidden. */}
+      <div className="relative min-h-[220px] bg-muted/30 px-4 py-6 sm:min-h-[240px] sm:py-8">
         <div className="max-w-[60%] space-y-2 opacity-40" aria-hidden="true">
           <div className="h-2.5 w-4/5 rounded bg-border" />
           <div className="h-2 w-3/5 rounded bg-border" />

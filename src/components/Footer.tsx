@@ -13,7 +13,7 @@ const sitemap = [
     heading: "Product",
     links: [
       { label: "Overview", to: "/" },
-      { label: "Pipeline", to: "/", hash: "features" },
+      { label: "Capture", to: "/", hash: "features" },
       { label: "Follow-ups", to: "/", hash: "follow-ups" },
       { label: "Insights", to: "/", hash: "insights" },
     ],
