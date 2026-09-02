@@ -14,6 +14,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 
+/** Canonical origin for absolute URLs in meta tags (og:image, og:url). */
+const SITE_URL = "https://job-tracker-rho-khaki-34.vercel.app";
+
 function NotFoundComponent() {
   return (
     <div className="container-form flex min-h-[calc(100svh-4rem)] flex-col justify-center py-16">
@@ -93,20 +96,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Track job applications and follow-up tasks in one clean dashboard.",
       },
       { name: "author", content: "Job Tracker" },
+      { property: "og:site_name", content: "Job Tracker" },
       { property: "og:title", content: "Job Tracker" },
       {
         property: "og:description",
         content: "Track job applications and follow-up tasks in one clean dashboard.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: SITE_URL },
+      { property: "og:image", content: `${SITE_URL}/og-image.png` },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: "Job Tracker — Your whole job search in one place" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Job Tracker" },
+      {
+        name: "twitter:description",
+        content: "Track job applications and follow-up tasks in one clean dashboard.",
+      },
+      { name: "twitter:image", content: `${SITE_URL}/og-image.png` },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "icon", href: "/favicon.ico", type: "image/x-icon", sizes: "any" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
     ],
   }),
   shellComponent: RootShell,
