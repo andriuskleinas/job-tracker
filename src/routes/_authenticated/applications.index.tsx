@@ -10,6 +10,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
+import { ApplicationBoard } from "@/components/ApplicationBoard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select,
   SelectContent,
@@ -31,10 +33,10 @@ import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/
 import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { toast } from "sonner";
 import { z } from "zod";
-import { STATUSES } from "@/lib/status";
+import { STATUSES, type Status } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
-import { Plus, Upload, Download, List, LayoutGrid } from "lucide-react";
+import { Plus, Upload, Download, List, Columns3 } from "lucide-react";
 import Papa from "papaparse";
 import { useRef, useMemo } from "react";
 import {
@@ -44,7 +46,27 @@ import {
   type ApplicationFilters as Filters,
 } from "@/lib/application-filters";
 
-type View = "list" | "grid";
+type View = "list" | "board";
+
+const VIEW_KEY = "applications-view";
+
+/**
+ * The stored preference, with the retired "grid" folded into "board".
+ *
+ * Grid was the same rows as the list in two dimensions: no extra information,
+ * worse scanning, and no action the list did not already offer. The board
+ * replaced it because it earns its space with something the list cannot do —
+ * move a role between stages by dragging it. Anyone whose last choice was grid
+ * wanted cards rather than rows, so the board is where they should land; the
+ * raw value is also validated here, since an unrecognised string used to fall
+ * straight through to the renderer.
+ */
+function storedView(): View {
+  if (typeof window === "undefined") return "list";
+  const raw = localStorage.getItem(VIEW_KEY);
+  if (raw === "board" || raw === "grid") return "board";
+  return "list";
+}
 
 // Filters live in the URL so a filtered board is shareable, survives refresh,
 // and plays nicely with the back button. Everything is optional and coerced to
@@ -167,14 +189,19 @@ function ApplicationsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [view, setView] = useState<View>(() => {
-    if (typeof window === "undefined") return "list";
-    return (localStorage.getItem("applications-view") as View) || "list";
-  });
+  const [view, setView] = useState<View>(storedView);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
-    localStorage.setItem("applications-view", view);
+    localStorage.setItem(VIEW_KEY, view);
   }, [view]);
+
+  // A board on a phone is a horizontal scroller wrapping vertical scrollers,
+  // which is the worst of both. The list is the honest small-screen answer, so
+  // narrow viewports get it and the toggle goes away rather than offering a
+  // choice that would make the page worse. The stored preference is untouched,
+  // so the board comes back on the desktop it was chosen on.
+  const effectiveView: View = isMobile ? "list" : view;
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["applications"],
@@ -282,6 +309,49 @@ function ApplicationsPage() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["applications"] }),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to update priority"),
+  });
+
+  /**
+   * Move an application to another status — the board's whole reason to exist,
+   * and also what the card's "Move to" menu calls.
+   *
+   * Optimistic, because the card has to land under the cursor at the moment it
+   * is dropped; a round trip first would show it snap back to the old column
+   * and then jump. The snapshot is restored verbatim if the write fails.
+   */
+  const moveStatus = useMutation({
+    mutationFn: async ({ app, status }: { app: ApplicationCardData; status: Status }) => {
+      // Leaving the wishlist is the moment an application is actually sent, so
+      // that is when application_date becomes true. It was the row's creation
+      // date until now — a placeholder the NOT NULL column demanded — and
+      // leaving it would date every application to the day the job was
+      // bookmarked, quietly ageing it in the "Stalled" check and filing it in
+      // the wrong week of the volume chart.
+      const becameAnApplication = app.status === "wishlist" && status !== "wishlist";
+      const { error } = await supabase
+        .from("applications")
+        .update({
+          status,
+          ...(becameAnApplication
+            ? { application_date: new Date().toISOString().slice(0, 10) }
+            : {}),
+        })
+        .eq("id", app.id);
+      if (error) throw error;
+    },
+    onMutate: async ({ app, status }) => {
+      await queryClient.cancelQueries({ queryKey: ["applications"] });
+      const previous = queryClient.getQueryData<ApplicationCardData[]>(["applications"]);
+      queryClient.setQueryData<ApplicationCardData[]>(["applications"], (old) =>
+        (old ?? []).map((a) => (a.id === app.id ? { ...a, status } : a)),
+      );
+      return { previous };
+    },
+    onError: (e, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(["applications"], context.previous);
+      toast.error(e instanceof Error ? e.message : "Failed to move application");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["applications"] }),
   });
 
   const handleFile = (file: File) => {
@@ -402,13 +472,13 @@ function ApplicationsPage() {
               type="single"
               value={view}
               onValueChange={(v) => v && setView(v as View)}
-              className="justify-start"
+              className={`justify-start ${isMobile ? "hidden" : ""}`}
             >
               <ToggleGroupItem value="list" aria-label="List view" size="sm">
                 <List className="h-4 w-4" />
               </ToggleGroupItem>
-              <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
-                <LayoutGrid className="h-4 w-4" />
+              <ToggleGroupItem value="board" aria-label="Board view" size="sm">
+                <Columns3 className="h-4 w-4" />
               </ToggleGroupItem>
             </ToggleGroup>
             <Dialog
@@ -618,7 +688,7 @@ function ApplicationsPage() {
                 </Button>
               }
             />
-          ) : view === "list" ? (
+          ) : effectiveView === "list" ? (
             <div className="grid gap-3">
               {visibleApps.map((a) => (
                 <ApplicationCard
@@ -630,16 +700,11 @@ function ApplicationsPage() {
               ))}
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleApps.map((a) => (
-                <ApplicationCard
-                  key={a.id}
-                  app={a}
-                  variant="grid"
-                  onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
-                />
-              ))}
-            </div>
+            <ApplicationBoard
+              apps={visibleApps}
+              onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+              onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
+            />
           )}
         </>
       )}

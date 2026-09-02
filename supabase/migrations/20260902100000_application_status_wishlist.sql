@@ -1,0 +1,14 @@
+-- Adds `wishlist`: a role you have saved but not yet applied to.
+--
+-- This is where the browser extension now lands a clipped posting. Clipping is
+-- an act of interest, not of application, and defaulting those rows to
+-- `applied` inflated every funnel the dashboard draws — a saved job counted as
+-- an application that never got an interview.
+--
+-- Placed BEFORE 'applied' so the enum's own sort order is the pipeline order,
+-- which is what `ORDER BY status` and the board's column order both want.
+--
+-- ADD VALUE is deliberately alone in this migration: Postgres will not let a
+-- new enum label be *used* in the transaction that created it, so anything
+-- referencing 'wishlist' has to wait for the next migration.
+ALTER TYPE public.application_status ADD VALUE IF NOT EXISTS 'wishlist' BEFORE 'applied';

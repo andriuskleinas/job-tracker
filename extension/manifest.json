@@ -4,10 +4,7 @@
   "version": "0.1.0",
   "description": "Save a job ad — salary, requirements and the full text — to Job Tracker, before the posting is taken down.",
   "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": [
-    "https://job-tracker-rho-khaki-34.vercel.app/*",
-    "http://localhost/*"
-  ],
+  "host_permissions": ["https://job-tracker-rho-khaki-34.vercel.app/*", "http://localhost/*"],
   "action": {
     "default_popup": "popup.html",
     "default_title": "Clip this job ad",

@@ -220,6 +220,18 @@ export function DashboardView({
   const breakdown = useMemo(() => statusBreakdown(statApps), [statApps]);
   const weekly = useMemo(() => weeklyApplications(statApps), [statApps]);
   const funnel = useMemo(() => funnelStages(statApps, events), [statApps, events]);
+  /*
+   * The funnel's own population, and the only correct denominator for its
+   * percentages.
+   *
+   * It is not `kpis.total`. That counts rows whose *current* status is not
+   * `wishlist`; this counts rows the history says ever reached `applied`, and
+   * a role that was applied to and later dragged back to the wishlist is in
+   * the second set but not the first. Dividing one by the other printed
+   * "46 (112%)" on the fixture data — a share above 100% is the funnel
+   * reporting more applications than it says exist.
+   */
+  const funnelTotal = funnel[0]?.count ?? 0;
   const cohorts = useMemo(() => monthlyCohorts(statApps, events), [statApps, events]);
   const daysToInterview = useMemo(
     () => medianDaysBetweenStages(events, "applied", "interviewing"),
@@ -265,7 +277,15 @@ export function DashboardView({
       <StatusLegend />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Key metrics">
-        <StatTile label="Total applications" value={kpis.total} />
+        {/* Saved roles are counted, never added in: every rate on this page
+            divides by applications sent, so a wishlist row must not inflate
+            the headline it is measured against. It rides along as a hint so
+            the number is still visible somewhere. */}
+        <StatTile
+          label="Total applications"
+          value={kpis.total}
+          hint={kpis.saved > 0 ? `${kpis.saved} more saved, not applied` : undefined}
+        />
         <StatTile
           label="Active pipeline"
           value={kpis.active}
@@ -276,7 +296,7 @@ export function DashboardView({
             never disagree on screen. */}
         <StatTile
           label="Interview rate"
-          value={kpis.total === 0 ? "—" : `${Math.round((funnel[1]?.share ?? 0) * 100)}%`}
+          value={funnelTotal === 0 ? "—" : `${Math.round((funnel[1]?.share ?? 0) * 100)}%`}
           hint={
             historyDepth > 0 ? "Ever reached interview" : "Ever reached interview (lower bound)"
           }
@@ -301,7 +321,10 @@ export function DashboardView({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Applications by status</CardTitle>
-            <CardDescription>Where all {kpis.total} applications stand right now.</CardDescription>
+            {/* "roles", not "applications": this chart is the one place that
+                counts wishlist rows, so the applications-only total would not
+                add up to the bars beneath it. */}
+            <CardDescription>Where all {statApps.length} roles stand right now.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
@@ -412,10 +435,10 @@ export function DashboardView({
                     // | boolean | null | undefined), so the share is computed
                     // only once the value is known to be a real number.
                     formatter={(value: string | number | boolean | null | undefined) => {
-                      if (typeof value !== "number" || kpis.total === 0 || isMobile) {
+                      if (typeof value !== "number" || funnelTotal === 0 || isMobile) {
                         return `${value ?? ""}`;
                       }
-                      return `${value} (${Math.round((value / kpis.total) * 100)}%)`;
+                      return `${value} (${Math.round((value / funnelTotal) * 100)}%)`;
                     }}
                   />
                 </Bar>
@@ -638,7 +661,7 @@ export function DashboardView({
 /**
  * The key to the colour language, and it belongs above the charts it explains
  * — at the foot it sat below the fold, which is the one place a legend is no
- * use. It lists all five statuses rather than only the ones currently in the
+ * use. It lists all six statuses rather than only the ones currently in the
  * data, so the vocabulary reads the same on an empty account as a full one.
  */
 function StatusLegend() {

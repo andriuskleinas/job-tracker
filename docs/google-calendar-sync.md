@@ -14,7 +14,7 @@ env vars, and one database migration.
    project and **enable the Google Calendar API** (APIs & Services → Library).
 2. **OAuth consent screen**: user type External. Add the scopes `openid`, `email`,
    and `https://www.googleapis.com/auth/calendar.events`.
-   - Set **Publishing status → In production**. (Leaving it in *Testing* makes Google
+   - Set **Publishing status → In production**. (Leaving it in _Testing_ makes Google
      expire refresh tokens after 7 days, forcing a weekly reconnect. Production works
      even while "unverified" — users just click through a one-time warning screen.)
 3. **Credentials → Create credentials → OAuth client ID → Web application**. Add
@@ -27,12 +27,12 @@ env vars, and one database migration.
 
 Set these in local `.env` **and** in the Vercel project (Production + Preview):
 
-| Variable | Purpose |
-| --- | --- |
-| `GOOGLE_CLIENT_ID` | OAuth client id from step 1 |
-| `GOOGLE_CLIENT_SECRET` | OAuth client secret from step 1 |
+| Variable                    | Purpose                                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `GOOGLE_CLIENT_ID`          | OAuth client id from step 1                                                                              |
+| `GOOGLE_CLIENT_SECRET`      | OAuth client secret from step 1                                                                          |
 | `SUPABASE_SERVICE_ROLE_KEY` | Already required by the app; reads/writes the token tables and signs the OAuth `state`. Must be present. |
-| `CALENDAR_FEED_SECRET` | *Optional.* If unset, the service-role key is used to sign OAuth `state`/feed tokens. |
+| `CALENDAR_FEED_SECRET`      | _Optional._ If unset, the service-role key is used to sign OAuth `state`/feed tokens.                    |
 
 ## 3. Database migration
 

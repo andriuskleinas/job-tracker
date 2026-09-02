@@ -4,9 +4,11 @@
  * and for grabbing screenshots. Kept intentionally; guarded below so it never
  * renders in production.
  */
+import { useState } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DashboardView } from "./_authenticated/dashboard";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
+import { ApplicationBoard } from "@/components/ApplicationBoard";
 import type { Status } from "@/lib/status";
 import type { StatsApplication, StatsStatusEvent } from "@/lib/stats";
 
@@ -31,7 +33,7 @@ const iso = (daysAgo: number) => {
 };
 
 const STATUS_CYCLE: Status[] = [
-  "applied",
+  "wishlist",
   "applied",
   "interviewing",
   "rejected",
@@ -53,6 +55,20 @@ const apps: StatsApplication[] = Array.from({ length: 46 }, (_, i) => ({
 // Give the interviewed/offered ones a real transition pair so "Time to
 // interview" and "Stage reach" have something beyond current status.
 const events: StatsStatusEvent[] = apps.flatMap((a) => {
+  // A wishlist row was never applied to, so it logs a `wishlist` event and
+  // nothing more. Handing it an `applied` event instead would put it in the
+  // funnel, and the funnel would then report more applications than the KPI
+  // tiles say exist — exactly the disagreement the real schema must not have.
+  if (a.status === "wishlist") {
+    return [
+      {
+        application_id: a.id,
+        status: "wishlist" as const,
+        changed_at: a.application_date,
+        created_at: a.application_date,
+      },
+    ];
+  }
   const base: StatsStatusEvent[] = [
     {
       application_id: a.id,
@@ -89,6 +105,26 @@ const tasks = [
 }));
 
 const cards: ApplicationCardData[] = [
+  {
+    // Clipped by the extension, never applied to — the wishlist branch.
+    id: "app-6",
+    company: "Hooli",
+    position: "Design Engineer",
+    status: "wishlist",
+    priority: false,
+    application_date: iso(3),
+    notes: null,
+    website: "https://figma.com",
+    job_type: "remote",
+    country: "Netherlands",
+    city: "Amsterdam",
+    salary_min: null,
+    salary_max: null,
+    salary_currency: null,
+    salary_period: null,
+    time_zone: null,
+    task_applications: [],
+  },
   {
     id: "app-1",
     company: "Northwind",
@@ -191,6 +227,10 @@ const cards: ApplicationCardData[] = [
 ];
 
 function DevPreview() {
+  // The board is stateful in a way the cards are not — dragging has to land
+  // somewhere — so the fixture holds its own copy and mutates it locally.
+  const [boardCards, setBoardCards] = useState(cards);
+
   return (
     <div>
       <DashboardView apps={apps} tasks={tasks as never} events={events} />
@@ -201,12 +241,16 @@ function DevPreview() {
             <ApplicationCard key={c.id} app={c} variant="list" onTogglePriority={() => {}} />
           ))}
         </div>
-        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationCard — grid</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c) => (
-            <ApplicationCard key={c.id} app={c} variant="grid" onTogglePriority={() => {}} />
-          ))}
-        </div>
+        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationBoard</h2>
+        <ApplicationBoard
+          apps={boardCards}
+          onTogglePriority={(app, priority) =>
+            setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, priority } : c)))
+          }
+          onMoveTo={(app, status) =>
+            setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, status } : c)))
+          }
+        />
       </main>
     </div>
   );
