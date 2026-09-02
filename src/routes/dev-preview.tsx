@@ -226,10 +226,48 @@ const cards: ApplicationCardData[] = [
   },
 ];
 
+/*
+ * Filler for the board, which is the one component whose bugs only appear at
+ * volume: a column has to overflow its preview cap before the "Show N more"
+ * control exists at all.
+ *
+ * The first entry carries a deliberately long title and a long city. The card
+ * title is `truncate`, so white-space:nowrap makes its min-content the whole
+ * string, and a card that is allowed to take its min-content width spills out
+ * of its column and paints over the next one. That was a real bug; this row is
+ * what would show it again.
+ */
+const filler: ApplicationCardData[] = [
+  "Senior Staff Infrastructure Engineer, Developer Platform",
+  "Product Manager",
+  "Data Engineer",
+  "Solutions Architect",
+  "Growth Marketer",
+  "QA Automation Engineer",
+].map((position, i) => ({
+  id: `fill-${i}`,
+  company: ["Aperture", "Cyberdyne", "Tyrell", "Soylent", "Wonka", "Gringotts"][i],
+  position,
+  status: "applied" as const,
+  priority: false,
+  application_date: iso(7 + i * 3),
+  notes: null,
+  website: null,
+  job_type: i % 2 === 0 ? "onsite" : "remote",
+  country: i === 0 ? "United States" : null,
+  city: i === 0 ? "San Francisco" : null,
+  salary_min: null,
+  salary_max: null,
+  salary_currency: null,
+  salary_period: null,
+  time_zone: null,
+  task_applications: [],
+}));
+
 function DevPreview() {
   // The board is stateful in a way the cards are not — dragging has to land
   // somewhere — so the fixture holds its own copy and mutates it locally.
-  const [boardCards, setBoardCards] = useState(cards);
+  const [boardCards, setBoardCards] = useState([...cards, ...filler]);
 
   return (
     <div>
