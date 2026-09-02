@@ -50,9 +50,9 @@ export const Route = createFileRoute("/_authenticated/tasks")({
   head: () => ({
     meta: [
       { title: "Tasks — Job Tracker" },
-      { name: "description", content: "All follow-up tasks across your job applications." },
+      { name: "description", content: "Every follow-up that keeps an application moving." },
       { property: "og:title", content: "Tasks — Job Tracker" },
-      { property: "og:description", content: "All follow-up tasks across your job applications." },
+      { property: "og:description", content: "Every follow-up that keeps an application moving." },
     ],
   }),
   component: TasksPage,
@@ -454,7 +454,7 @@ function TasksPage() {
     <main className="container-narrow page-body">
       <PageHeader
         title="Tasks"
-        description="Every follow-up across your applications."
+        description="Every follow-up that keeps an application moving."
         actions={
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <div className="flex items-center gap-2">
@@ -550,12 +550,12 @@ function TasksPage() {
       ) : tasks.length === 0 ? (
         <EmptyState
           title="No tasks yet"
-          body="Add a follow-up yourself, or open an application and add one there — either way it'll show up here."
+          body="Add a follow-up here, or from any application — either way it lands in this list."
         />
       ) : visible.length === 0 ? (
         <EmptyState
           title="No tasks match these filters"
-          body="Try widening the due window or clearing a filter to see more."
+          body="Widen the due window or clear a filter to see more."
           action={
             <Button variant="outline" onClick={() => setFilters(EMPTY_TASK_FILTERS)}>
               Clear filters

@@ -63,9 +63,15 @@ export const Route = createFileRoute("/_authenticated/applications/")({
   head: () => ({
     meta: [
       { title: "Applications — Job Tracker" },
-      { name: "description", content: "Your tracked job applications." },
+      {
+        name: "description",
+        content: "Every role you're going after, and where each one stands.",
+      },
       { property: "og:title", content: "Applications — Job Tracker" },
-      { property: "og:description", content: "Your tracked job applications." },
+      {
+        property: "og:description",
+        content: "Every role you're going after, and where each one stands.",
+      },
     ],
   }),
   validateSearch: (search): ApplicationsSearch => searchSchema.parse(search),
@@ -605,7 +611,7 @@ function ApplicationsPage() {
           {visibleApps.length === 0 ? (
             <EmptyState
               title="No matches"
-              body="No applications match these filters. Try loosening or clearing them."
+              body="No applications match these filters. Widen or clear them to see more."
               action={
                 <Button variant="outline" onClick={clearFilters}>
                   Clear filters

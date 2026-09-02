@@ -20,17 +20,17 @@ import { statusColor, statusFill } from "@/lib/status";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Job Tracker — Your whole job search in one place" },
+      { title: "Job Tracker — Track every application, land the job" },
       {
         name: "description",
         content:
-          "Clip job ads with a browser extension, track every application and interview in one workspace, and get follow-ups on your calendar automatically.",
+          "Clip job ads with a browser extension, keep every application, interview and follow-up in one workspace, and see exactly what's moving you closer to an offer.",
       },
-      { property: "og:title", content: "Job Tracker — Your whole job search in one place" },
+      { property: "og:title", content: "Job Tracker — Track every application, land the job" },
       {
         property: "og:description",
         content:
-          "Clip job ads with a browser extension, track every application and interview in one workspace, and get follow-ups on your calendar automatically.",
+          "Clip job ads with a browser extension, keep every application, interview and follow-up in one workspace, and see exactly what's moving you closer to an offer.",
       },
     ],
   }),
@@ -88,22 +88,22 @@ function Hero() {
         <div className="mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
-            Built for people running a real job search
+            Built for people going after the job they want
           </span>
 
           <h1 className="mt-6 text-4xl font-semibold leading-[1.05] tracking-[-0.03em] sm:text-6xl">
-            Your entire job search,
+            Track every application.
             <br className="hidden sm:block" />{" "}
             <span className="relative whitespace-nowrap text-brand-accent">
-              in one place.
+              Land the job.
               <Underline />
             </span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Clip a posting from LinkedIn or Greenhouse in one click, track every interview and
-            follow-up in one workspace, and let due tasks land on your calendar on their own — so
-            nothing lives in your head.
+            Clip a posting from LinkedIn or Greenhouse in one click, keep every interview and
+            follow-up in one workspace, and let due tasks land on your calendar automatically — so
+            every role keeps moving towards an offer.
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -311,14 +311,14 @@ function LogoBand() {
             id="companies-heading"
             className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-accent"
           >
-            Your shortlist, not ours
+            Your shortlist
           </h2>
           <p className="mt-3 text-lg font-medium tracking-tight sm:text-xl">
             Every company you apply to arrives with its own logo.
           </p>
           <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
-            Paste the careers page URL and the mark resolves itself — so your board looks like the
-            companies you're chasing, not a column of grey initials.
+            Paste the careers page URL and the logo resolves itself, so your board shows the
+            companies you're going after instead of a column of grey initials.
           </p>
         </div>
 
@@ -395,15 +395,15 @@ function CaptureSection() {
     <StorySection
       id="features"
       eyebrow="Capture"
-      title="The ad lands in your tracker, not your clipboard."
-      lede="Postings get pulled. Take the whole thing with you — salary, requirements, the full text — while you're still reading it."
+      title="Capture the whole posting in one click."
+      lede="Salary, requirements and the full text go into your tracker while you're still reading the ad, so you can compare roles on the details that decide them."
     >
       <FeatureCard
         className="lg:col-span-3"
         layout="row"
         icon={Scissors}
-        title="Clip a posting before it disappears"
-        body="A browser extension reads the job ad already open in your tab — LinkedIn, Greenhouse, Lever, Ashby, Workday, or almost anything else — and saves it in one click. It never fetches the page itself, so there's nothing to break when a site redesigns."
+        title="Clip a posting the moment you find it"
+        body="A browser extension reads the job ad already open in your tab — LinkedIn, Greenhouse, Lever, Ashby, Workday, or almost anything else — and saves it in one click. It reads only what's already on your screen, so a site redesign never breaks the capture."
         visual={<ClipVisual />}
       />
     </StorySection>
@@ -416,20 +416,20 @@ function FollowThroughSection() {
       id="follow-ups"
       muted
       eyebrow="Follow through"
-      title="Nothing slips between applying and hearing back."
-      lede="Every open role carries its next move and a date — and the ones due today show up where you already look."
+      title="Stay in front of every employer, from applying to offer."
+      lede="Every open role carries its next move and a date, and today's move shows up where you already look."
     >
       <FeatureCard
         className="lg:col-span-2"
         icon={CalendarSync}
         title="Every follow-up, already on your calendar"
-        body="Connect Google Calendar once and open, dated tasks push to it automatically — create, reschedule or complete one and the event follows. Prefer Outlook or Apple Calendar? Subscribe to a private iCal feed instead."
+        body="Connect Google Calendar once and open, dated tasks push to it automatically — create, reschedule or complete one and the event follows. Outlook and Apple Calendar work too, through a private iCal feed."
         visual={<CalendarSyncVisual />}
       />
       <FeatureCard
         icon={CalendarClock}
-        title="Follow-ups that never slip"
-        body="Attach tasks with due dates to any application. What's due today rises to the top — while it's still today, not after it's turned into a missed follow-up."
+        title="Today's follow-ups, first in line"
+        body="Attach dated tasks to any application. What's due today rises to the top of the list, in time for you to act on it."
         visual={<TasksVisual />}
       />
     </StorySection>
@@ -441,19 +441,19 @@ function StandingSection() {
     <StorySection
       id="insights"
       eyebrow="Where you stand"
-      title="Know whether the search is actually working."
-      lede="Not a list of what you typed — a read on where each role sits, and how long it took to get there."
+      title="See exactly what's moving you closer to an offer."
+      lede="Where each role sits today, how long it took to get there, and which weeks are earning you interviews."
     >
       <FeatureCard
         icon={Layers}
         title="See the whole pipeline at a glance"
-        body="Every role sorted by the stage it's actually in — applied, interviewing, offer, rejected, withdrawn. No stale tabs, no guessing."
+        body="Every role sorted by the stage it's actually in — applied, interviewing, offer, rejected, withdrawn. One board, always current."
         visual={<FunnelVisual />}
       />
       <FeatureCard
         icon={LineChart}
         title="Momentum you can measure"
-        body="Weekly volume, stage conversion and response times — so you can adjust while it still matters."
+        body="Weekly volume, stage conversion and response times, so you can adjust your approach while it still counts."
         visual={<BarsVisual />}
       />
       <FeatureCard
@@ -472,13 +472,13 @@ function OwnershipSection() {
       muted
       eyebrow="Your data"
       title="Bring what you have. Keep what's yours."
-      lede="Start from the spreadsheet you're already keeping, and know the whole thing is visible to you alone."
+      lede="Start from the spreadsheet you already keep, and know the whole search stays visible to you alone."
     >
       <FeatureCard
         className="lg:col-span-2"
         icon={FileUp}
-        title="Already have a spreadsheet? Bring it."
-        body="Import your existing tracker as CSV — company, position, status, date and notes. Download the template, drop the file in, and every row that doesn't parse is reported back to you instead of being silently dropped."
+        title="Bring the spreadsheet you already keep"
+        body="Import your existing tracker as CSV — company, position, status, date and notes. Download the template, drop the file in, and every row that doesn't parse is reported back to you, line by line."
         visual={<ImportVisual />}
       />
       <FeatureCard
@@ -874,7 +874,7 @@ function ClosingCta() {
       />
       <div className="container-page relative py-20 text-center sm:py-24">
         <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
-          Stop rebuilding the spreadsheet. Start tracking the search.
+          Every offer starts with one tracked application.
         </h2>
         <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-background/70 sm:text-base">
           Add your first application in under a minute and see the whole picture from day one.
@@ -886,7 +886,7 @@ function ClosingCta() {
             className="h-11 w-full bg-background px-7 text-sm text-foreground hover:bg-background/90 sm:w-auto"
           >
             <Link to="/auth">
-              Create your workspace
+              Create your free workspace
               <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

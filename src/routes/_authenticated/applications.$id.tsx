@@ -49,9 +49,12 @@ export const Route = createFileRoute("/_authenticated/applications/$id")({
   head: () => ({
     meta: [
       { title: "Application — Job Tracker" },
-      { name: "description", content: "Application detail and tasks." },
+      { name: "description", content: "Where this application stands, and what happens next." },
       { property: "og:title", content: "Application — Job Tracker" },
-      { property: "og:description", content: "Application detail and tasks." },
+      {
+        property: "og:description",
+        content: "Where this application stands, and what happens next.",
+      },
     ],
   }),
   component: AppDetail,

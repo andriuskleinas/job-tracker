@@ -256,7 +256,7 @@ function AccountPage() {
               <Label htmlFor="nickname">Nickname</Label>
               <Input
                 id="nickname"
-                placeholder="What should we call you?"
+                placeholder="How you'd like to be addressed"
                 value={form.nickname}
                 onChange={(e) => setForm({ ...form, nickname: e.target.value })}
                 autoComplete="nickname"

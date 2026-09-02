@@ -90,29 +90,32 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "referrer", content: "strict-origin-when-cross-origin" },
       { httpEquiv: "X-Content-Type-Options", content: "nosniff" },
-      { title: "Job Tracker — Organize Your Job Search" },
+      { title: "Job Tracker — Track every application, land the job" },
       {
         name: "description",
-        content: "Track job applications and follow-up tasks in one clean dashboard.",
+        content:
+          "Track every application, interview and follow-up in one workspace, and see exactly what's moving you closer to an offer.",
       },
       { name: "author", content: "Job Tracker" },
       { property: "og:site_name", content: "Job Tracker" },
       { property: "og:title", content: "Job Tracker" },
       {
         property: "og:description",
-        content: "Track job applications and follow-up tasks in one clean dashboard.",
+        content:
+          "Track every application, interview and follow-up in one workspace, and see exactly what's moving you closer to an offer.",
       },
       { property: "og:type", content: "website" },
       { property: "og:url", content: SITE_URL },
       { property: "og:image", content: `${SITE_URL}/og-image.png` },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
-      { property: "og:image:alt", content: "Job Tracker — Your whole job search in one place" },
+      { property: "og:image:alt", content: "Job Tracker — Track every application, land the job" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Job Tracker" },
       {
         name: "twitter:description",
-        content: "Track job applications and follow-up tasks in one clean dashboard.",
+        content:
+          "Track every application, interview and follow-up in one workspace, and see exactly what's moving you closer to an offer.",
       },
       { name: "twitter:image", content: `${SITE_URL}/og-image.png` },
     ],
