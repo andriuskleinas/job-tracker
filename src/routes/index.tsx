@@ -429,7 +429,7 @@ function FollowThroughSection() {
       <FeatureCard
         icon={CalendarClock}
         title="Follow-ups that never slip"
-        body="Attach tasks with due dates to any application. Overdue work surfaces first."
+        body="Attach tasks with due dates to any application. What's due today rises to the top — while it's still today, not after it's turned into a missed follow-up."
         visual={<TasksVisual />}
       />
     </StorySection>
@@ -680,7 +680,13 @@ function CalendarSyncVisual() {
           ))}
         </div>
       </div>
-      <div className="px-4 pb-4 pt-3">
+      {/* Thursday is the middle of seven columns, so a caret at dead centre points
+          at the highlighted day: day → dot → caret → the event it pushed. */}
+      <div className="relative px-4 pb-4 pt-3">
+        <span
+          className="absolute left-1/2 top-[0.45rem] h-2 w-2 -translate-x-1/2 rotate-45 bg-[var(--status-interviewing-soft)]"
+          aria-hidden="true"
+        />
         <div className="rounded-md border-l-4 border-[var(--status-interviewing)] bg-[var(--status-interviewing-soft)] px-3 py-2 text-xs">
           <p className="font-medium">Interview — Figma</p>
           <p className="text-muted-foreground">Thu, 2:00–2:45 PM</p>
@@ -690,34 +696,60 @@ function CalendarSyncVisual() {
   );
 }
 
-const tasks = [
-  { label: "Send portfolio to Stripe", done: true },
-  { label: "Thank-you note — Figma", done: false, overdue: true },
-  { label: "Prep system design round", done: false },
+/*
+ * The queue this section is promising, so it has to *be* that promise: the
+ * nearest task is due today and highlighted, nothing is overdue. An earlier
+ * version showed a red "Overdue" pill directly under a heading that reads
+ * "nothing slips" — the visual argued against the claim beside it.
+ *
+ * Today's row wears the interviewing tint rather than a red one: this is the
+ * thing to do next, not a thing already missed. It's the same fill the pushed
+ * calendar event carries in the card beside it, so the two read as one story.
+ */
+const followUps = [
+  { label: "Send portfolio", role: "Stripe · Staff Engineer", when: "Done", done: true },
+  { label: "Thank-you note", role: "Figma · Design Lead", when: "Today", due: true },
+  { label: "Prep system design round", role: "Linear · Product Designer", when: "Wed" },
+  { label: "Ask about relocation", role: "Vercel · Eng Manager", when: "Next week" },
 ];
 
 function TasksVisual() {
   return (
-    <ul className="flex h-full flex-col justify-end gap-2.5">
-      {tasks.map((task) => (
-        <li key={task.label} className="flex items-center gap-2.5 text-xs">
+    <ul className="flex h-full flex-col justify-center gap-1.5">
+      {followUps.map((task) => (
+        <li
+          key={task.label}
+          className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-xs ${
+            task.due
+              ? "bg-[var(--status-interviewing-soft)] ring-1 ring-inset ring-[var(--status-interviewing)]/25"
+              : ""
+          }`}
+        >
           <span
             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-              task.done ? "border-foreground bg-foreground" : "bg-background"
-            } ${task.overdue ? "border-[var(--status-rejected)]" : ""}`}
+              task.done ? "border-foreground bg-foreground" : "border-input bg-background"
+            }`}
             aria-hidden="true"
           >
             {task.done && <Check className="h-3 w-3 text-background" />}
           </span>
-          <span className={task.done ? "text-muted-foreground line-through" : ""}>
-            {task.label}
-          </span>
-          {/* The overdue pill on the tasks page, to the token. */}
-          {task.overdue && (
-            <span className="ml-auto shrink-0 rounded-full bg-[var(--status-rejected-soft)] px-2 py-0.5 text-[0.65rem] font-medium text-[var(--status-rejected-text)]">
-              Overdue
+          <span className="min-w-0 flex-1">
+            <span
+              className={`block truncate font-medium ${
+                task.done ? "text-muted-foreground line-through" : ""
+              }`}
+            >
+              {task.label}
             </span>
-          )}
+            <span className="block truncate text-[0.65rem] text-muted-foreground">{task.role}</span>
+          </span>
+          <span
+            className={`shrink-0 text-[0.65rem] font-medium ${
+              task.due ? "text-[var(--status-interviewing-text)]" : "text-muted-foreground"
+            }`}
+          >
+            {task.when}
+          </span>
         </li>
       ))}
     </ul>
