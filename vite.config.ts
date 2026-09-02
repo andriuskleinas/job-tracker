@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type PluginOption, type UserConfig } from "vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import tsConfigPaths from "vite-tsconfig-paths";
@@ -8,8 +8,8 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 // (Replaces the Lovable wrapper `@lovable.dev/vite-tanstack-config`, which
 // targeted Cloudflare.) The plugin order matters: tanstackStart → nitro →
 // viteReact, mirroring what the wrapper composed.
-export default defineConfig(async ({ command }) => {
-  const plugins = [
+export default defineConfig(async ({ command }): Promise<UserConfig> => {
+  const plugins: PluginOption[] = [
     tailwindcss(),
     tsConfigPaths({ projects: ["./tsconfig.json"] }),
     tanstackStart({

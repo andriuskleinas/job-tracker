@@ -1,8 +1,8 @@
 /*
- * TEMPORARY verification route — delete before merging.
- *
- * Renders DashboardView and ApplicationCard against fixtures so the recharts 3
- * upgrade and the job-type chip change can be checked without a live session.
+ * Fixture route for previewing DashboardView and ApplicationCard against
+ * canned data — no live session required. Handy for checking visual changes
+ * and for grabbing screenshots. Kept intentionally; guarded below so it never
+ * renders in production.
  */
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DashboardView } from "./_authenticated/dashboard";
