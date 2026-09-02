@@ -2,12 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   CalendarClock,
+  CalendarSync,
   Check,
   FileUp,
   History,
   Layers,
   LineChart,
   Lock,
+  Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/Footer";
@@ -22,13 +24,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Track applications, interviews and follow-ups in a single workspace. Always know what's live, what's next, and what needs a nudge today.",
+          "Clip job ads with a browser extension, track every application and interview in one workspace, and get follow-ups on your calendar automatically.",
       },
       { property: "og:title", content: "Job Tracker — Your whole job search in one place" },
       {
         property: "og:description",
         content:
-          "Track applications, interviews and follow-ups in a single workspace. Always know what's live, what's next, and what needs a nudge today.",
+          "Clip job ads with a browser extension, track every application and interview in one workspace, and get follow-ups on your calendar automatically.",
       },
     ],
   }),
@@ -96,8 +98,9 @@ function Hero() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Applications, interviews and follow-ups live together in a single workspace — so you
-            always know what's still live, what's next, and what needs a nudge today.
+            Clip a posting from LinkedIn or Greenhouse in one click, track every interview and
+            follow-up in one workspace, and let due tasks land on your calendar on their own — so
+            nothing lives in your head.
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -371,6 +374,22 @@ function Features() {
             visual={<TasksVisual />}
           />
           <FeatureCard
+            className="lg:col-span-3"
+            layout="row"
+            icon={Scissors}
+            title="Clip a posting before it disappears"
+            body="A browser extension reads the job ad already open in your tab — LinkedIn, Greenhouse, Lever, Ashby, Workday, or almost anything else — and saves the salary, requirements and full text in one click. It never fetches the page itself, so there's nothing to break when a site redesigns."
+            visual={<ClipVisual />}
+          />
+          <FeatureCard
+            className="lg:col-span-3"
+            layout="row"
+            icon={CalendarSync}
+            title="Every follow-up, already on your calendar"
+            body="Connect Google Calendar once and open, dated tasks push to it automatically — create, reschedule or complete one and the event follows. Prefer Outlook or Apple Calendar? Subscribe to a private iCal feed instead."
+            visual={<CalendarSyncVisual />}
+          />
+          <FeatureCard
             id="insights"
             icon={LineChart}
             title="Momentum you can measure"
@@ -483,6 +502,56 @@ function FunnelVisual() {
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Mocked capture, in the same shape the extension's popup shows after a clip. */
+function ClipVisual() {
+  return (
+    <div className="overflow-hidden rounded-lg border bg-background">
+      <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2">
+        <Scissors className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        <span className="truncate font-mono text-[0.7rem] text-muted-foreground">
+          linkedin.com/jobs/…
+        </span>
+        <span className="ml-auto shrink-0 rounded-full bg-[var(--status-offer-soft)] px-2 py-0.5 text-[0.65rem] font-medium text-[var(--status-offer-text)]">
+          Clipped
+        </span>
+      </div>
+      <div className="space-y-1.5 px-3 py-3 text-xs">
+        {[
+          ["Company", "Stripe"],
+          ["Role", "Staff Engineer"],
+          ["Salary", "€95k–130k"],
+        ].map(([label, value]) => (
+          <div key={label} className="flex justify-between">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="font-medium">{value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Mocked event, in the fill this product's "interviewing" status already owns. */
+function CalendarSyncVisual() {
+  return (
+    <div className="overflow-hidden rounded-lg border bg-background">
+      <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2">
+        <CalendarSync className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+        <span className="text-[0.7rem] font-medium text-muted-foreground">Google Calendar</span>
+        <span className="ml-auto shrink-0 rounded-full bg-[var(--status-offer-soft)] px-2 py-0.5 text-[0.65rem] font-medium text-[var(--status-offer-text)]">
+          Connected
+        </span>
+      </div>
+      <div className="px-3 py-3">
+        <div className="rounded-md border-l-4 border-[var(--status-interviewing)] bg-[var(--status-interviewing-soft)] px-3 py-2 text-xs">
+          <p className="font-medium">Interview — Figma</p>
+          <p className="text-muted-foreground">Thu, 2:00–2:45 PM</p>
+        </div>
+      </div>
     </div>
   );
 }
