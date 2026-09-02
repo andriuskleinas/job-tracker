@@ -121,6 +121,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      google_calendar_connections: {
+        Row: {
+          access_token: string | null;
+          calendar_id: string;
+          created_at: string;
+          email: string | null;
+          google_sub: string | null;
+          refresh_token: string | null;
+          scope: string | null;
+          token_expiry: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          access_token?: string | null;
+          calendar_id?: string;
+          created_at?: string;
+          email?: string | null;
+          google_sub?: string | null;
+          refresh_token?: string | null;
+          scope?: string | null;
+          token_expiry?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          access_token?: string | null;
+          calendar_id?: string;
+          created_at?: string;
+          email?: string | null;
+          google_sub?: string | null;
+          refresh_token?: string | null;
+          scope?: string | null;
+          token_expiry?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           city: string | null;
@@ -196,11 +235,51 @@ export type Database = {
           },
         ];
       };
+      task_calendar_events: {
+        Row: {
+          calendar_id: string;
+          created_at: string;
+          event_id: string;
+          provider: string;
+          task_id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          calendar_id?: string;
+          created_at?: string;
+          event_id: string;
+          provider?: string;
+          task_id: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          calendar_id?: string;
+          created_at?: string;
+          event_id?: string;
+          provider?: string;
+          task_id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_calendar_events_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: true;
+            referencedRelation: "tasks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tasks: {
         Row: {
           created_at: string;
           done: boolean;
           due_date: string | null;
+          due_time: string | null;
+          duration_minutes: number | null;
           id: string;
           priority: boolean;
           title: string;
@@ -211,6 +290,8 @@ export type Database = {
           created_at?: string;
           done?: boolean;
           due_date?: string | null;
+          due_time?: string | null;
+          duration_minutes?: number | null;
           id?: string;
           priority?: boolean;
           title: string;
@@ -221,6 +302,8 @@ export type Database = {
           created_at?: string;
           done?: boolean;
           due_date?: string | null;
+          due_time?: string | null;
+          duration_minutes?: number | null;
           id?: string;
           priority?: boolean;
           title?: string;
