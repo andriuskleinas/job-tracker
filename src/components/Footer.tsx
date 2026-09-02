@@ -44,8 +44,8 @@ export function Footer() {
           <div className="max-w-xs">
             <Logo />
             <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-              One workspace for every application, interview and follow-up — so you always know
-              where your search stands.
+              One workspace for every application, interview and follow-up, so you always know what
+              moves you closer to an offer.
             </p>
           </div>
 

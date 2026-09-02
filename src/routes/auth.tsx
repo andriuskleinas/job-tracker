@@ -22,12 +22,14 @@ export const Route = createFileRoute("/auth")({
       { title: "Sign in — Job Tracker" },
       {
         name: "description",
-        content: "Sign in or create an account to track your job applications.",
+        content:
+          "Sign in or create an account to track every application, interview and follow-up.",
       },
       { property: "og:title", content: "Sign in — Job Tracker" },
       {
         property: "og:description",
-        content: "Sign in or create an account to track your job applications.",
+        content:
+          "Sign in or create an account to track every application, interview and follow-up.",
       },
     ],
   }),
@@ -79,7 +81,7 @@ function AuthPage() {
           password: parsed.data.password,
         });
         if (error) throw error;
-        toast.success("Welcome back!");
+        toast.success("Signed in.");
         navigate({ to: "/applications", replace: true });
       }
     } catch (err: unknown) {
@@ -117,8 +119,8 @@ function AuthPage() {
     <main className="container-form flex min-h-[calc(100svh-4rem)] flex-col justify-center py-10">
       <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-xl tracking-[-0.02em]">Welcome</CardTitle>
-          <CardDescription>Sign in or create an account to continue.</CardDescription>
+          <CardTitle className="text-xl tracking-[-0.02em]">Track your search</CardTitle>
+          <CardDescription>Sign in, or create an account in under a minute.</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin">

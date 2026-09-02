@@ -51,9 +51,15 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Dashboard — Job Tracker" },
-      { name: "description", content: "Pipeline stats across all your job applications." },
+      {
+        name: "description",
+        content: "Where every application stands, and what's moving you closer to an offer.",
+      },
       { property: "og:title", content: "Dashboard — Job Tracker" },
-      { property: "og:description", content: "Pipeline stats across all your job applications." },
+      {
+        property: "og:description",
+        content: "Where every application stands, and what's moving you closer to an offer.",
+      },
     ],
   }),
   component: DashboardPage,
@@ -240,7 +246,7 @@ export function DashboardView({
         <PageHeading />
         <EmptyState
           title="No applications yet"
-          body="Stats appear here once you've logged your first one."
+          body="Your numbers appear here as soon as you log the first role you're going after."
           action={
             <Button asChild>
               <Link to="/applications">
@@ -650,7 +656,12 @@ function StatusLegend() {
 }
 
 function PageHeading() {
-  return <PageHeader title="Dashboard" description="How your search is tracking." />;
+  return (
+    <PageHeader
+      title="Dashboard"
+      description="Where your search stands, and what's moving it forward."
+    />
+  );
 }
 
 /**
