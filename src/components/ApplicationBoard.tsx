@@ -54,6 +54,22 @@ import {
  */
 const COLUMN_MIN = "220px";
 
+/**
+ * How many cards a column shows before it offers the rest behind a button.
+ *
+ * A job search is shaped like a funnel that never empties at the top: `applied`
+ * holds most of the board most of the time, and left uncapped it grows into a
+ * single column several screens long while the three beside it end a few
+ * hundred pixels down. At that point the board has stopped being a board — it
+ * is the list view again, with three narrow margins.
+ *
+ * Five keeps the four columns comparable in height, which is the comparison
+ * the layout exists to make. It is not an arbitrary truncation either: the
+ * parent sorts starred roles first and newest next, so the five a column keeps
+ * are the five most worth seeing.
+ */
+const COLUMN_PREVIEW_COUNT = 5;
+
 /** Where a card can be dropped. Closed statuses are their own lanes. */
 type DropId = Status;
 
@@ -86,9 +102,18 @@ function BoardCard({
       // own announcements cover the drag; the move menu covers keyboard.
       role={undefined}
       tabIndex={undefined}
-      // Hidden rather than removed: the column keeps its height, so the board
-      // does not reflow under the cursor mid-drag.
-      className={`touch-none ${isDragging ? "opacity-30" : ""}`}
+      // min-w-0 is load-bearing, not defensive. A grid item defaults to
+      // min-width:auto, which resolves to min-content, and this card's
+      // min-content is its longest unbreakable run: the title is `truncate`,
+      // so white-space:nowrap makes its min-content the *whole* string, and
+      // the location pills cannot break internally either. Without this the
+      // card refuses to shrink to its column — measured 270px inside a 220px
+      // track — and, since nothing clips it, spills over and paints on top of
+      // the next column's cards.
+      //
+      // Hidden rather than removed while dragging: the column keeps its
+      // height, so the board does not reflow under the cursor mid-drag.
+      className={`min-w-0 touch-none ${isDragging ? "opacity-30" : ""}`}
     >
       <ApplicationCard
         app={app}
@@ -124,7 +149,7 @@ function DropZone({
   return (
     <div
       ref={setNodeRef}
-      className={`rounded-lg transition-colors ${
+      className={`min-w-0 rounded-lg transition-colors ${
         dragging ? "border border-dashed" : "border border-transparent"
       } ${isOver ? "border-foreground/30 bg-accent/50" : ""} ${className}`}
     >
@@ -154,21 +179,36 @@ function PipelineColumn({
   status,
   apps,
   dragging,
+  lastMovedId,
   onTogglePriority,
   onMoveTo,
 }: {
   status: Status;
   apps: ApplicationCardData[];
   dragging: boolean;
+  /** The card most recently moved, so a column cannot swallow it. */
+  lastMovedId: string | null;
   onTogglePriority: (app: ApplicationCardData, priority: boolean) => void;
   onMoveTo: (app: ApplicationCardData, status: Status) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // A card dropped into a collapsed column can sort below the cut, and a drop
+  // that appears to do nothing is worse than a long column. When that happens
+  // the column opens itself rather than swallowing the card. Derived, not an
+  // effect: it is a fact about this render, and storing it would leave the
+  // column stuck open after the next move elsewhere.
+  const movedBelowCut = apps.findIndex((a) => a.id === lastMovedId) >= COLUMN_PREVIEW_COUNT;
+  const showAll = expanded || movedBelowCut;
+  const visible = showAll ? apps : apps.slice(0, COLUMN_PREVIEW_COUNT);
+  const hidden = apps.length - visible.length;
+
   return (
     <section className="flex w-full min-w-0 flex-col" aria-label={statusLabel(status)}>
       <ColumnHeader status={status} count={apps.length} />
       <DropZone id={status} dragging={dragging} className="flex-1 p-1">
         <div className="grid gap-2">
-          {apps.map((a) => (
+          {visible.map((a) => (
             <BoardCard
               key={a.id}
               app={a}
@@ -180,6 +220,18 @@ function PipelineColumn({
             <p className="px-2 py-6 text-center text-xs text-muted-foreground">
               {dragging ? "Drop here" : "Nothing here yet"}
             </p>
+          )}
+          {(hidden > 0 || (showAll && apps.length > COLUMN_PREVIEW_COUNT)) && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              // The count goes in the label rather than a bare "Show more":
+              // how much more is the thing you want to know before deciding
+              // whether to spend the scroll.
+              className="rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              {hidden > 0 ? `Show ${hidden} more` : "Show less"}
+            </button>
           )}
         </div>
       </DropZone>
@@ -285,6 +337,7 @@ export function ApplicationBoard({
   onMoveTo: (app: ApplicationCardData, status: Status) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [lastMovedId, setLastMovedId] = useState<string | null>(null);
 
   // A card is also a link. Without a distance threshold every click would
   // begin a drag and no card would ever open.
@@ -306,7 +359,15 @@ export function ApplicationBoard({
     if (!target) return;
     const app = apps.find((a) => a.id === event.active.id);
     if (!app || app.status === target) return;
+    setLastMovedId(app.id);
     onMoveTo(app, target);
+  };
+
+  // The move menu is the other way a card changes column, and it owes the
+  // destination the same guarantee the drag does.
+  const handleMoveTo = (app: ApplicationCardData, status: Status) => {
+    setLastMovedId(app.id);
+    onMoveTo(app, status);
   };
 
   return (
@@ -343,15 +404,16 @@ export function ApplicationBoard({
               status={s}
               apps={byStatus[s]}
               dragging={activeId !== null}
+              lastMovedId={lastMovedId}
               onTogglePriority={onTogglePriority}
-              onMoveTo={onMoveTo}
+              onMoveTo={handleMoveTo}
             />
           ))}
           <ClosedColumn
             byStatus={byStatus}
             dragging={activeId !== null}
             onTogglePriority={onTogglePriority}
-            onMoveTo={onMoveTo}
+            onMoveTo={handleMoveTo}
           />
         </div>
       </div>
