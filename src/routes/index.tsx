@@ -41,8 +41,8 @@ function Index() {
   return (
     <main>
       <Hero />
-      <LogoBand />
       <Features />
+      <LogoBand />
       <ClosingCta />
       <Footer />
     </main>
@@ -360,20 +360,6 @@ function Features() {
 
         <div className="mt-12 grid gap-4 lg:grid-cols-3">
           <FeatureCard
-            className="lg:col-span-2"
-            icon={Layers}
-            title="See the whole pipeline at a glance"
-            body="Every role you've applied to, sorted by the stage it's actually in — applied, interviewing, offer, rejected, withdrawn. No stale tabs, no guessing."
-            visual={<FunnelVisual />}
-          />
-          <FeatureCard
-            id="follow-ups"
-            icon={CalendarClock}
-            title="Follow-ups that never slip"
-            body="Attach tasks with due dates to any application. Overdue work surfaces first."
-            visual={<TasksVisual />}
-          />
-          <FeatureCard
             className="lg:col-span-3"
             layout="row"
             icon={Scissors}
@@ -388,6 +374,20 @@ function Features() {
             title="Every follow-up, already on your calendar"
             body="Connect Google Calendar once and open, dated tasks push to it automatically — create, reschedule or complete one and the event follows. Prefer Outlook or Apple Calendar? Subscribe to a private iCal feed instead."
             visual={<CalendarSyncVisual />}
+          />
+          <FeatureCard
+            className="lg:col-span-2"
+            icon={Layers}
+            title="See the whole pipeline at a glance"
+            body="Every role you've applied to, sorted by the stage it's actually in — applied, interviewing, offer, rejected, withdrawn. No stale tabs, no guessing."
+            visual={<FunnelVisual />}
+          />
+          <FeatureCard
+            id="follow-ups"
+            icon={CalendarClock}
+            title="Follow-ups that never slip"
+            body="Attach tasks with due dates to any application. Overdue work surfaces first."
+            visual={<TasksVisual />}
           />
           <FeatureCard
             id="insights"
@@ -506,47 +506,110 @@ function FunnelVisual() {
   );
 }
 
-/** Mocked capture, in the same shape the extension's popup shows after a clip. */
+/**
+ * A browser window with the extension's popup overlaid, so the card reads as
+ * "captured from a real page" rather than a bare data table.
+ */
 function ClipVisual() {
+  const fields: [string, string][] = [
+    ["Company", "Stripe"],
+    ["Role", "Staff Engineer"],
+    ["Salary", "€95k–130k"],
+  ];
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
+    <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
       <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2">
-        <Scissors className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        <span className="truncate font-mono text-[0.7rem] text-muted-foreground">
-          linkedin.com/jobs/…
+        <span className="flex shrink-0 gap-1.5" aria-hidden="true">
+          <span className="h-2.5 w-2.5 rounded-full bg-border" />
+          <span className="h-2.5 w-2.5 rounded-full bg-border" />
+          <span className="h-2.5 w-2.5 rounded-full bg-border" />
         </span>
-        <span className="ml-auto shrink-0 rounded-full bg-[var(--status-offer-soft)] px-2 py-0.5 text-[0.65rem] font-medium text-[var(--status-offer-text)]">
-          Clipped
+        <span className="ml-1.5 min-w-0 flex-1 truncate rounded-md bg-background px-2.5 py-1 font-mono text-[0.65rem] text-muted-foreground ring-1 ring-border">
+          linkedin.com/jobs/view/4213558042
         </span>
       </div>
-      <div className="space-y-1.5 px-3 py-3 text-xs">
-        {[
-          ["Company", "Stripe"],
-          ["Role", "Staff Engineer"],
-          ["Salary", "€95k–130k"],
-        ].map(([label, value]) => (
-          <div key={label} className="flex justify-between">
-            <span className="text-muted-foreground">{label}</span>
-            <span className="font-medium">{value}</span>
+      <div className="relative bg-muted/30 px-4 py-6 sm:py-10">
+        <div className="max-w-[60%] space-y-2 opacity-40" aria-hidden="true">
+          <div className="h-2.5 w-4/5 rounded bg-border" />
+          <div className="h-2 w-3/5 rounded bg-border" />
+          <div className="h-2 w-full rounded bg-border" />
+          <div className="h-2 w-2/3 rounded bg-border" />
+          <div className="h-2 w-4/5 rounded bg-border" />
+        </div>
+        <div className="absolute right-4 top-4 w-48 overflow-hidden rounded-lg border bg-card shadow-lg sm:right-6 sm:top-6 sm:w-52">
+          <div className="flex items-center gap-1.5 border-b bg-muted/50 px-2.5 py-2">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-foreground">
+              <Scissors className="h-3 w-3 text-background" aria-hidden="true" />
+            </span>
+            <span className="truncate text-[0.65rem] font-medium">Clip to Job Tracker</span>
           </div>
-        ))}
+          <div className="space-y-1 px-2.5 py-2 text-[0.65rem]">
+            {fields.map(([label, value]) => (
+              <div key={label} className="flex justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">{label}</span>
+                <span className="truncate font-medium">{value}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t px-2.5 py-2">
+            <span className="block rounded-full bg-[var(--status-offer-soft)] px-2 py-1 text-center text-[0.65rem] font-medium text-[var(--status-offer-text)]">
+              Clipped
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-/** Mocked event, in the fill this product's "interviewing" status already owns. */
+const week = [
+  { day: "M", date: 9 },
+  { day: "T", date: 10 },
+  { day: "W", date: 11 },
+  { day: "T", date: 12 },
+  { day: "F", date: 13 },
+  { day: "S", date: 14 },
+  { day: "S", date: 15 },
+] as const;
+
+/** A mocked week view, so the pushed event reads as "on the calendar" rather than a lone card. */
 function CalendarSyncVisual() {
+  const todayIndex = 3;
   return (
-    <div className="overflow-hidden rounded-lg border bg-background">
+    <div className="overflow-hidden rounded-lg border bg-background shadow-sm">
       <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-2">
         <CalendarSync className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-        <span className="text-[0.7rem] font-medium text-muted-foreground">Google Calendar</span>
+        <span className="text-xs font-medium">Google Calendar</span>
         <span className="ml-auto shrink-0 rounded-full bg-[var(--status-offer-soft)] px-2 py-0.5 text-[0.65rem] font-medium text-[var(--status-offer-text)]">
           Connected
         </span>
       </div>
-      <div className="px-3 py-3">
+      <div className="px-4 pt-4">
+        <div className="grid grid-cols-7 gap-1 text-center text-[0.65rem] font-medium text-muted-foreground">
+          {week.map((w, i) => (
+            <span key={i}>{w.day}</span>
+          ))}
+        </div>
+        <div className="mt-1.5 grid grid-cols-7 gap-1 text-center text-xs">
+          {week.map((w, i) => (
+            <span
+              key={w.date}
+              className={`relative flex h-7 items-center justify-center rounded-full ${
+                i === todayIndex ? "bg-foreground font-medium text-background" : ""
+              }`}
+            >
+              {w.date}
+              {i === todayIndex && (
+                <span
+                  className="absolute -bottom-1.5 h-1 w-1 rounded-full bg-[var(--status-interviewing)]"
+                  aria-hidden="true"
+                />
+              )}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="px-4 pb-4 pt-3">
         <div className="rounded-md border-l-4 border-[var(--status-interviewing)] bg-[var(--status-interviewing-soft)] px-3 py-2 text-xs">
           <p className="font-medium">Interview — Figma</p>
           <p className="text-muted-foreground">Thu, 2:00–2:45 PM</p>
