@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   useDraggable,
   useDroppable,
@@ -11,16 +12,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
-import {
-  BOARD_COLUMNS,
-  CLOSED_STATUSES,
-  STATUSES,
-  statusFill,
-  statusLabel,
-  type Status,
-} from "@/lib/status";
+import { BOARD_COLUMNS, statusFill, statusLabel, type Status } from "@/lib/status";
 
 /**
  * The pipeline as columns, with drag-to-advance.
@@ -29,12 +22,14 @@ import {
  * a role from one stage to the next, and until now that cost a navigation to
  * the detail page, a select, and a save. Here it costs a drag.
  *
- * Why only four columns: `rejected` and `withdrawn` are terminal and they only
- * ever accumulate, so as columns they would be two ever-lengthening dead ends
- * framing the four that matter — and on the axis where horizontal space is the
- * scarce resource. They live in one collapsed drawer at the end instead, which
- * is also an honest picture of their role in a job search: over, filed, still
- * countable.
+ * Why only four columns: `rejected` and `withdrawn` are done, and a person
+ * looking at their pipeline is not looking for the roles they are no longer
+ * pursuing. This board does not render them at all — no column, no drawer —
+ * so a rejection leaves the board rather than sinking to the bottom of it.
+ * They are not gone from the product: the caller keeps a small reference link
+ * to them for the record, just not inside the pipeline. Moving a card *to*
+ * one of those statuses is still one tab away, in the move menu on the card —
+ * there just isn't a column to drag it into any more.
  *
  * Why the board is not the only view: a board can only group by status, and
  * the questions a job hunt actually asks — what have I not touched in a month,
@@ -45,10 +40,10 @@ import {
 /*
  * 220px, not the 280 a card would prefer.
  *
- * Four pipeline columns plus the closed drawer have to fit the page width the
- * rest of the app uses, and `minmax(0, 1fr)` silently ignores a min-width on
- * the child — which is how these first shipped at 190px each, narrower than
- * the cards they hold. The floor belongs in the track, so it is stated as
+ * The four pipeline columns have to fit the page width the rest of the app
+ * uses, and `minmax(0, 1fr)` silently ignores a min-width on the child —
+ * which is how these first shipped at 190px each, narrower than the cards
+ * they hold. The floor belongs in the track, so it is stated as
  * minmax(220px, 1fr) below and the board scrolls sideways only when even that
  * will not fit.
  */
@@ -70,7 +65,7 @@ const COLUMN_MIN = "220px";
  */
 const COLUMN_PREVIEW_COUNT = 5;
 
-/** Where a card can be dropped. Closed statuses are their own lanes. */
+/** Where a card can be dropped: one of the four pipeline statuses. */
 type DropId = Status;
 
 function columnAccent(status: Status): string {
@@ -239,90 +234,6 @@ function PipelineColumn({
   );
 }
 
-/**
- * The two terminal statuses, in one column, collapsed by default.
- *
- * Collapsed it is a count and a heading — enough to know the pile exists
- * without spending a screen on it. It splits into its two lanes whenever a
- * drag starts, because "this one is dead" is a drop people need to make often,
- * and asking them to expand a drawer first with a card already in hand would
- * be the one move the board made *harder* than the list it replaced.
- */
-function ClosedColumn({
-  byStatus,
-  dragging,
-  onTogglePriority,
-  onMoveTo,
-}: {
-  byStatus: Record<Status, ApplicationCardData[]>;
-  dragging: boolean;
-  onTogglePriority: (app: ApplicationCardData, priority: boolean) => void;
-  onMoveTo: (app: ApplicationCardData, status: Status) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const total = CLOSED_STATUSES.reduce((n, s) => n + byStatus[s].length, 0);
-  const showLanes = open || dragging;
-
-  return (
-    // Collapsed, this is a heading and a number, so it takes only the width
-    // those need — a drawer nobody opened has no claim on a column's worth of
-    // the board.
-    <section
-      className="flex flex-col"
-      // Inline, not a Tailwind class: COLUMN_MIN is a runtime value and
-      // Tailwind only generates classes it can read in the source text.
-      style={showLanes ? { width: COLUMN_MIN, minWidth: COLUMN_MIN } : undefined}
-      aria-label="Closed"
-    >
-      <div className="mb-2 flex items-center gap-2 px-1">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          Closed
-        </button>
-        <span className="text-xs text-muted-foreground tabular-nums">{total}</span>
-      </div>
-
-      {showLanes ? (
-        <div className="grid gap-3">
-          {CLOSED_STATUSES.map((s) => (
-            <div key={s}>
-              <p className="mb-1 px-1 text-xs text-muted-foreground">
-                {statusLabel(s)} <span className="tabular-nums">{byStatus[s].length}</span>
-              </p>
-              <DropZone id={s} dragging={dragging} className="p-1">
-                <div className="grid gap-2">
-                  {/* Collapsed-but-dragging shows the lanes as targets only —
-                      the cards stay hidden, so the drop zone does not jump
-                      down the page as it fills with history. */}
-                  {open &&
-                    byStatus[s].map((a) => (
-                      <BoardCard
-                        key={a.id}
-                        app={a}
-                        onTogglePriority={(priority) => onTogglePriority(a, priority)}
-                        onMoveTo={(next) => onMoveTo(a, next)}
-                      />
-                    ))}
-                  {(!open || byStatus[s].length === 0) && (
-                    <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                      {dragging ? "Drop here" : "None"}
-                    </p>
-                  )}
-                </div>
-              </DropZone>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
 /* ------------------------------------------------------------------ *
  * Board
  * ------------------------------------------------------------------ */
@@ -341,13 +252,34 @@ export function ApplicationBoard({
 
   // A card is also a link. Without a distance threshold every click would
   // begin a drag and no card would ever open.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  //
+  // MouseSensor + TouchSensor rather than PointerSensor: dnd-kit's own
+  // issue tracker has multiple reports of PointerSensor silently failing to
+  // start a drag when the draggable node's content includes an anchor —
+  // exactly this card's shape, a `<Link>` wrapping everything. Reproduced it
+  // directly: identical geometry, identical sequence of events, and the
+  // drag would register on some cards and silently no-op on others with no
+  // error anywhere. MouseSensor listens to native mouse events instead of
+  // the Pointer Events compatibility layer PointerSensor depends on, which
+  // is the older and more battle-tested of the two for exactly this case.
+  // TouchSensor covers touchscreen laptops, which `useIsMobile`'s
+  // viewport-width check does not — a wide-screen device can still be
+  // driven by touch.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+  );
 
+  // Grouped over the four pipeline statuses only. A closed application in
+  // `apps` simply has nowhere to land here — that omission is the whole
+  // mechanism by which it leaves the board; see the module doc above.
   const byStatus = useMemo(() => {
     const groups = Object.fromEntries(
-      STATUSES.map((s) => [s, [] as ApplicationCardData[]]),
+      BOARD_COLUMNS.map((s) => [s, [] as ApplicationCardData[]]),
     ) as Record<Status, ApplicationCardData[]>;
-    for (const a of apps) groups[a.status].push(a);
+    for (const a of apps) {
+      if (a.status in groups) groups[a.status].push(a);
+    }
     return groups;
   }, [apps]);
 
@@ -396,7 +328,7 @@ export function ApplicationBoard({
       <div className="overflow-x-auto pb-2">
         <div
           className="grid gap-4 md:items-start"
-          style={{ gridTemplateColumns: `repeat(4, minmax(${COLUMN_MIN}, 1fr)) auto` }}
+          style={{ gridTemplateColumns: `repeat(4, minmax(${COLUMN_MIN}, 1fr))` }}
         >
           {BOARD_COLUMNS.map((s) => (
             <PipelineColumn
@@ -409,12 +341,6 @@ export function ApplicationBoard({
               onMoveTo={handleMoveTo}
             />
           ))}
-          <ClosedColumn
-            byStatus={byStatus}
-            dragging={activeId !== null}
-            onTogglePriority={onTogglePriority}
-            onMoveTo={handleMoveTo}
-          />
         </div>
       </div>
 

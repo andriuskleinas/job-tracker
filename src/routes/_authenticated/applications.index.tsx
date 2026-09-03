@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
+import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select,
@@ -33,10 +34,10 @@ import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/
 import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { toast } from "sonner";
 import { z } from "zod";
-import { STATUSES, type Status } from "@/lib/status";
+import { STATUSES, CLOSED_STATUSES, type Status } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
-import { Plus, Upload, Download, List, Columns3 } from "lucide-react";
+import { Plus, Upload, Download, List, LayoutGrid, Columns3 } from "lucide-react";
 import Papa from "papaparse";
 import { useRef, useMemo } from "react";
 import {
@@ -46,26 +47,15 @@ import {
   type ApplicationFilters as Filters,
 } from "@/lib/application-filters";
 
-type View = "list" | "board";
+type View = "list" | "grid" | "board";
 
 const VIEW_KEY = "applications-view";
 
-/**
- * The stored preference, with the retired "grid" folded into "board".
- *
- * Grid was the same rows as the list in two dimensions: no extra information,
- * worse scanning, and no action the list did not already offer. The board
- * replaced it because it earns its space with something the list cannot do —
- * move a role between stages by dragging it. Anyone whose last choice was grid
- * wanted cards rather than rows, so the board is where they should land; the
- * raw value is also validated here, since an unrecognised string used to fall
- * straight through to the renderer.
- */
+/** The stored preference, validated so a stale or hand-edited value can never reach the renderer. */
 function storedView(): View {
   if (typeof window === "undefined") return "list";
   const raw = localStorage.getItem(VIEW_KEY);
-  if (raw === "board" || raw === "grid") return "board";
-  return "list";
+  return raw === "grid" || raw === "board" ? raw : "list";
 }
 
 // Filters live in the URL so a filtered board is shareable, survives refresh,
@@ -198,10 +188,13 @@ function ApplicationsPage() {
 
   // A board on a phone is a horizontal scroller wrapping vertical scrollers,
   // which is the worst of both. The list is the honest small-screen answer, so
-  // narrow viewports get it and the toggle goes away rather than offering a
-  // choice that would make the page worse. The stored preference is untouched,
-  // so the board comes back on the desktop it was chosen on.
-  const effectiveView: View = isMobile ? "list" : view;
+  // narrow viewports fall back to it whenever the board is selected, and the
+  // toggle goes away rather than offering a choice that would make the page
+  // worse. Grid is unaffected — its columns already collapse to one on a
+  // narrow screen, which is just the list with cards instead of rows. The
+  // stored preference is untouched, so the board comes back on the desktop it
+  // was chosen on.
+  const effectiveView: View = view === "board" && isMobile ? "list" : view;
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["applications"],
@@ -220,6 +213,20 @@ function ApplicationsPage() {
   const visibleApps = useMemo(
     () => filterApplications(apps, filters).sort((a, b) => Number(b.priority) - Number(a.priority)),
     [apps, filters],
+  );
+
+  // Rejected and withdrawn applications live in the archive at the bottom of
+  // the page, not in whichever of list/grid/board is on screen — a person
+  // looking at their pipeline is not looking for the roles they are no
+  // longer pursuing. Split once here so every view downstream renders only
+  // the live half; both halves still respect whatever filters are active.
+  const liveApps = useMemo(
+    () => visibleApps.filter((a) => !CLOSED_STATUSES.includes(a.status)),
+    [visibleApps],
+  );
+  const archivedApps = useMemo(
+    () => visibleApps.filter((a) => CLOSED_STATUSES.includes(a.status)),
+    [visibleApps],
   );
 
   const create = useMutation({
@@ -477,6 +484,9 @@ function ApplicationsPage() {
               <ToggleGroupItem value="list" aria-label="List view" size="sm">
                 <List className="h-4 w-4" />
               </ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
+                <LayoutGrid className="h-4 w-4" />
+              </ToggleGroupItem>
               <ToggleGroupItem value="board" aria-label="Board view" size="sm">
                 <Columns3 className="h-4 w-4" />
               </ToggleGroupItem>
@@ -678,19 +688,29 @@ function ApplicationsPage() {
             onClear={clearFilters}
             resultCount={visibleApps.length}
           />
-          {visibleApps.length === 0 ? (
-            <EmptyState
-              title="No matches"
-              body="No applications match these filters. Widen or clear them to see more."
-              action={
-                <Button variant="outline" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-              }
-            />
+          {liveApps.length === 0 ? (
+            archivedApps.length > 0 ? (
+              // Not "no matches" — there are matches, they're just all closed.
+              // Sending someone to "widen or clear filters" when the fix is
+              // "scroll down" would be actively wrong advice.
+              <EmptyState
+                title="Nothing in your active pipeline"
+                body="Every application that matches is closed — see it in the archive below."
+              />
+            ) : (
+              <EmptyState
+                title="No matches"
+                body="No applications match these filters. Widen or clear them to see more."
+                action={
+                  <Button variant="outline" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            )
           ) : effectiveView === "list" ? (
             <div className="grid gap-3">
-              {visibleApps.map((a) => (
+              {liveApps.map((a) => (
                 <ApplicationCard
                   key={a.id}
                   app={a}
@@ -699,13 +719,31 @@ function ApplicationsPage() {
                 />
               ))}
             </div>
+          ) : effectiveView === "grid" ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {liveApps.map((a) => (
+                <ApplicationCard
+                  key={a.id}
+                  app={a}
+                  variant="grid"
+                  onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
+                />
+              ))}
+            </div>
           ) : (
             <ApplicationBoard
-              apps={visibleApps}
+              apps={liveApps}
               onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
               onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
             />
           )}
+          {/* Same across all three views above — rejected and withdrawn have
+              exactly one home on this page, and it isn't inline with the
+              applications still moving. */}
+          <ApplicationArchive
+            apps={archivedApps}
+            onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+          />
         </>
       )}
     </main>

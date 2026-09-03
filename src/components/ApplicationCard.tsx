@@ -8,9 +8,9 @@ import {
   Building2,
   Clock,
   Clock3,
+  EllipsisVertical,
   Globe,
   ListChecks,
-  MoveRight,
   Star,
   StickyNote,
   TriangleAlert,
@@ -117,13 +117,28 @@ const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
  * The facts row: how the role is worked, where it's based, and what it pays.
  * Salary is the one a user scans for, so it carries the foreground weight the
  * location pill doesn't.
+ *
+ * Two fixed rows everywhere this renders — list, grid, and board alike —
+ * rather than one `flex-wrap` row left to break wherever the card happens to
+ * run out of width. A wrap point is a layout accident, not a decision, and
+ * which chip ends up next to which one told a different story on every card
+ * depending on how long the company name was that day. Top row is place and
+ * how far away it is; bottom row is how the role is worked and what it pays,
+ * in that order — how a role is worked is the faster read, and the number is
+ * what a person actually stops to compare.
+ *
+ * `compact` is the board's dialect of the place chip only: it drops the
+ * spelled-out country in favour of the flag that is already sitting there
+ * doing that job — city alone, falling back to the country name only when
+ * there is no city to show instead, so the chip never renders as a bare flag
+ * with nothing beside it.
  */
-function LocationRow({ app }: { app: ApplicationCardData }) {
+function LocationRow({ app, compact = false }: { app: ApplicationCardData; compact?: boolean }) {
   const userZone = useUserZone();
   const meta = jobTypeMeta(app.job_type);
   const city = app.city?.trim();
   const country = app.country?.trim();
-  const place = [city, country].filter(Boolean).join(", ");
+  const place = compact ? city || country : [city, country].filter(Boolean).join(", ");
   const salary = formatSalary({
     salary_min: app.salary_min,
     salary_max: app.salary_max,
@@ -143,35 +158,51 @@ function LocationRow({ app }: { app: ApplicationCardData }) {
   const Icon = meta ? JOB_TYPE_ICON[app.job_type as JobType] : null;
   const flag = flagForCountry(country);
 
+  const jobTypeChip = meta && Icon && (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
+    >
+      <Icon className="h-3.5 w-3.5" /> {meta.short}
+    </span>
+  );
+  const placeChip = place && (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+      {flag ? <span aria-hidden>{flag}</span> : null}
+      {place}
+    </span>
+  );
+  const salaryChip = salary && (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
+    >
+      <Banknote className="h-3.5 w-3.5" /> {salary}
+    </span>
+  );
+  const apartChip = apart && (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+      title={`${zone} — ${apart} from your ${userZone}`}
+    >
+      <Clock3 className="h-3.5 w-3.5" /> {apart}
+    </span>
+  );
+
+  const topRow = placeChip || apartChip;
+  const bottomRow = jobTypeChip || salaryChip;
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {meta && Icon && (
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
-        >
-          <Icon className="h-3.5 w-3.5" /> {meta.short}
-        </span>
+    <div className="flex flex-col gap-1.5">
+      {topRow && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {placeChip}
+          {apartChip}
+        </div>
       )}
-      {place && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-          {flag ? <span aria-hidden>{flag}</span> : null}
-          {place}
-        </span>
-      )}
-      {salary && (
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
-        >
-          <Banknote className="h-3.5 w-3.5" /> {salary}
-        </span>
-      )}
-      {apart && (
-        <span
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-          title={`${zone} — ${apart} from your ${userZone}`}
-        >
-          <Clock3 className="h-3.5 w-3.5" /> {apart}
-        </span>
+      {bottomRow && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {jobTypeChip}
+          {salaryChip}
+        </div>
       )}
     </div>
   );
@@ -334,6 +365,10 @@ function AppStar({
  * a fallback bolted on for compliance — for a long column it is quicker than
  * dragging a card three screens sideways, and it is the only route that names
  * the destination out loud before you commit to it.
+ *
+ * The icon is a kebab, not an arrow — the whole card is already the link to
+ * the detail page, so a mark that reads as "go to" would duplicate that and
+ * mislead about what this one actually does, which is open a menu in place.
  */
 function MoveMenu({
   app,
@@ -357,7 +392,7 @@ function MoveMenu({
           aria-label={`Move ${app.position} at ${app.company} to another status`}
           className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
-          <MoveRight className="h-4 w-4" />
+          <EllipsisVertical className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
@@ -379,7 +414,7 @@ export function ApplicationCard({
   onMoveTo,
 }: {
   app: ApplicationCardData;
-  variant: "list" | "board";
+  variant: "list" | "grid" | "board";
   onTogglePriority: (priority: boolean) => void;
   /** Board only: change this application's status without opening it. */
   onMoveTo?: (status: Status) => void;
@@ -391,7 +426,12 @@ export function ApplicationCard({
     <div className="flex min-w-0 items-center gap-3">
       <CompanyLogo company={app.company} website={app.website} dim={meta.isClosed} />
       <div className="min-w-0">
-        <p className={`truncate font-medium ${dimTitle}`}>{app.position}</p>
+        {/* Board keeps the role name in full rather than truncating it — a
+            narrow column is exactly where a one-line ellipsis hides the one
+            fact the card exists to show, so it wraps instead. */}
+        <p className={`font-medium ${variant === "board" ? "" : "truncate"} ${dimTitle}`}>
+          {app.position}
+        </p>
         <p className="truncate text-sm text-muted-foreground">{app.company}</p>
       </div>
     </div>
@@ -400,21 +440,21 @@ export function ApplicationCard({
   const rightCluster = (
     <div className="flex shrink-0 items-center gap-1.5">
       <AppStar app={app} onToggle={onTogglePriority} />
-      {/* On the board the column heading already says the status, so a badge
-          repeating it is six identical badges down one column — noise where a
-          badge is meant to be a signal. The move control takes the slot the
-          badge held, which is also the slot the eye already goes to. */}
-      {variant === "board" ? (
-        onMoveTo && <MoveMenu app={app} onMoveTo={onMoveTo} />
-      ) : (
-        <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
-          {app.status}
-        </Badge>
-      )}
+      <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
+        {app.status}
+      </Badge>
     </div>
   );
 
   if (variant === "board") {
+    // How much this application is worth showing on the board: the star
+    // (priority is a list/grid control — the column position already carries
+    // it) and the status badge (the column heading already says it) are both
+    // dropped, and what is left of the meta row is only whether a task is
+    // owed. Everything else on the full card — applied-when, notes, job
+    // type — is one tap away on the detail page, which is the point: a board
+    // card is a label for a drag, not a summary of the row.
+    const hasTaskStatus = meta.stalled || meta.openCount > 0;
     return (
       <Link to="/applications/$id" params={{ id: app.id }} className="block">
         <Card
@@ -424,10 +464,46 @@ export function ApplicationCard({
         >
           <div className="flex items-start justify-between gap-2">
             {identity}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {onMoveTo && <MoveMenu app={app} onMoveTo={onMoveTo} />}
+            </div>
+          </div>
+          <LocationRow app={app} compact />
+          {hasTaskStatus && (
+            <div className="flex flex-wrap items-center gap-2">
+              {meta.stalled ? (
+                <StalledPill />
+              ) : (
+                <TaskChip
+                  openCount={meta.openCount}
+                  nextDue={meta.nextDue}
+                  overdue={meta.overdue}
+                  hasPriority={meta.hasPriority}
+                />
+              )}
+            </div>
+          )}
+        </Card>
+      </Link>
+    );
+  }
+
+  if (variant === "grid") {
+    return (
+      <Link to="/applications/$id" params={{ id: app.id }} className="block h-full">
+        <Card
+          className={`flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
+            meta.isClosed ? "bg-muted/30" : ""
+          } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            {identity}
             {rightCluster}
           </div>
           <LocationRow app={app} />
-          <CardMeta app={app} meta={meta} />
+          <div className="mt-auto border-t pt-3">
+            <CardMeta app={app} meta={meta} />
+          </div>
         </Card>
       </Link>
     );

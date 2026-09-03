@@ -9,6 +9,8 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DashboardView } from "./_authenticated/dashboard";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
+import { ApplicationArchive } from "@/components/ApplicationArchive";
+import { CLOSED_STATUSES } from "@/lib/status";
 import type { Status } from "@/lib/status";
 import type { StatsApplication, StatsStatusEvent } from "@/lib/stats";
 
@@ -279,6 +281,16 @@ function DevPreview() {
             <ApplicationCard key={c.id} app={c} variant="list" onTogglePriority={() => {}} />
           ))}
         </div>
+        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationCard — grid</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {cards.map((c) => (
+            <ApplicationCard key={c.id} app={c} variant="grid" onTogglePriority={() => {}} />
+          ))}
+        </div>
+        {/* app-3 (Initech, rejected) is in this fixture set deliberately: the
+            board must never render a closed application in any column — the
+            whole mechanism by which "closed" leaves the board is that it has
+            nowhere to go, and this is the fixture that would show a leak. */}
         <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationBoard</h2>
         <ApplicationBoard
           apps={boardCards}
@@ -288,6 +300,11 @@ function DevPreview() {
           onMoveTo={(app, status) =>
             setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, status } : c)))
           }
+        />
+        <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>
+        <ApplicationArchive
+          apps={cards.filter((c) => CLOSED_STATUSES.includes(c.status))}
+          onTogglePriority={() => {}}
         />
       </main>
     </div>
