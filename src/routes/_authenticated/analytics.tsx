@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
-import { subDays } from "date-fns";
+import { addDays, subDays } from "date-fns";
 import { z } from "zod";
 import {
   Area,
@@ -28,6 +28,11 @@ import {
   RANGE_PRESETS,
   type RangePreset,
 } from "@/components/AnalyticsRangeFilter";
+import {
+  TaskWindowFilter,
+  TASK_WINDOW_PRESETS,
+  type TaskWindowPreset,
+} from "@/components/TaskWindowFilter";
 import {
   ChartContainer,
   ChartLegend,
@@ -68,11 +73,17 @@ import { ArrowDown, ArrowUp, Plus, TriangleAlert } from "lucide-react";
  * survives a refresh, and works with the back button. `range=custom`
  * without both `from`/`to` present falls back to "all" — a half-specified
  * custom range is not a range.
+ *
+ * `taskWindow`/`taskDue` are a second, independent pair for the "Next N
+ * days" panel — forward-looking, so it needs its own state rather than
+ * reusing `range`/`from`/`to`, which describe a backward-looking window.
  */
 const searchSchema = z.object({
   range: z.enum(RANGE_PRESETS).catch("all").optional(),
   from: z.string().catch("").optional(),
   to: z.string().catch("").optional(),
+  taskWindow: z.enum(TASK_WINDOW_PRESETS).catch("14d").optional(),
+  taskDue: z.string().catch("").optional(),
 });
 
 type AnalyticsSearch = z.infer<typeof searchSchema>;
@@ -226,6 +237,10 @@ function AnalyticsPage() {
       customTo={search.to ? parseLocalDate(search.to) : null}
       onPresetChange={(range) => setRange({ range, from: undefined, to: undefined })}
       onCustomChange={(from, to) => setRange({ range: "custom", from: toIso(from), to: toIso(to) })}
+      taskWindow={search.taskWindow ?? "14d"}
+      taskDue={search.taskDue ? parseLocalDate(search.taskDue) : null}
+      onTaskWindowChange={(taskWindow) => setRange({ taskWindow, taskDue: undefined })}
+      onTaskDueChange={(due) => setRange({ taskWindow: "custom", taskDue: toIso(due) })}
     />
   );
 }
@@ -244,6 +259,10 @@ export function AnalyticsView({
   customTo = null,
   onPresetChange,
   onCustomChange,
+  taskWindow = "14d",
+  taskDue = null,
+  onTaskWindowChange,
+  onTaskDueChange,
 }: {
   apps: StatsApplication[];
   tasks: TaskWithApp[];
@@ -253,6 +272,10 @@ export function AnalyticsView({
   customTo?: Date | null;
   onPresetChange?: (range: Exclude<RangePreset, "custom">) => void;
   onCustomChange?: (from: Date, to: Date) => void;
+  taskWindow?: TaskWindowPreset;
+  taskDue?: Date | null;
+  onTaskWindowChange?: (window: Exclude<TaskWindowPreset, "custom">) => void;
+  onTaskDueChange?: (due: Date) => void;
 }) {
   const statApps = apps;
   const statTasks = tasks;
@@ -364,13 +387,24 @@ export function AnalyticsView({
   );
   const historySince = useMemo(() => historyStartedAt(periodEvents), [periodEvents]);
 
-  const upcoming = useMemo(() => {
-    const horizon = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14);
-    return statTasks
-      .filter((t) => !t.done && t.due_date !== null)
-      .filter((t) => parseLocalDate(t.due_date as string) <= horizon)
-      .slice(0, 8);
-  }, [statTasks, today]);
+  // Forward-looking, so it takes its own horizon rather than the page's
+  // backward-looking `from`/`to` — see TaskWindowFilter.
+  const taskHorizon = useMemo(() => {
+    if (taskWindow === "custom" && taskDue) return taskDue;
+    if (taskWindow === "7d") return addDays(today, 7);
+    if (taskWindow === "30d") return addDays(today, 30);
+    return addDays(today, 14);
+  }, [taskWindow, taskDue, today]);
+
+  const dueSoon = useMemo(
+    () =>
+      statTasks
+        .filter((t) => !t.done && t.due_date !== null)
+        .filter((t) => parseLocalDate(t.due_date as string) <= taskHorizon),
+    [statTasks, taskHorizon],
+  );
+  const upcoming = dueSoon.slice(0, 8);
+  const upcomingHidden = dueSoon.length - upcoming.length;
 
   const periodLabel = rangeLabel(range, from, to);
   const priorLabel = priorRangeLabel(range, from, to);
@@ -758,14 +792,24 @@ export function AnalyticsView({
       </section>
 
       <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="text-base">Next 14 days</CardTitle>
-          <CardDescription>Open tasks coming due, soonest first.</CardDescription>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">{taskWindowTitle(taskWindow, taskHorizon)}</CardTitle>
+            <CardDescription>Open tasks coming due, soonest first.</CardDescription>
+          </div>
+          {onTaskWindowChange && onTaskDueChange && (
+            <TaskWindowFilter
+              preset={taskWindow}
+              customDue={taskDue}
+              onPresetChange={onTaskWindowChange}
+              onCustomChange={onTaskDueChange}
+            />
+          )}
         </CardHeader>
         <CardContent>
           {upcoming.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nothing due in the next two weeks.{" "}
+              Nothing due {taskWindowPhrase(taskWindow, taskHorizon)}.{" "}
               <Link to="/tasks" className="underline underline-offset-4">
                 View all tasks
               </Link>
@@ -808,6 +852,15 @@ export function AnalyticsView({
               })}
             </ul>
           )}
+          {upcomingHidden > 0 && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              +{upcomingHidden} more due in this window.{" "}
+              <Link to="/tasks" className="underline underline-offset-4">
+                View all tasks
+              </Link>
+              .
+            </p>
+          )}
         </CardContent>
       </Card>
     </main>
@@ -847,6 +900,22 @@ function priorRangeLabel(range: RangePreset, from: Date, to: Date): string {
 
 function sentenceCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** The card title for the task panel — "Next 7 days" through a custom "Due by Mar 5". */
+function taskWindowTitle(preset: TaskWindowPreset, horizon: Date): string {
+  if (preset === "custom") return `Due by ${horizon.toLocaleDateString()}`;
+  if (preset === "7d") return "Next 7 days";
+  if (preset === "30d") return "Next 30 days";
+  return "Next 14 days";
+}
+
+/** The empty-state phrase — "Nothing due {this}." */
+function taskWindowPhrase(preset: TaskWindowPreset, horizon: Date): string {
+  if (preset === "custom") return `by ${horizon.toLocaleDateString()}`;
+  if (preset === "7d") return "in the next week";
+  if (preset === "30d") return "in the next month";
+  return "in the next two weeks";
 }
 
 /**
@@ -983,9 +1052,19 @@ function ResponseTimeStat({
       <div className="shrink-0 text-right">
         {duration ? (
           <>
-            <p className="text-2xl font-semibold tracking-[-0.02em]">{duration.medianDays}</p>
+            {/* The unit rides with the number rather than living only in the
+                card's own description — a screenshot of one row, cropped out
+                of the card around it, should still read as "60 days", not a
+                bare "60". */}
+            <p className="text-2xl font-semibold tracking-[-0.02em]">
+              {duration.medianDays}
+              <span className="ml-1 text-sm font-normal text-muted-foreground">days</span>
+            </p>
+            {/* "Based on", not a bare count: this is the sample size behind
+                the median above, not a separate figure — the wording says so
+                without needing the reader to already know that. */}
             <p className="text-xs text-muted-foreground">
-              {duration.sampleSize} app{duration.sampleSize === 1 ? "" : "s"}
+              Based on {duration.sampleSize} application{duration.sampleSize === 1 ? "" : "s"}
             </p>
           </>
         ) : (

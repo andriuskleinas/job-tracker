@@ -8,6 +8,7 @@ import { useState } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { AnalyticsView } from "./_authenticated/analytics";
 import type { RangePreset } from "@/components/AnalyticsRangeFilter";
+import type { TaskWindowPreset } from "@/components/TaskWindowFilter";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
@@ -278,6 +279,8 @@ function DevPreview() {
   const [range, setRange] = useState<RangePreset>("all");
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
+  const [taskWindow, setTaskWindow] = useState<TaskWindowPreset>("14d");
+  const [taskDue, setTaskDue] = useState<Date | null>(null);
 
   return (
     <div>
@@ -297,6 +300,16 @@ function DevPreview() {
           setRange("custom");
           setCustomFrom(from);
           setCustomTo(to);
+        }}
+        taskWindow={taskWindow}
+        taskDue={taskDue}
+        onTaskWindowChange={(next) => {
+          setTaskWindow(next);
+          setTaskDue(null);
+        }}
+        onTaskDueChange={(due) => {
+          setTaskWindow("custom");
+          setTaskDue(due);
         }}
       />
       <main className="container-page pb-20">
