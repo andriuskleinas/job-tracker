@@ -183,7 +183,7 @@ function LocationRow({ app, compact = false }: { app: ApplicationCardData; compa
 
   if (compact) {
     const topRow = placeChip || apartChip;
-    const bottomRow = salaryChip || jobTypeChip;
+    const bottomRow = jobTypeChip || salaryChip;
     return (
       <div className="flex flex-col gap-1.5">
         {topRow && (
@@ -194,8 +194,8 @@ function LocationRow({ app, compact = false }: { app: ApplicationCardData; compa
         )}
         {bottomRow && (
           <div className="flex flex-wrap items-center gap-1.5">
-            {salaryChip}
             {jobTypeChip}
+            {salaryChip}
           </div>
         )}
       </div>
