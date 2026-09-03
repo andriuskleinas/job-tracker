@@ -1,0 +1,21 @@
+name: Supabase keepalive
+
+on:
+  schedule:
+    # every 5 days at 09:00 UTC
+    - cron: "0 9 */5 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        run: |
+          curl -sS -f \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1"
+        env:
+          SUPABASE_URL: https://ojhxziejichxbubmdxdb.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_WmrrRztiCjckh4yU3EtQbw_LUlokhe_
