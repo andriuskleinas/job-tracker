@@ -118,11 +118,14 @@ const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
  * Salary is the one a user scans for, so it carries the foreground weight the
  * location pill doesn't.
  *
- * `compact` is the board's dialect of this row: no job-type chip, and the
- * place text drops the spelled-out country in favour of the flag that is
- * already sitting there doing that job. City alone, falling back to the
- * country name only when there is no city to show instead — the chip must
- * never render as a bare flag with nothing beside it.
+ * `compact` is the board's dialect of this row: the place chip drops the
+ * spelled-out country in favour of the flag that is already sitting there
+ * doing that job — city alone, falling back to the country name only when
+ * there is no city to show instead, so the chip never renders as a bare flag
+ * with nothing beside it. It also splits the four chips onto two fixed rows
+ * — place with the timezone offset, salary with how the role is worked —
+ * rather than one `flex-wrap` row left to break wherever the column happens
+ * to run out of width.
  */
 function LocationRow({ app, compact = false }: { app: ApplicationCardData; compact?: boolean }) {
   const userZone = useUserZone();
@@ -144,42 +147,67 @@ function LocationRow({ app, compact = false }: { app: ApplicationCardData; compa
   const offset = zone && userZone ? offsetBetween(zone, userZone) : null;
   const apart = offset !== null && offset !== 0 ? formatOffset(offset) : null;
 
-  const showJobType = !compact && !!meta;
-  if (!showJobType && !place && !salary && !apart) return null;
+  if (!meta && !place && !salary && !apart) return null;
 
   const Icon = meta ? JOB_TYPE_ICON[app.job_type as JobType] : null;
   const flag = flagForCountry(country);
 
+  const jobTypeChip = meta && Icon && (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
+    >
+      <Icon className="h-3.5 w-3.5" /> {meta.short}
+    </span>
+  );
+  const placeChip = place && (
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+      {flag ? <span aria-hidden>{flag}</span> : null}
+      {place}
+    </span>
+  );
+  const salaryChip = salary && (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
+    >
+      <Banknote className="h-3.5 w-3.5" /> {salary}
+    </span>
+  );
+  const apartChip = apart && (
+    <span
+      className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+      title={`${zone} — ${apart} from your ${userZone}`}
+    >
+      <Clock3 className="h-3.5 w-3.5" /> {apart}
+    </span>
+  );
+
+  if (compact) {
+    const topRow = placeChip || apartChip;
+    const bottomRow = salaryChip || jobTypeChip;
+    return (
+      <div className="flex flex-col gap-1.5">
+        {topRow && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {placeChip}
+            {apartChip}
+          </div>
+        )}
+        {bottomRow && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {salaryChip}
+            {jobTypeChip}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {showJobType && Icon && (
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
-        >
-          <Icon className="h-3.5 w-3.5" /> {meta.short}
-        </span>
-      )}
-      {place && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-          {flag ? <span aria-hidden>{flag}</span> : null}
-          {place}
-        </span>
-      )}
-      {salary && (
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
-        >
-          <Banknote className="h-3.5 w-3.5" /> {salary}
-        </span>
-      )}
-      {apart && (
-        <span
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-          title={`${zone} — ${apart} from your ${userZone}`}
-        >
-          <Clock3 className="h-3.5 w-3.5" /> {apart}
-        </span>
-      )}
+      {jobTypeChip}
+      {placeChip}
+      {salaryChip}
+      {apartChip}
     </div>
   );
 }

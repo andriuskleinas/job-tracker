@@ -9,6 +9,8 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { DashboardView } from "./_authenticated/dashboard";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
+import { ApplicationArchive } from "@/components/ApplicationArchive";
+import { CLOSED_STATUSES } from "@/lib/status";
 import type { Status } from "@/lib/status";
 import type { StatsApplication, StatsStatusEvent } from "@/lib/stats";
 
@@ -298,6 +300,11 @@ function DevPreview() {
           onMoveTo={(app, status) =>
             setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, status } : c)))
           }
+        />
+        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationArchive</h2>
+        <ApplicationArchive
+          apps={cards.filter((c) => CLOSED_STATUSES.includes(c.status))}
+          onTogglePriority={() => {}}
         />
       </main>
     </div>

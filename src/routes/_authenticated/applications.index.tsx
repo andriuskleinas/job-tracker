@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
+import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select,
@@ -36,7 +37,7 @@ import { z } from "zod";
 import { STATUSES, CLOSED_STATUSES, type Status } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
-import { Plus, Upload, Download, List, LayoutGrid, Columns3, ChevronRight } from "lucide-react";
+import { Plus, Upload, Download, List, LayoutGrid, Columns3 } from "lucide-react";
 import Papa from "papaparse";
 import { useRef, useMemo } from "react";
 import {
@@ -214,19 +215,19 @@ function ApplicationsPage() {
     [apps, filters],
   );
 
-  // The board drops rejected/withdrawn entirely rather than showing them, so
-  // it needs a way back to them that isn't "switch to list and remember which
-  // two statuses to check". This count — and the link built from it below —
-  // is that way back; it respects whatever filters are already active, same
-  // as the board itself does.
-  const closedCount = useMemo(
-    () => visibleApps.filter((a) => CLOSED_STATUSES.includes(a.status)).length,
+  // Rejected and withdrawn applications live in the archive at the bottom of
+  // the page, not in whichever of list/grid/board is on screen — a person
+  // looking at their pipeline is not looking for the roles they are no
+  // longer pursuing. Split once here so every view downstream renders only
+  // the live half; both halves still respect whatever filters are active.
+  const liveApps = useMemo(
+    () => visibleApps.filter((a) => !CLOSED_STATUSES.includes(a.status)),
     [visibleApps],
   );
-  const viewClosedApplications = () => {
-    setView("list");
-    patchFilters({ status: [...CLOSED_STATUSES] });
-  };
+  const archivedApps = useMemo(
+    () => visibleApps.filter((a) => CLOSED_STATUSES.includes(a.status)),
+    [visibleApps],
+  );
 
   const create = useMutation({
     mutationFn: async (values: z.infer<typeof appWithTaskSchema>) => {
@@ -687,19 +688,29 @@ function ApplicationsPage() {
             onClear={clearFilters}
             resultCount={visibleApps.length}
           />
-          {visibleApps.length === 0 ? (
-            <EmptyState
-              title="No matches"
-              body="No applications match these filters. Widen or clear them to see more."
-              action={
-                <Button variant="outline" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-              }
-            />
+          {liveApps.length === 0 ? (
+            archivedApps.length > 0 ? (
+              // Not "no matches" — there are matches, they're just all closed.
+              // Sending someone to "widen or clear filters" when the fix is
+              // "scroll down" would be actively wrong advice.
+              <EmptyState
+                title="Nothing in your active pipeline"
+                body="Every application that matches is closed — see it in the archive below."
+              />
+            ) : (
+              <EmptyState
+                title="No matches"
+                body="No applications match these filters. Widen or clear them to see more."
+                action={
+                  <Button variant="outline" onClick={clearFilters}>
+                    Clear filters
+                  </Button>
+                }
+              />
+            )
           ) : effectiveView === "list" ? (
             <div className="grid gap-3">
-              {visibleApps.map((a) => (
+              {liveApps.map((a) => (
                 <ApplicationCard
                   key={a.id}
                   app={a}
@@ -710,7 +721,7 @@ function ApplicationsPage() {
             </div>
           ) : effectiveView === "grid" ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleApps.map((a) => (
+              {liveApps.map((a) => (
                 <ApplicationCard
                   key={a.id}
                   app={a}
@@ -720,29 +731,19 @@ function ApplicationsPage() {
               ))}
             </div>
           ) : (
-            <>
-              {/* The board never shows rejected or withdrawn, so this is the
-                  only trace of them while the board is on screen — a count and
-                  a way back, not a place to browse them from. */}
-              {closedCount > 0 && (
-                <div className="mb-3 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={viewClosedApplications}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                  >
-                    Closed <span className="tabular-nums">{closedCount}</span>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-              <ApplicationBoard
-                apps={visibleApps}
-                onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
-                onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
-              />
-            </>
+            <ApplicationBoard
+              apps={liveApps}
+              onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+              onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
+            />
           )}
+          {/* Same across all three views above — rejected and withdrawn have
+              exactly one home on this page, and it isn't inline with the
+              applications still moving. */}
+          <ApplicationArchive
+            apps={archivedApps}
+            onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+          />
         </>
       )}
     </main>
