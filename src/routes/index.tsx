@@ -210,7 +210,7 @@ function Hero() {
                 variant="outline"
                 className="h-11 w-full px-7 text-sm sm:w-auto"
               >
-                <Link to="/dashboard">See the dashboard</Link>
+                <Link to="/analytics">See the analytics</Link>
               </Button>
             </div>
           </Reveal>
@@ -939,7 +939,7 @@ function FeatureCard({
 }
 
 /*
- * A miniature of the dashboard's "Stage reach" chart, and it has to be exactly
+ * A miniature of the analytics page's "Stage reach" chart, and it has to be exactly
  * that: same three stages, same three fills, same value labels on the right.
  * It previously drew Applied and Interviewing in one black and Offer in brand
  * red, which is the colour this product uses for a rejection.
@@ -1411,7 +1411,7 @@ function TasksVisual() {
 const weeks = [38, 55, 30, 72, 48, 90, 64];
 
 /*
- * Volume, so ink — the same reasoning as the dashboard's per-week chart, where
+ * Volume, so ink — the same reasoning as the analytics page's trend chart, where
  * a bar counts applications rather than outcomes. The busiest week is picked
  * out in gold rather than red: it is the week worth noticing, not a warning.
  *

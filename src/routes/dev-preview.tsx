@@ -1,12 +1,13 @@
 /*
- * Fixture route for previewing DashboardView and ApplicationCard against
+ * Fixture route for previewing AnalyticsView and ApplicationCard against
  * canned data — no live session required. Handy for checking visual changes
  * and for grabbing screenshots. Kept intentionally; guarded below so it never
  * renders in production.
  */
 import { useState } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { DashboardView } from "./_authenticated/dashboard";
+import { AnalyticsView } from "./_authenticated/analytics";
+import type { RangePreset } from "@/components/AnalyticsRangeFilter";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
@@ -271,9 +272,33 @@ function DevPreview() {
   // somewhere — so the fixture holds its own copy and mutates it locally.
   const [boardCards, setBoardCards] = useState([...cards, ...filler]);
 
+  // Same reasoning for the analytics range filter — it round-trips through
+  // the URL on the real page, so the fixture needs its own state to exercise
+  // the control at all.
+  const [range, setRange] = useState<RangePreset>("all");
+  const [customFrom, setCustomFrom] = useState<Date | null>(null);
+  const [customTo, setCustomTo] = useState<Date | null>(null);
+
   return (
     <div>
-      <DashboardView apps={apps} tasks={tasks as never} events={events} />
+      <AnalyticsView
+        apps={apps}
+        tasks={tasks as never}
+        events={events}
+        range={range}
+        customFrom={customFrom}
+        customTo={customTo}
+        onPresetChange={(next) => {
+          setRange(next);
+          setCustomFrom(null);
+          setCustomTo(null);
+        }}
+        onCustomChange={(from, to) => {
+          setRange("custom");
+          setCustomFrom(from);
+          setCustomTo(to);
+        }}
+      />
       <main className="container-page pb-20">
         <h2 className="mb-3 text-lg font-semibold">ApplicationCard — list</h2>
         <div className="space-y-3">
