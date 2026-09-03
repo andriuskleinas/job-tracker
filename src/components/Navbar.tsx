@@ -20,7 +20,6 @@ import { LogOut, Menu, Settings } from "lucide-react";
 const appLinks = [
   { label: "Analytics", to: "/analytics" },
   { label: "Applications", to: "/applications" },
-  { label: "Tasks", to: "/tasks" },
 ] as const;
 
 const linkBase =

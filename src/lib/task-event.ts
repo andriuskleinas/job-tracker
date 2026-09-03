@@ -30,12 +30,12 @@ export function taskEventSummary(task: TaskEventInput): string {
   return companies.length ? `${task.title} — ${companies.join(", ")}` : task.title;
 }
 
-/** Linked roles (one per line) plus a link back to the Tasks page. */
+/** Linked roles (one per line) plus a link back to the Applications page. */
 export function taskEventDescription(task: TaskEventInput, appUrl: string): string {
   const roleText = task.applications.length
     ? task.applications.map((a) => `${a.position} · ${a.company}`).join("\n")
     : "";
-  return [roleText, `Open in Job Tracker: ${appUrl}/tasks`].filter(Boolean).join("\n\n");
+  return [roleText, `Open in Job Tracker: ${appUrl}/applications`].filter(Boolean).join("\n\n");
 }
 
 /**

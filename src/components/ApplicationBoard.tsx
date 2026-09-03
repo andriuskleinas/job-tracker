@@ -80,10 +80,12 @@ function BoardCard({
   app,
   onTogglePriority,
   onMoveTo,
+  onDelete,
 }: {
   app: ApplicationCardData;
   onTogglePriority: (priority: boolean) => void;
   onMoveTo: (status: Status) => void;
+  onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: app.id });
 
@@ -115,6 +117,7 @@ function BoardCard({
         variant="board"
         onTogglePriority={onTogglePriority}
         onMoveTo={onMoveTo}
+        onDelete={onDelete}
       />
     </div>
   );
@@ -177,6 +180,7 @@ function PipelineColumn({
   lastMovedId,
   onTogglePriority,
   onMoveTo,
+  onDelete,
 }: {
   status: Status;
   apps: ApplicationCardData[];
@@ -185,6 +189,7 @@ function PipelineColumn({
   lastMovedId: string | null;
   onTogglePriority: (app: ApplicationCardData, priority: boolean) => void;
   onMoveTo: (app: ApplicationCardData, status: Status) => void;
+  onDelete: (app: ApplicationCardData) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -209,6 +214,7 @@ function PipelineColumn({
               app={a}
               onTogglePriority={(priority) => onTogglePriority(a, priority)}
               onMoveTo={(next) => onMoveTo(a, next)}
+              onDelete={() => onDelete(a)}
             />
           ))}
           {apps.length === 0 && (
@@ -242,10 +248,12 @@ export function ApplicationBoard({
   apps,
   onTogglePriority,
   onMoveTo,
+  onDelete,
 }: {
   apps: ApplicationCardData[];
   onTogglePriority: (app: ApplicationCardData, priority: boolean) => void;
   onMoveTo: (app: ApplicationCardData, status: Status) => void;
+  onDelete: (app: ApplicationCardData) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [lastMovedId, setLastMovedId] = useState<string | null>(null);
@@ -339,6 +347,7 @@ export function ApplicationBoard({
               lastMovedId={lastMovedId}
               onTogglePriority={onTogglePriority}
               onMoveTo={handleMoveTo}
+              onDelete={onDelete}
             />
           ))}
         </div>
@@ -349,7 +358,12 @@ export function ApplicationBoard({
       <DragOverlay dropAnimation={null}>
         {active ? (
           <div className="w-[280px] rotate-1 opacity-95 shadow-lg">
-            <ApplicationCard app={active} variant="board" onTogglePriority={() => {}} />
+            <ApplicationCard
+              app={active}
+              variant="board"
+              onTogglePriority={() => {}}
+              onDelete={() => {}}
+            />
           </div>
         ) : null}
       </DragOverlay>

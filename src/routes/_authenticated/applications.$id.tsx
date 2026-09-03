@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,10 +40,13 @@ import {
 } from "@/lib/job-ad-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { STATUSES } from "@/lib/status";
+import { STATUSES, statusLabel } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
+import type { Database } from "@/integrations/supabase/types";
 import { ArrowLeft, Plus, Star, Trash2 } from "lucide-react";
+
+type ApplicationRow = Database["public"]["Tables"]["applications"]["Row"];
 
 export const Route = createFileRoute("/_authenticated/applications/$id")({
   head: () => ({
@@ -142,38 +145,6 @@ function AppDetail() {
         });
     },
   });
-
-  const [form, setForm] = useState({
-    company: "",
-    position: "",
-    status: "applied" as (typeof STATUSES)[number],
-    application_date: "",
-    website: "",
-    notes: "",
-    job_type: "" as LocationValue["job_type"],
-    country: "",
-    city: "",
-    time_zone: "",
-  });
-  const [jobAd, setJobAd] = useState<JobAdValue>(EMPTY_JOB_AD);
-
-  useEffect(() => {
-    if (app) {
-      setForm({
-        company: app.company,
-        position: app.position,
-        status: app.status,
-        application_date: app.application_date,
-        website: app.website ?? "",
-        notes: app.notes ?? "",
-        job_type: (app.job_type ?? "") as LocationValue["job_type"],
-        country: app.country ?? "",
-        city: app.city ?? "",
-        time_zone: app.time_zone ?? "",
-      });
-      setJobAd(jobAdFromRow(app));
-    }
-  }, [app]);
 
   const update = useMutation({
     mutationFn: async (values: z.infer<typeof editSchema> & JobAdColumns) => {
@@ -296,21 +267,6 @@ function AppDetail() {
       </main>
     );
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const parsed = editSchema.safeParse(form);
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
-    }
-    const ad = jobAdSchema.safeParse(jobAd);
-    if (!ad.success) {
-      toast.error(ad.error.issues[0].message);
-      return;
-    }
-    update.mutate({ ...parsed.data, ...jobAdColumns(jobAd, app.captured_at) });
-  };
-
   const onAddTask = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -351,124 +307,17 @@ function AppDetail() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="company">Company</Label>
-                <Input
-                  id="company"
-                  value={form.company}
-                  onChange={(e) => setForm({ ...form, company: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="position">Position</Label>
-                <Input
-                  id="position"
-                  value={form.position}
-                  onChange={(e) => setForm({ ...form, position: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) =>
-                    setForm({ ...form, status: v as (typeof STATUSES)[number] })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((s) => (
-                      <SelectItem key={s} value={s} className="capitalize">
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="application_date">Date</Label>
-                <Input
-                  id="application_date"
-                  type="date"
-                  value={form.application_date}
-                  onChange={(e) => setForm({ ...form, application_date: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="website">Company website</Label>
-              <Input
-                id="website"
-                type="url"
-                inputMode="url"
-                placeholder="acme.com"
-                value={form.website}
-                onChange={(e) => setForm({ ...form, website: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Used to show the company logo on the board.
-              </p>
-            </div>
-            <LocationFields
-              value={{ job_type: form.job_type, country: form.country, city: form.city }}
-              onChange={(v) => setForm({ ...form, ...v })}
-            />
-            <WorkingHours
-              app={{ city: form.city || null, country: form.country || null }}
-              value={form.time_zone}
-              onChange={(time_zone) => setForm({ ...form, time_zone })}
-            />
-            <JobAdFields value={jobAd} onChange={setJobAd} capturedAt={app.captured_at} />
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                rows={4}
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
-            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button type="button" variant="destructive" className="w-full sm:w-auto">
-                    <Trash2 className="h-4 w-4" /> Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete this application?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will also delete all associated tasks. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => del.mutate()}>Delete</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <Button type="submit" className="w-full sm:w-auto" disabled={update.isPending}>
-                {update.isPending ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      {/* Keyed on the row's id: the form's local state is seeded straight from
+          `app` at mount (no separate useEffect syncing it in after the fact),
+          and the key guarantees a fresh instance — with fresh state — if this
+          page ever renders a different application without a full remount. */}
+      <DetailsCard
+        key={app.id}
+        app={app}
+        isSaving={update.isPending}
+        onSave={(values) => update.mutate(values)}
+        onDelete={() => del.mutate()}
+      />
 
       <Card className="mt-4">
         <CardHeader>
@@ -545,5 +394,173 @@ function AppDetail() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+/**
+ * The "Details" card: company, position, status, salary, location, notes.
+ * Its local state is seeded directly from `app` — the parent only ever
+ * renders this once `app` has loaded, so `useState`'s initializer already
+ * sees the real row, and there is no separate default-then-correct step
+ * where a control (the Status select, in particular) can end up displaying
+ * a value that hasn't caught up yet.
+ */
+function DetailsCard({
+  app,
+  isSaving,
+  onSave,
+  onDelete,
+}: {
+  app: ApplicationRow;
+  isSaving: boolean;
+  onSave: (values: z.infer<typeof editSchema> & JobAdColumns) => void;
+  onDelete: () => void;
+}) {
+  const [form, setForm] = useState({
+    company: app.company,
+    position: app.position,
+    status: app.status,
+    application_date: app.application_date,
+    website: app.website ?? "",
+    notes: app.notes ?? "",
+    job_type: (app.job_type ?? "") as LocationValue["job_type"],
+    country: app.country ?? "",
+    city: app.city ?? "",
+    time_zone: app.time_zone ?? "",
+  });
+  const [jobAd, setJobAd] = useState<JobAdValue>(jobAdFromRow(app));
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const parsed = editSchema.safeParse(form);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0].message);
+      return;
+    }
+    const ad = jobAdSchema.safeParse(jobAd);
+    if (!ad.success) {
+      toast.error(ad.error.issues[0].message);
+      return;
+    }
+    onSave({ ...parsed.data, ...jobAdColumns(jobAd, app.captured_at) });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Details</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="company">Company</Label>
+              <Input
+                id="company"
+                value={form.company}
+                onChange={(e) => setForm({ ...form, company: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="position">Position</Label>
+              <Input
+                id="position"
+                value={form.position}
+                onChange={(e) => setForm({ ...form, position: e.target.value })}
+                required
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v) => setForm({ ...form, status: v as (typeof STATUSES)[number] })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status">{statusLabel(form.status)}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUSES.map((s) => (
+                    <SelectItem key={s} value={s} className="capitalize">
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="application_date">Date</Label>
+              <Input
+                id="application_date"
+                type="date"
+                value={form.application_date}
+                onChange={(e) => setForm({ ...form, application_date: e.target.value })}
+                required
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="website">Company website</Label>
+            <Input
+              id="website"
+              type="url"
+              inputMode="url"
+              placeholder="acme.com"
+              value={form.website}
+              onChange={(e) => setForm({ ...form, website: e.target.value })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Used to show the company logo on the board.
+            </p>
+          </div>
+          <LocationFields
+            value={{ job_type: form.job_type, country: form.country, city: form.city }}
+            onChange={(v) => setForm({ ...form, ...v })}
+          />
+          <WorkingHours
+            app={{ city: form.city || null, country: form.country || null }}
+            value={form.time_zone}
+            onChange={(time_zone) => setForm({ ...form, time_zone })}
+          />
+          <JobAdFields value={jobAd} onChange={setJobAd} capturedAt={app.captured_at} />
+          <div className="space-y-2">
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              rows={4}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
+          </div>
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-between">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" className="w-full sm:w-auto">
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this application?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will also delete all associated tasks. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button type="submit" className="w-full sm:w-auto" disabled={isSaving}>
+              {isSaving ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

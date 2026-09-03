@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import {
   ListChecks,
   Star,
   StickyNote,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import {
@@ -28,8 +30,19 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CompanyLogo } from "@/components/CompanyLogo";
 import { flagForCountry, jobTypeMeta, type JobType } from "@/lib/job-location";
 import { formatSalary, type SalaryPeriod } from "@/lib/job-ad";
@@ -357,53 +370,97 @@ function AppStar({
 }
 
 /**
- * The board's keyboard and screen-reader path to the thing the board is for.
+ * The board's keyboard and screen-reader path to the thing the board is for,
+ * plus the one destructive action no card view had at all until now: delete.
  *
  * Dragging is the fast way to move a card and the only way a pointer offers,
- * which makes it useless to anyone not using one. This menu is the same action
- * spelled out: one tab stop per card, six destinations, no gesture. It is not
+ * which makes it useless to anyone not using one. The "Move to" section is
+ * that same action spelled out: one tab stop per card, no gesture. It is not
  * a fallback bolted on for compliance — for a long column it is quicker than
  * dragging a card three screens sideways, and it is the only route that names
- * the destination out loud before you commit to it.
+ * the destination out loud before you commit to it. Board-only, since it
+ * exists to substitute for a drag that only the board offers.
  *
  * The icon is a kebab, not an arrow — the whole card is already the link to
  * the detail page, so a mark that reads as "go to" would duplicate that and
  * mislead about what this one actually does, which is open a menu in place.
+ *
+ * Delete asks first. A dropdown item is a fast, low-friction target — exactly
+ * wrong for a click that cannot be undone — so it only opens a confirmation
+ * rather than deleting directly; the alert dialog lives outside the dropdown
+ * so it survives the dropdown closing under it.
  */
-function MoveMenu({
+function CardMenu({
   app,
   onMoveTo,
+  onDelete,
 }: {
   app: ApplicationCardData;
-  onMoveTo: (status: Status) => void;
+  /** Board only: change this application's status without opening it. */
+  onMoveTo?: (status: Status) => void;
+  onDelete: () => void;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          // Inside a draggable card and inside a Link: neither may claim this
-          // press.
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          aria-label={`Move ${app.position} at ${app.company} to another status`}
-          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          <EllipsisVertical className="h-4 w-4" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenuLabel>Move to</DropdownMenuLabel>
-        {STATUSES.filter((s) => s !== app.status).map((s) => (
-          <DropdownMenuItem key={s} onSelect={() => onMoveTo(s)}>
-            {statusLabel(s)}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            // Inside a draggable card and inside a Link: neither may claim this
+            // press.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            aria-label={`More actions for ${app.position} at ${app.company}`}
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <EllipsisVertical className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {onMoveTo && (
+            <>
+              <DropdownMenuLabel>Move to</DropdownMenuLabel>
+              {STATUSES.filter((s) => s !== app.status).map((s) => (
+                <DropdownMenuItem key={s} onSelect={() => onMoveTo(s)}>
+                  {statusLabel(s)}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuItem
+            onSelect={() => setConfirmOpen(true)}
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" /> Delete
           </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this application?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {app.position} at {app.company} — this will also delete all associated tasks. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -412,12 +469,14 @@ export function ApplicationCard({
   variant,
   onTogglePriority,
   onMoveTo,
+  onDelete,
 }: {
   app: ApplicationCardData;
   variant: "list" | "grid" | "board";
   onTogglePriority: (priority: boolean) => void;
   /** Board only: change this application's status without opening it. */
   onMoveTo?: (status: Status) => void;
+  onDelete: () => void;
 }) {
   const meta = deriveMeta(app);
   const dimTitle = meta.isClosed ? "text-muted-foreground" : "";
@@ -443,6 +502,7 @@ export function ApplicationCard({
       <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
         {app.status}
       </Badge>
+      <CardMenu app={app} onDelete={onDelete} />
     </div>
   );
 
@@ -465,7 +525,7 @@ export function ApplicationCard({
           <div className="flex items-start justify-between gap-2">
             {identity}
             <div className="flex shrink-0 items-center gap-1.5">
-              {onMoveTo && <MoveMenu app={app} onMoveTo={onMoveTo} />}
+              <CardMenu app={app} onMoveTo={onMoveTo} onDelete={onDelete} />
             </div>
           </div>
           <LocationRow app={app} compact />

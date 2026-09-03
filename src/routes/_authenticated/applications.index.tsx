@@ -30,14 +30,27 @@ import {
 } from "@/components/ui/dialog";
 import { LocationFields, type LocationValue } from "@/components/LocationFields";
 import { JobAdFields } from "@/components/JobAdFields";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/job-ad-form";
 import { ApplicationFilters } from "@/components/ApplicationFilters";
+import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
+import { TaskForm, type TaskFormValues } from "@/components/TaskForm";
+import type { RoleOption } from "@/components/RoleMultiSelect";
 import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES, CLOSED_STATUSES, type Status } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
-import { Plus, Upload, Download, List, LayoutGrid, Columns3 } from "lucide-react";
+import {
+  Plus,
+  Upload,
+  Download,
+  List,
+  LayoutGrid,
+  Columns3,
+  ChevronRight,
+  ListChecks,
+} from "lucide-react";
 import Papa from "papaparse";
 import { useRef, useMemo } from "react";
 import {
@@ -176,15 +189,38 @@ function ApplicationsPage() {
   const defaultLocation: LocationValue = { job_type: "onsite", country: "", city: "" };
   const [location, setLocation] = useState<LocationValue>(defaultLocation);
   const [jobAd, setJobAd] = useState<JobAdValue>(EMPTY_JOB_AD);
+  // The ad, salary, notes and follow-up task all start tucked away — company,
+  // position and status are enough to log a role in a few seconds, and the
+  // rest is there for whoever wants it, not in everyone's way by default.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<View>(storedView);
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const isMobile = useIsMobile();
 
   useEffect(() => {
     localStorage.setItem(VIEW_KEY, view);
   }, [view]);
+
+  // Google Calendar OAuth bounces back to /applications?calendar=connected|error.
+  // Surface the outcome, refresh the connection state, and strip the param from
+  // the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("calendar");
+    if (!result) return;
+    if (result === "connected") {
+      toast.success("Google Calendar connected — your dated tasks will sync automatically.");
+      queryClient.invalidateQueries({ queryKey: ["calendar-status"] });
+    } else if (result === "error") {
+      toast.error("Couldn't connect Google Calendar. Please try again.");
+    }
+    params.delete("calendar");
+    const qs = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, [queryClient]);
 
   // A board on a phone is a horizontal scroller wrapping vertical scrollers,
   // which is the worst of both. The list is the honest small-screen answer, so
@@ -227,6 +263,16 @@ function ApplicationsPage() {
   const archivedApps = useMemo(
     () => visibleApps.filter((a) => CLOSED_STATUSES.includes(a.status)),
     [visibleApps],
+  );
+
+  // The role picker in the "New task" dialog — every application already
+  // loaded for this page, so no second query just to list them.
+  const roles: RoleOption[] = useMemo(
+    () =>
+      apps
+        .map((a) => ({ id: a.id, company: a.company, position: a.position }))
+        .sort((a, b) => a.company.localeCompare(b.company)),
+    [apps],
   );
 
   const create = useMutation({
@@ -280,6 +326,44 @@ function ApplicationsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
   });
 
+  // The "New task" dialog in the toolbar — a follow-up not tied to the moment
+  // of adding a role, e.g. a reminder set days later against one or more
+  // applications already on the board.
+  const createTask = useMutation({
+    mutationFn: async (values: TaskFormValues) => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      const { data: task, error } = await supabase
+        .from("tasks")
+        .insert({
+          user_id: userData.user.id,
+          title: values.title,
+          due_date: values.due_date || null,
+          due_time: values.due_date && values.due_time ? values.due_time : null,
+          duration_minutes: values.due_date && values.due_time ? values.duration : null,
+          priority: values.priority,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      if (values.roleIds.length > 0) {
+        const { error: linkError } = await supabase
+          .from("task_applications")
+          .insert(values.roleIds.map((application_id) => ({ task_id: task.id, application_id })));
+        if (linkError) throw linkError;
+      }
+      return task.id as string;
+    },
+    onSuccess: (taskId) => {
+      toast.success("Task added");
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setCreateTaskOpen(false);
+      void syncTaskCalendar(taskId);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add task"),
+  });
+
   const importMut = useMutation({
     mutationFn: async (rows: ImportRow[]) => {
       const { data: userData } = await supabase.auth.getUser();
@@ -316,6 +400,21 @@ function ApplicationsPage() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["applications"] }),
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to update priority"),
+  });
+
+  // The card menu's "Delete" — every card view (list, grid, board, archive)
+  // reaches the same mutation, so a role deleted from the board disappears
+  // everywhere else too, not just wherever it was clicked.
+  const deleteApp = useMutation({
+    mutationFn: async (aid: string) => {
+      const { error } = await supabase.from("applications").delete().eq("id", aid);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Application deleted");
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
 
   /**
@@ -491,6 +590,30 @@ function ApplicationsPage() {
                 <Columns3 className="h-4 w-4" />
               </ToggleGroupItem>
             </ToggleGroup>
+
+            <div className="flex items-center gap-2">
+              <span className="hidden text-sm text-muted-foreground sm:inline">Sync Calendar:</span>
+              <CalendarSyncDialog />
+            </div>
+
+            <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <ListChecks className="h-4 w-4" /> New task
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>New task</DialogTitle>
+                </DialogHeader>
+                <TaskForm
+                  roles={roles}
+                  isPending={createTask.isPending}
+                  onSubmit={(values) => createTask.mutate(values)}
+                />
+              </DialogContent>
+            </Dialog>
+
             <Dialog
               open={importOpen}
               onOpenChange={(v) => {
@@ -570,6 +693,7 @@ function ApplicationsPage() {
                 if (v) {
                   setLocation(defaultLocation);
                   setJobAd(EMPTY_JOB_AD);
+                  setDetailsOpen(false);
                 }
               }}
             >
@@ -578,89 +702,127 @@ function ApplicationsPage() {
                   <Plus className="h-4 w-4" /> New application
                 </Button>
               </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
+              <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0">
+                <DialogHeader className="shrink-0 border-b px-6 py-4">
                   <DialogTitle>New application</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={onSubmit} className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="company">Company</Label>
-                      <Input id="company" name="company" required />
+                <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
+                  {/* Everything a role needs to exist on the board — the rest is
+                      one click away, not a wall you have to scroll past first. */}
+                  <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="company">Company</Label>
+                        <Input
+                          id="company"
+                          name="company"
+                          placeholder="Acme"
+                          required
+                          autoFocus
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="position">Position</Label>
+                        <Input
+                          id="position"
+                          name="position"
+                          placeholder="Product Designer"
+                          required
+                          autoComplete="off"
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="position">Position</Label>
-                      <Input id="position" name="position" required />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="status">Status</Label>
+                        <Select name="status" defaultValue="applied">
+                          <SelectTrigger id="status">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUSES.map((s) => (
+                              <SelectItem key={s} value={s} className="capitalize">
+                                {s}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="application_date">Application date</Label>
+                        <Input
+                          id="application_date"
+                          name="application_date"
+                          type="date"
+                          defaultValue={new Date().toISOString().slice(0, 10)}
+                          required
+                        />
+                      </div>
                     </div>
+                    <LocationFields value={location} onChange={setLocation} />
+
+                    <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="-ml-2 text-muted-foreground hover:text-foreground"
+                        >
+                          <ChevronRight
+                            className={`h-4 w-4 transition-transform ${detailsOpen ? "rotate-90" : ""}`}
+                          />
+                          {detailsOpen
+                            ? "Hide job ad, salary & notes"
+                            : "Add job ad, salary & notes"}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-4 pt-4">
+                        <JobAdFields value={jobAd} onChange={setJobAd} />
+                        <div className="space-y-2">
+                          <Label htmlFor="website">Company website</Label>
+                          <Input
+                            id="website"
+                            name="website"
+                            type="url"
+                            inputMode="url"
+                            placeholder="acme.com"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Used to show the company logo on the board.
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="notes">Notes</Label>
+                          <Textarea id="notes" name="notes" rows={3} />
+                        </div>
+                        <div className="space-y-3 rounded-lg border border-dashed p-4">
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-medium">Add a follow-up task</p>
+                            <p className="text-xs text-muted-foreground">
+                              Optional — kick things off with the next thing you owe this
+                              application.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="task_title">Task (optional)</Label>
+                            <Input
+                              id="task_title"
+                              name="task_title"
+                              placeholder="e.g. Send follow-up email"
+                              maxLength={200}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="task_due_date">Due date</Label>
+                            <Input id="task_due_date" name="task_due_date" type="date" />
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
-                  <JobAdFields value={jobAd} onChange={setJobAd} />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="status">Status</Label>
-                      <Select name="status" defaultValue="applied">
-                        <SelectTrigger id="status">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {STATUSES.map((s) => (
-                            <SelectItem key={s} value={s} className="capitalize">
-                              {s}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="application_date">Application date</Label>
-                      <Input
-                        id="application_date"
-                        name="application_date"
-                        type="date"
-                        defaultValue={new Date().toISOString().slice(0, 10)}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="website">Company website</Label>
-                    <Input
-                      id="website"
-                      name="website"
-                      type="url"
-                      inputMode="url"
-                      placeholder="acme.com"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Used to show the company logo on the board.
-                    </p>
-                  </div>
-                  <LocationFields value={location} onChange={setLocation} />
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Notes</Label>
-                    <Textarea id="notes" name="notes" rows={3} />
-                  </div>
-                  <div className="space-y-3 rounded-lg border border-dashed p-4">
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium">Add a follow-up task</p>
-                      <p className="text-xs text-muted-foreground">
-                        Optional — kick things off with the next thing you owe this application.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="task_title">Task (optional)</Label>
-                      <Input
-                        id="task_title"
-                        name="task_title"
-                        placeholder="e.g. Send follow-up email"
-                        maxLength={200}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="task_due_date">Due date</Label>
-                      <Input id="task_due_date" name="task_due_date" type="date" />
-                    </div>
-                  </div>
-                  <DialogFooter>
+                  <DialogFooter className="shrink-0 border-t px-6 py-4">
                     <Button type="submit" className="w-full sm:w-auto" disabled={create.isPending}>
                       {create.isPending ? "Saving…" : "Save"}
                     </Button>
@@ -716,6 +878,7 @@ function ApplicationsPage() {
                   app={a}
                   variant="list"
                   onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
+                  onDelete={() => deleteApp.mutate(a.id)}
                 />
               ))}
             </div>
@@ -727,6 +890,7 @@ function ApplicationsPage() {
                   app={a}
                   variant="grid"
                   onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
+                  onDelete={() => deleteApp.mutate(a.id)}
                 />
               ))}
             </div>
@@ -735,6 +899,7 @@ function ApplicationsPage() {
               apps={liveApps}
               onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
               onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
+              onDelete={(a) => deleteApp.mutate(a.id)}
             />
           )}
           {/* Same across all three views above — rejected and withdrawn have
@@ -743,6 +908,7 @@ function ApplicationsPage() {
           <ApplicationArchive
             apps={archivedApps}
             onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+            onDelete={(a) => deleteApp.mutate(a.id)}
           />
         </>
       )}

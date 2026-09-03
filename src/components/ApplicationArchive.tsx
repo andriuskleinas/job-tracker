@@ -18,9 +18,11 @@ import { ApplicationCard, type ApplicationCardData } from "@/components/Applicat
 export function ApplicationArchive({
   apps,
   onTogglePriority,
+  onDelete,
 }: {
   apps: ApplicationCardData[];
   onTogglePriority: (app: ApplicationCardData, priority: boolean) => void;
+  onDelete: (app: ApplicationCardData) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -49,6 +51,7 @@ export function ApplicationArchive({
               app={a}
               variant="list"
               onTogglePriority={(priority) => onTogglePriority(a, priority)}
+              onDelete={() => onDelete(a)}
             />
           ))}
         </div>

@@ -812,11 +812,7 @@ export function AnalyticsView({
         <CardContent>
           {upcoming.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Nothing due {taskWindowPhrase(taskWindow, taskHorizon)}.{" "}
-              <Link to="/tasks" className="underline underline-offset-4">
-                View all tasks
-              </Link>
-              .
+              Nothing due {taskWindowPhrase(taskWindow, taskHorizon)}.
             </p>
           ) : (
             <ul className="divide-y">
@@ -857,11 +853,7 @@ export function AnalyticsView({
           )}
           {upcomingHidden > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
-              +{upcomingHidden} more due in this window.{" "}
-              <Link to="/tasks" className="underline underline-offset-4">
-                View all tasks
-              </Link>
-              .
+              +{upcomingHidden} more due in this window.
             </p>
           )}
         </CardContent>

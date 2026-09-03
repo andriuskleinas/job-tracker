@@ -316,13 +316,25 @@ function DevPreview() {
         <h2 className="mb-3 text-lg font-semibold">ApplicationCard — list</h2>
         <div className="space-y-3">
           {cards.map((c) => (
-            <ApplicationCard key={c.id} app={c} variant="list" onTogglePriority={() => {}} />
+            <ApplicationCard
+              key={c.id}
+              app={c}
+              variant="list"
+              onTogglePriority={() => {}}
+              onDelete={() => {}}
+            />
           ))}
         </div>
         <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationCard — grid</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((c) => (
-            <ApplicationCard key={c.id} app={c} variant="grid" onTogglePriority={() => {}} />
+            <ApplicationCard
+              key={c.id}
+              app={c}
+              variant="grid"
+              onTogglePriority={() => {}}
+              onDelete={() => {}}
+            />
           ))}
         </div>
         {/* app-3 (Initech, rejected) is in this fixture set deliberately: the
@@ -338,11 +350,13 @@ function DevPreview() {
           onMoveTo={(app, status) =>
             setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, status } : c)))
           }
+          onDelete={(app) => setBoardCards((prev) => prev.filter((c) => c.id !== app.id))}
         />
         <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>
         <ApplicationArchive
           apps={cards.filter((c) => CLOSED_STATUSES.includes(c.status))}
           onTogglePriority={() => {}}
+          onDelete={() => {}}
         />
       </main>
     </div>

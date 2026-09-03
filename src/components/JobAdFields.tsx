@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClipboardPaste, Link2, Sparkles, Wand2, X } from "lucide-react";
+import { Link2, Sparkles, Wand2, X } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,8 @@ import {
   SALARY_SOURCE_META,
   formatSalary,
   parseJobAd,
+  type SalaryPeriod,
+  type SalarySource,
 } from "@/lib/job-ad";
 import { MAX_AD_LENGTH, type JobAdValue } from "@/lib/job-ad-form";
 
@@ -52,6 +54,20 @@ export function JobAdFields({
     salary_currency: value.salary_currency || null,
     salary_period: (value.salary_period || null) as never,
   });
+
+  // Explicit labels for the three salary Selects below, rather than the bare
+  // <SelectValue /> auto-portal trick — a value that arrives asynchronously
+  // (editing an application whose salary loads after the form's own blank
+  // default) can beat Radix to it and leave the trigger showing nothing.
+  const periodLabel = value.salary_period
+    ? (SALARY_PERIOD_META[value.salary_period as SalaryPeriod]?.label ?? value.salary_period)
+    : "Per…";
+  const sourceMeta = value.salary_source
+    ? SALARY_SOURCE_META[value.salary_source as SalarySource]
+    : null;
+  const sourceLabel = sourceMeta
+    ? `${sourceMeta.label} — ${sourceMeta.hint}`
+    : "Where did this number come from?";
 
   const readAd = () => {
     const raw = paste.trim();
@@ -111,27 +127,30 @@ export function JobAdFields({
       </div>
 
       {/* Paste first: this is the fast path through the form, not an extra step
-          after it. Filling it is quicker than typing the fields below. */}
-      <div className="space-y-2">
-        <Label htmlFor="job-ad-paste" className="flex items-center gap-2 text-xs font-normal">
-          <ClipboardPaste className="h-3.5 w-3.5" />
+          after it. Filling it is quicker than typing the fields below, so it
+          gets its own highlighted card rather than blending into the plain
+          fields underneath it. */}
+      <div className="space-y-2 rounded-lg border border-[var(--status-offer-text)]/30 bg-[var(--status-offer-soft)]/50 p-3">
+        <Label
+          htmlFor="job-ad-paste"
+          className="flex items-center gap-1.5 text-sm font-medium text-[var(--status-offer-text)]"
+        >
+          <Sparkles className="h-4 w-4" />
           Paste the job ad
         </Label>
+        <p className="text-xs text-muted-foreground">
+          The fastest way to fill this in — we'll read out the salary and requirements for you.
+        </p>
         <Textarea
           id="job-ad-paste"
           rows={3}
           placeholder="Paste the whole posting here — we'll pull out the salary and requirements, and keep a copy for when the ad is taken down."
           value={paste}
           onChange={(e) => setPaste(e.target.value)}
+          className="bg-background"
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!paste.trim()}
-            onClick={readAd}
-          >
+          <Button type="button" size="sm" disabled={!paste.trim()} onClick={readAd}>
             <Wand2 className="h-4 w-4" /> Read the ad
           </Button>
           <p className="text-xs text-muted-foreground">
@@ -224,7 +243,7 @@ export function JobAdFields({
             onValueChange={(v) => set({ salary_currency: v === NONE ? "" : v })}
           >
             <SelectTrigger aria-label="Currency">
-              <SelectValue placeholder="Currency" />
+              <SelectValue>{value.salary_currency || "Currency"}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>Currency</SelectItem>
@@ -240,7 +259,7 @@ export function JobAdFields({
             onValueChange={(v) => set({ salary_period: v === NONE ? "" : v })}
           >
             <SelectTrigger aria-label="Salary period">
-              <SelectValue placeholder="Per…" />
+              <SelectValue>{periodLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>Per…</SelectItem>
@@ -258,7 +277,7 @@ export function JobAdFields({
           onValueChange={(v) => set({ salary_source: v === NONE ? "" : v })}
         >
           <SelectTrigger aria-label="Where the salary came from">
-            <SelectValue placeholder="Where did this number come from?" />
+            <SelectValue>{sourceLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NONE}>Where did this number come from?</SelectItem>
@@ -272,7 +291,7 @@ export function JobAdFields({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="requirements">Requirements</Label>
+        <Label htmlFor="requirements">Job requirements</Label>
         <Textarea
           id="requirements"
           rows={4}

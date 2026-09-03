@@ -23,7 +23,6 @@ const sitemap = [
     links: [
       { label: "Analytics", to: "/analytics" },
       { label: "Applications", to: "/applications" },
-      { label: "Tasks", to: "/tasks" },
     ],
   },
   {

@@ -443,7 +443,8 @@ export async function handleGoogleAuthUrl(request: Request): Promise<Response> {
 export async function handleGoogleCallback(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const origin = url.origin;
-  const back = (status: string) => Response.redirect(`${origin}/tasks?calendar=${status}`, 302);
+  const back = (status: string) =>
+    Response.redirect(`${origin}/applications?calendar=${status}`, 302);
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");

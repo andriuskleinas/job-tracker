@@ -14,7 +14,6 @@ import { Route as DevPreviewRouteImport } from './routes/dev-preview'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
@@ -44,11 +43,6 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
-  id: '/tasks',
-  path: '/tasks',
-  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
@@ -86,7 +80,6 @@ export interface FileRoutesByFullPath {
   '/account': typeof AuthenticatedAccountRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/tasks': typeof AuthenticatedTasksRoute
   '/applications/$id': typeof AuthenticatedApplicationsIdRoute
   '/applications/': typeof AuthenticatedApplicationsIndexRoute
 }
@@ -98,7 +91,6 @@ export interface FileRoutesByTo {
   '/account': typeof AuthenticatedAccountRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/tasks': typeof AuthenticatedTasksRoute
   '/applications/$id': typeof AuthenticatedApplicationsIdRoute
   '/applications': typeof AuthenticatedApplicationsIndexRoute
 }
@@ -112,7 +104,6 @@ export interface FileRoutesById {
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/applications/$id': typeof AuthenticatedApplicationsIdRoute
   '/_authenticated/applications/': typeof AuthenticatedApplicationsIndexRoute
 }
@@ -126,7 +117,6 @@ export interface FileRouteTypes {
     | '/account'
     | '/analytics'
     | '/dashboard'
-    | '/tasks'
     | '/applications/$id'
     | '/applications/'
   fileRoutesByTo: FileRoutesByTo
@@ -138,7 +128,6 @@ export interface FileRouteTypes {
     | '/account'
     | '/analytics'
     | '/dashboard'
-    | '/tasks'
     | '/applications/$id'
     | '/applications'
   id:
@@ -151,7 +140,6 @@ export interface FileRouteTypes {
     | '/_authenticated/account'
     | '/_authenticated/analytics'
     | '/_authenticated/dashboard'
-    | '/_authenticated/tasks'
     | '/_authenticated/applications/$id'
     | '/_authenticated/applications/'
   fileRoutesById: FileRoutesById
@@ -201,13 +189,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/tasks': {
-      id: '/_authenticated/tasks'
-      path: '/tasks'
-      fullPath: '/tasks'
-      preLoaderRoute: typeof AuthenticatedTasksRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -250,7 +231,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedApplicationsIdRoute: typeof AuthenticatedApplicationsIdRoute
   AuthenticatedApplicationsIndexRoute: typeof AuthenticatedApplicationsIndexRoute
 }
@@ -259,7 +239,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedApplicationsIdRoute: AuthenticatedApplicationsIdRoute,
   AuthenticatedApplicationsIndexRoute: AuthenticatedApplicationsIndexRoute,
 }
