@@ -1,29 +1,33 @@
 import { describe, expect, test } from "bun:test";
 import {
-  computeKpis,
+  applicationTrend,
+  computePeriodKpis,
+  computeSnapshotKpis,
+  conversionCohorts,
   eventsBeyondCurrentStatus,
   funnelStages,
-  monthlyCohorts,
+  inDateRange,
   statusBreakdown,
-  weeklyApplications,
   type StatsApplication,
   type StatsStatusEvent,
 } from "@/lib/stats";
 
 /*
  * `wishlist` is the first status that does not mean "an application was sent",
- * and every rate on the dashboard divides by applications sent. These tests
- * pin the boundary: a saved role is counted where statuses are counted, and
- * nowhere else.
+ * and every rate on the analytics page divides by applications sent. These
+ * tests pin the boundary: a saved role is counted where statuses are
+ * counted, and nowhere else.
  */
 
 const TODAY = new Date(2026, 8, 2); // 2 Sep 2026, local
 
-const day = (daysAgo: number) => {
+const dateAgo = (daysAgo: number) => {
   const d = new Date(TODAY);
   d.setDate(d.getDate() - daysAgo);
-  return d.toISOString().slice(0, 10);
+  return d;
 };
+
+const day = (daysAgo: number) => dateAgo(daysAgo).toISOString().slice(0, 10);
 
 const app = (
   id: string,
@@ -54,21 +58,22 @@ describe("wishlist rows are not applications", () => {
     app("w2", "wishlist", 2),
   ];
 
-  test("KPI totals count applications sent, and report saved separately", () => {
-    const kpis = computeKpis(apps, [], TODAY);
+  test("period KPIs count applications sent, and report saved separately", () => {
+    const kpis = computePeriodKpis(apps, TODAY);
     expect(kpis.total).toBe(2);
     expect(kpis.saved).toBe(2);
   });
 
   test("a saved role does not count as recent activity", () => {
     // Both wishlist rows are 1-2 days old; only the applied one is in-window.
-    expect(computeKpis(apps, [], TODAY).lastSeven).toBe(1);
+    const inWindow = apps.filter((a) => inDateRange(a.application_date, dateAgo(6), TODAY));
+    expect(computePeriodKpis(inWindow, TODAY).total).toBe(1);
   });
 
   test("saving a role today does not reset the days-since-applied streak", () => {
     // The trap: clip a job on day 0 and the counter would read 0 days,
     // congratulating you for applying to nothing.
-    expect(computeKpis(apps, [], TODAY).daysSinceLastApplication).toBe(3);
+    expect(computeSnapshotKpis(apps, [], TODAY).daysSinceLastApplication).toBe(3);
   });
 
   test("the status breakdown is the one chart that still counts them", () => {
@@ -77,13 +82,19 @@ describe("wishlist rows are not applications", () => {
     expect(rows.reduce((n, r) => n + r.count, 0)).toBe(4);
   });
 
-  test("weekly volume ignores them", () => {
-    const total = weeklyApplications(apps, TODAY).reduce((n, w) => n + w.count, 0);
+  test("the application trend ignores them", () => {
+    const total = applicationTrend(apps, dateAgo(13), TODAY, "week").reduce(
+      (n, b) => n + b.count,
+      0,
+    );
     expect(total).toBe(2);
   });
 
-  test("monthly cohorts ignore them", () => {
-    const total = monthlyCohorts(apps, [], TODAY).reduce((n, c) => n + c.applied, 0);
+  test("conversion cohorts ignore them", () => {
+    const total = conversionCohorts(apps, [], dateAgo(13), TODAY, "month").reduce(
+      (n, c) => n + c.applied,
+      0,
+    );
     expect(total).toBe(2);
   });
 

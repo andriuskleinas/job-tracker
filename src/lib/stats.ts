@@ -1,4 +1,12 @@
-import { addDays, format, startOfWeek, subWeeks } from "date-fns";
+import {
+  differenceInCalendarDays,
+  eachDayOfInterval,
+  eachMonthOfInterval,
+  eachWeekOfInterval,
+  format,
+  startOfWeek,
+  subDays,
+} from "date-fns";
 import { ACTIVE_STATUSES, STATUSES, hasApplied, type Status } from "./status";
 
 /**
@@ -27,12 +35,31 @@ export function parseLocalDate(iso: string): Date {
 }
 
 /** Midnight local time, so day comparisons ignore the clock. */
-function startOfDay(date: Date): Date {
+export function startOfDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function daysBetween(from: Date, to: Date): number {
   return Math.round((startOfDay(to).getTime() - startOfDay(from).getTime()) / 86_400_000);
+}
+
+/** Whether an application's date falls within [from, to], inclusive, by local calendar day. */
+export function inDateRange(dateIso: string, from: Date, to: Date): boolean {
+  const d = startOfDay(parseLocalDate(dateIso));
+  return d >= startOfDay(from) && d <= startOfDay(to);
+}
+
+/**
+ * The period immediately before [from, to], holding its length constant —
+ * the last 7 days compares against the 7 before that, a custom 43-day range
+ * against the 43 before it. This is what "vs previous period" means anywhere
+ * on the analytics page.
+ */
+export function priorPeriod(from: Date, to: Date): { from: Date; to: Date } {
+  const days = differenceInCalendarDays(startOfDay(to), startOfDay(from)) + 1;
+  const priorTo = subDays(startOfDay(from), 1);
+  const priorFrom = subDays(priorTo, days - 1);
+  return { from: priorFrom, to: priorTo };
 }
 
 export function statusCounts(apps: StatsApplication[]): Record<Status, number> {
@@ -44,7 +71,7 @@ export function statusCounts(apps: StatsApplication[]): Record<Status, number> {
 /**
  * Rows that represent an application actually sent.
  *
- * Nearly everything below is a rate or a rhythm — applications per week, days
+ * Nearly everything below is a rate or a rhythm — applications per period, days
  * since the last one, share that reached interview — and every one of those
  * divides by, or is keyed to, the act of applying. A `wishlist` row records
  * only that a posting looked interesting, and it carries an
@@ -52,7 +79,7 @@ export function statusCounts(apps: StatsApplication[]): Record<Status, number> {
  * through does not just add noise, it adds a *wrong* date to a time series
  * and a wrong denominator to a rate.
  *
- * Filter here rather than in the dashboard, so a new chart cannot forget.
+ * Filter here rather than in the page, so a new chart cannot forget.
  * `statusCounts` and `statusBreakdown` are the deliberate exceptions: they
  * report on statuses themselves, so they must see all six.
  */
@@ -60,93 +87,84 @@ export function appliedOnly<T extends { status: Status }>(rows: T[]): T[] {
   return rows.filter((r) => hasApplied(r.status));
 }
 
-export type Kpis = {
-  total: number;
-  saved: number;
-  active: number;
-  offers: number;
-  lastSeven: number;
-  lastSevenDelta: number;
+/**
+ * The two families of number on the analytics page, and why they take
+ * different application lists.
+ *
+ * A snapshot answers "where do things stand right now" — the active
+ * pipeline, what's overdue — and a date-range filter has no opinion on that;
+ * a role you applied to three months ago and are still interviewing for is
+ * exactly as active today whether the page is showing "last 7 days" or
+ * "all time". These are computed from every application there is.
+ *
+ * A period number answers "what happened in the window I selected" —
+ * applications sent, offers landed — and is computed only from applications
+ * whose `application_date` falls inside that window.
+ *
+ * Splitting the type in two rather than passing both lists into one function
+ * makes that distinction a compile-time fact instead of a comment someone
+ * has to keep noticing.
+ */
+export type SnapshotKpis = {
+  activePipeline: number;
   overdueTasks: number;
   openTasks: number;
   daysSinceLastApplication: number | null;
 };
 
-export function computeKpis(
+export function computeSnapshotKpis(
   apps: StatsApplication[],
   tasks: StatsTask[],
   today: Date = new Date(),
-): Kpis {
-  // Status counts see every row; everything time-based sees only sent
-  // applications, whose application_date means something.
+): SnapshotKpis {
   const counts = statusCounts(apps);
-  const sent = appliedOnly(apps);
-  const total = sent.length;
-
-  const inWindow = (app: StatsApplication, fromDaysAgo: number, toDaysAgo: number) => {
-    const age = daysBetween(parseLocalDate(app.application_date), today);
-    return age >= toDaysAgo && age <= fromDaysAgo;
-  };
-
-  const lastSeven = sent.filter((a) => inWindow(a, 6, 0)).length;
-  const priorSeven = sent.filter((a) => inWindow(a, 13, 7)).length;
-
-  const ages = sent.map((a) => daysBetween(parseLocalDate(a.application_date), today));
-  const futureSafeAges = ages.filter((d) => d >= 0);
+  const ages = appliedOnly(apps)
+    .map((a) => daysBetween(parseLocalDate(a.application_date), today))
+    .filter((d) => d >= 0);
 
   return {
-    total,
-    saved: counts.wishlist,
-    active: ACTIVE_STATUSES.reduce((sum, s) => sum + counts[s], 0),
-    // Interview rate deliberately lives in `funnelStages`, not here: it needs
-    // the event log to count applications that moved past interviewing, and
-    // having a second current-status-only version invites the two to disagree.
-    offers: counts.offer,
-    lastSeven,
-    lastSevenDelta: lastSeven - priorSeven,
+    activePipeline: ACTIVE_STATUSES.reduce((sum, s) => sum + counts[s], 0),
     overdueTasks: tasks.filter(
       (t) => !t.done && t.due_date !== null && daysBetween(parseLocalDate(t.due_date), today) > 0,
     ).length,
     openTasks: tasks.filter((t) => !t.done).length,
-    daysSinceLastApplication: futureSafeAges.length === 0 ? null : Math.min(...futureSafeAges),
+    daysSinceLastApplication: ages.length === 0 ? null : Math.min(...ages),
   };
 }
 
-export type WeekBucket = { weekStart: string; label: string; count: number };
+/** How many consecutive days of silence on an active application counts as gone quiet. */
+const STALE_DAYS = 30;
+
+export type PeriodKpis = {
+  total: number;
+  saved: number;
+  offers: number;
+  stale: number;
+};
 
 /**
- * Applications per ISO week (Monday-start) for the trailing `weeks` weeks.
- * Wishlist rows are excluded — their application_date is the day the row was
- * created, not a day anything was sent, so they would draw phantom volume.
+ * `stale` is deliberately narrower than the "Stalled" pill on an application
+ * card: the card also requires zero open tasks, which needs a task join this
+ * aggregate doesn't have. This counts applications that are still active and
+ * have not moved in {@link STALE_DAYS} days — a real signal on its own, just
+ * not a guaranteed match to what any one card is showing, so it earns its
+ * own label ("No response") rather than borrowing the card's word for it.
  */
-export function weeklyApplications(
-  apps: StatsApplication[],
+export function computePeriodKpis(
+  periodApps: StatsApplication[],
   today: Date = new Date(),
-  weeks = 12,
-): WeekBucket[] {
-  const firstWeek = startOfWeek(subWeeks(today, weeks - 1), { weekStartsOn: 1 });
-
-  const buckets: WeekBucket[] = Array.from({ length: weeks }, (_, i) => {
-    const weekStart = addDays(firstWeek, i * 7);
-    return {
-      weekStart: format(weekStart, "yyyy-MM-dd"),
-      label: format(weekStart, "MMM d"),
-      count: 0,
-    };
-  });
-
-  const indexByWeek = new Map(buckets.map((b, i) => [b.weekStart, i]));
-
-  for (const app of appliedOnly(apps)) {
-    const key = format(
-      startOfWeek(parseLocalDate(app.application_date), { weekStartsOn: 1 }),
-      "yyyy-MM-dd",
-    );
-    const index = indexByWeek.get(key);
-    if (index !== undefined) buckets[index].count += 1;
-  }
-
-  return buckets;
+): PeriodKpis {
+  const counts = statusCounts(periodApps);
+  return {
+    total: appliedOnly(periodApps).length,
+    saved: counts.wishlist,
+    offers: counts.offer,
+    stale: periodApps.filter(
+      (a) =>
+        ACTIVE_STATUSES.includes(a.status) &&
+        daysBetween(parseLocalDate(a.application_date), today) >= STALE_DAYS,
+    ).length,
+  };
 }
 
 export type FunnelStage = { stage: string; count: number; share: number };
@@ -271,6 +289,17 @@ export function historyStartedAt(events: StatsStatusEvent[]): Date | null {
 
 export type StageDuration = { medianDays: number; sampleSize: number };
 
+function medianOf(spans: number[]): StageDuration | null {
+  if (spans.length === 0) return null;
+  const sorted = [...spans].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return {
+    medianDays:
+      sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid],
+    sampleSize: sorted.length,
+  };
+}
+
 /**
  * Median days from first reaching `from` to first reaching `to`.
  *
@@ -294,17 +323,122 @@ export function medianDaysBetweenStages(
     if (days >= 0) spans.push(days);
   }
 
-  if (spans.length === 0) return null;
-  spans.sort((a, b) => a - b);
-  const mid = Math.floor(spans.length / 2);
-  return {
-    medianDays: spans.length % 2 === 0 ? Math.round((spans[mid - 1] + spans[mid]) / 2) : spans[mid],
-    sampleSize: spans.length,
-  };
+  return medianOf(spans);
+}
+
+/** Any status that counts as the application no longer sitting in silence. */
+const RESPONSE_STATUSES: readonly Status[] = ["interviewing", "rejected", "offer"];
+
+/**
+ * Median days from applying to the first sign of life — an interview, a
+ * rejection, or an offer, whichever the log shows first.
+ *
+ * "Time to interview" only credits the good outcome, so it stays null for
+ * anyone whose applications have so far only ever come back rejected — which
+ * is exactly the person most likely to be asking "is this normal?" This
+ * answers the question actually being asked more often: how long before I
+ * hear *anything*, good or bad.
+ */
+export function medianDaysToFirstResponse(events: StatsStatusEvent[]): StageDuration | null {
+  const byApp = groupEventsByApplication(events);
+  const spans: number[] = [];
+
+  for (const list of byApp.values()) {
+    const applied = list.find((e) => e.status === "applied");
+    if (!applied) continue;
+    const response = list.find(
+      (e) => RESPONSE_STATUSES.includes(e.status) && e.changed_at > applied.changed_at,
+    );
+    if (!response) continue;
+    const days = daysBetween(new Date(applied.changed_at), new Date(response.changed_at));
+    if (days >= 0) spans.push(days);
+  }
+
+  return medianOf(spans);
+}
+
+/* ------------------------------------------------------------------ *
+ * Period-bucketed charts — trend and cohorts
+ * ------------------------------------------------------------------ */
+
+export type TrendGranularity = "day" | "week" | "month";
+
+/** Day buckets read cleanly up to about a month, week beyond that, month past about six. */
+export function trendGranularityFor(from: Date, to: Date): TrendGranularity {
+  const days = differenceInCalendarDays(startOfDay(to), startOfDay(from)) + 1;
+  if (days <= 31) return "day";
+  if (days <= 183) return "week";
+  return "month";
+}
+
+/**
+ * Cohorts stay coarser than the trend line even over the same range — a
+ * daily conversion-rate cohort is mostly one or two applications trying to
+ * report a percentage, which is noise wearing the costume of a statistic.
+ * Week is the finest grain a conversion rate can carry.
+ */
+export function cohortGranularityFor(from: Date, to: Date): "week" | "month" {
+  const days = differenceInCalendarDays(startOfDay(to), startOfDay(from)) + 1;
+  return days <= 60 ? "week" : "month";
+}
+
+function bucketStarts(from: Date, to: Date, granularity: TrendGranularity): Date[] {
+  if (granularity === "day") return eachDayOfInterval({ start: from, end: to });
+  if (granularity === "week")
+    return eachWeekOfInterval({ start: from, end: to }, { weekStartsOn: 1 });
+  return eachMonthOfInterval({ start: from, end: to });
+}
+
+function bucketKey(d: Date, granularity: TrendGranularity): string {
+  return granularity === "month" ? format(d, "yyyy-MM") : format(d, "yyyy-MM-dd");
+}
+
+/** The year is only worth printing when a bucket's own label could otherwise mean two different dates. */
+function bucketLabel(d: Date, granularity: TrendGranularity, spansYears: boolean): string {
+  if (granularity === "month") return format(d, spansYears ? "MMM yy" : "MMM");
+  return format(d, spansYears ? "MMM d, yy" : "MMM d");
+}
+
+function bucketKeyFor(dateIso: string, granularity: TrendGranularity): string {
+  const d = parseLocalDate(dateIso);
+  if (granularity === "day") return format(d, "yyyy-MM-dd");
+  if (granularity === "week") return format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  return format(d, "yyyy-MM");
+}
+
+export type TrendBucket = { key: string; label: string; count: number };
+
+/**
+ * Applications sent per bucket across [from, to] at the given granularity.
+ * Buckets are pre-seeded at zero across the whole range so a quiet stretch
+ * is a real flat line, not a gap the chart silently closes up.
+ */
+export function applicationTrend(
+  apps: StatsApplication[],
+  from: Date,
+  to: Date,
+  granularity: TrendGranularity,
+): TrendBucket[] {
+  const spansYears = from.getFullYear() !== to.getFullYear();
+  const buckets: TrendBucket[] = bucketStarts(startOfDay(from), startOfDay(to), granularity).map(
+    (d) => ({
+      key: bucketKey(d, granularity),
+      label: bucketLabel(d, granularity, spansYears),
+      count: 0,
+    }),
+  );
+  const indexByKey = new Map(buckets.map((b, i) => [b.key, i]));
+
+  for (const app of appliedOnly(apps)) {
+    const index = indexByKey.get(bucketKeyFor(app.application_date, granularity));
+    if (index !== undefined) buckets[index].count += 1;
+  }
+
+  return buckets;
 }
 
 export type CohortBucket = {
-  month: string;
+  key: string;
   label: string;
   applied: number;
   reachedInterview: number;
@@ -312,41 +446,36 @@ export type CohortBucket = {
 };
 
 /**
- * Applications grouped by the month they were sent, and how many of each month's
- * cohort ever reached an interview.
- *
- * Only sent applications form a cohort; a saved posting has no send-month.
- *
- * Cohorting by send-month (not by event date) is what makes the comparison fair:
- * a recent month has had less time to convert, which the UI notes rather than
- * hiding. `rate` is null for an empty month so the caller renders a gap instead
- * of a misleading 0%.
+ * Applications grouped by the period they were sent, and how many of each
+ * cohort ever reached an interview. Cohorting by send-date (not by event
+ * date) is what makes the comparison fair: a recent cohort has had less time
+ * to convert, which the caller notes rather than hiding. `rate` is null for
+ * an empty bucket so it renders as a gap instead of a misleading 0%.
  */
-export function monthlyCohorts(
+export function conversionCohorts(
   apps: StatsApplication[],
-  events: StatsStatusEvent[] = [],
-  today: Date = new Date(),
-  months = 6,
+  events: StatsStatusEvent[],
+  from: Date,
+  to: Date,
+  granularity: "week" | "month",
 ): CohortBucket[] {
   const byApp = groupEventsByApplication(events);
   const interviewRank = pipelineRank("interviewing");
+  const spansYears = from.getFullYear() !== to.getFullYear();
 
-  const buckets: CohortBucket[] = Array.from({ length: months }, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth() - (months - 1 - i), 1);
-    return {
-      month: format(d, "yyyy-MM"),
-      label: format(d, "MMM"),
+  const buckets: CohortBucket[] = bucketStarts(startOfDay(from), startOfDay(to), granularity).map(
+    (d) => ({
+      key: bucketKey(d, granularity),
+      label: bucketLabel(d, granularity, spansYears),
       applied: 0,
       reachedInterview: 0,
       rate: null,
-    };
-  });
-
-  const indexByMonth = new Map(buckets.map((b, i) => [b.month, i]));
+    }),
+  );
+  const indexByKey = new Map(buckets.map((b, i) => [b.key, i]));
 
   for (const app of appliedOnly(apps)) {
-    const key = format(parseLocalDate(app.application_date), "yyyy-MM");
-    const index = indexByMonth.get(key);
+    const index = indexByKey.get(bucketKeyFor(app.application_date, granularity));
     if (index === undefined) continue;
     buckets[index].applied += 1;
     if (furthestStageRank(app, byApp.get(app.id) ?? []) >= interviewRank) {

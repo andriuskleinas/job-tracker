@@ -21,7 +21,7 @@ const sitemap = [
   {
     heading: "Workspace",
     links: [
-      { label: "Dashboard", to: "/dashboard" },
+      { label: "Analytics", to: "/analytics" },
       { label: "Applications", to: "/applications" },
       { label: "Tasks", to: "/tasks" },
     ],

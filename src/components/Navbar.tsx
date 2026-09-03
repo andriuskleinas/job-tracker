@@ -18,7 +18,7 @@ import { LogOut, Menu, Settings } from "lucide-react";
 
 /** Single source of truth for the portal nav — desktop bar and mobile sheet. */
 const appLinks = [
-  { label: "Dashboard", to: "/dashboard" },
+  { label: "Analytics", to: "/analytics" },
   { label: "Applications", to: "/applications" },
   { label: "Tasks", to: "/tasks" },
 ] as const;
