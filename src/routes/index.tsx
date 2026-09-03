@@ -600,18 +600,40 @@ function LogoBand() {
   return (
     <section aria-labelledby="companies-heading" className="border-b bg-muted/40">
       <div className="container-page py-14 sm:py-16">
-        <div className="mx-auto max-w-2xl text-center">
+        {/*
+         * Eyebrow, claim, lede — the same three parts at the same three sizes
+         * as StorySection, because this band is a beat of the same page and was
+         * reading like a footnote to it. It used to set the claim at
+         * `text-lg sm:text-xl font-medium` against the beats' `text-2xl
+         * sm:text-3xl font-semibold`: two steps down the scale and a weight
+         * lighter, with the lede a step down as well.
+         *
+         * The heading was inverted too. "Your shortlist" carried the `h2` while
+         * the actual claim was a `p`, so anyone navigating this page by heading
+         * heard four full sentences and then a label. The `h2` is now the claim
+         * and `aria-labelledby` names the section with it, which is what the
+         * other four sections do.
+         *
+         * The measure is a step wider than the beats' — `max-w-3xl` on the
+         * block, with `max-w-2xl` put back on the lede. At `text-3xl` the claim
+         * needs 689px to set on one line and a 2xl measure gives it 672:
+         * seventeen pixels short, enough to wrap it and let `text-wrap:
+         * balance` break after "apply", leaving "to" to open the second line.
+         * The beats do not need the extra room because theirs are ranged left,
+         * and a centred heading shows a bad break far more than a left one.
+         */}
+        <div className="mx-auto max-w-3xl text-center">
           <Reveal>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-accent">
+              Your shortlist
+            </p>
             <h2
               id="companies-heading"
-              className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-accent"
+              className="mt-3 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl"
             >
-              Your shortlist
-            </h2>
-            <p className="mt-3 text-lg font-medium tracking-tight sm:text-xl">
               Every company you apply to arrives with its own logo.
-            </p>
-            <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">
               Paste the careers page URL and the logo resolves itself, so your board shows the
               companies you're going after instead of a column of grey initials.
             </p>
