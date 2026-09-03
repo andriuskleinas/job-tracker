@@ -224,8 +224,11 @@ function AnalyticsPage() {
 
   if (appsLoading || tasksLoading || eventsLoading) return <AnalyticsSkeleton />;
 
+  // resetScroll: false — this fires from filters anywhere on the page, including
+  // the task panel's own filter at the bottom, and neither should jump the
+  // page back to the top.
   const setRange = (patch: Partial<AnalyticsSearch>) =>
-    navigate({ search: { ...search, ...patch }, replace: true });
+    navigate({ search: { ...search, ...patch }, replace: true, resetScroll: false });
 
   return (
     <AnalyticsView
