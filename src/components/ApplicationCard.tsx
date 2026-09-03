@@ -117,13 +117,19 @@ const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
  * The facts row: how the role is worked, where it's based, and what it pays.
  * Salary is the one a user scans for, so it carries the foreground weight the
  * location pill doesn't.
+ *
+ * `compact` is the board's dialect of this row: no job-type chip, and the
+ * place text drops the spelled-out country in favour of the flag that is
+ * already sitting there doing that job. City alone, falling back to the
+ * country name only when there is no city to show instead — the chip must
+ * never render as a bare flag with nothing beside it.
  */
-function LocationRow({ app }: { app: ApplicationCardData }) {
+function LocationRow({ app, compact = false }: { app: ApplicationCardData; compact?: boolean }) {
   const userZone = useUserZone();
   const meta = jobTypeMeta(app.job_type);
   const city = app.city?.trim();
   const country = app.country?.trim();
-  const place = [city, country].filter(Boolean).join(", ");
+  const place = compact ? city || country : [city, country].filter(Boolean).join(", ");
   const salary = formatSalary({
     salary_min: app.salary_min,
     salary_max: app.salary_max,
@@ -138,14 +144,15 @@ function LocationRow({ app }: { app: ApplicationCardData }) {
   const offset = zone && userZone ? offsetBetween(zone, userZone) : null;
   const apart = offset !== null && offset !== 0 ? formatOffset(offset) : null;
 
-  if (!meta && !place && !salary && !apart) return null;
+  const showJobType = !compact && !!meta;
+  if (!showJobType && !place && !salary && !apart) return null;
 
   const Icon = meta ? JOB_TYPE_ICON[app.job_type as JobType] : null;
   const flag = flagForCountry(country);
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {meta && Icon && (
+      {showJobType && Icon && (
         <span
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
         >
@@ -379,7 +386,7 @@ export function ApplicationCard({
   onMoveTo,
 }: {
   app: ApplicationCardData;
-  variant: "list" | "board";
+  variant: "list" | "grid" | "board";
   onTogglePriority: (priority: boolean) => void;
   /** Board only: change this application's status without opening it. */
   onMoveTo?: (status: Status) => void;
@@ -391,7 +398,12 @@ export function ApplicationCard({
     <div className="flex min-w-0 items-center gap-3">
       <CompanyLogo company={app.company} website={app.website} dim={meta.isClosed} />
       <div className="min-w-0">
-        <p className={`truncate font-medium ${dimTitle}`}>{app.position}</p>
+        {/* Board keeps the role name in full rather than truncating it — a
+            narrow column is exactly where a one-line ellipsis hides the one
+            fact the card exists to show, so it wraps instead. */}
+        <p className={`font-medium ${variant === "board" ? "" : "truncate"} ${dimTitle}`}>
+          {app.position}
+        </p>
         <p className="truncate text-sm text-muted-foreground">{app.company}</p>
       </div>
     </div>
@@ -400,21 +412,21 @@ export function ApplicationCard({
   const rightCluster = (
     <div className="flex shrink-0 items-center gap-1.5">
       <AppStar app={app} onToggle={onTogglePriority} />
-      {/* On the board the column heading already says the status, so a badge
-          repeating it is six identical badges down one column — noise where a
-          badge is meant to be a signal. The move control takes the slot the
-          badge held, which is also the slot the eye already goes to. */}
-      {variant === "board" ? (
-        onMoveTo && <MoveMenu app={app} onMoveTo={onMoveTo} />
-      ) : (
-        <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
-          {app.status}
-        </Badge>
-      )}
+      <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
+        {app.status}
+      </Badge>
     </div>
   );
 
   if (variant === "board") {
+    // How much this application is worth showing on the board: the star
+    // (priority is a list/grid control — the column position already carries
+    // it) and the status badge (the column heading already says it) are both
+    // dropped, and what is left of the meta row is only whether a task is
+    // owed. Everything else on the full card — applied-when, notes, job
+    // type — is one tap away on the detail page, which is the point: a board
+    // card is a label for a drag, not a summary of the row.
+    const hasTaskStatus = meta.stalled || meta.openCount > 0;
     return (
       <Link to="/applications/$id" params={{ id: app.id }} className="block">
         <Card
@@ -424,10 +436,46 @@ export function ApplicationCard({
         >
           <div className="flex items-start justify-between gap-2">
             {identity}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {onMoveTo && <MoveMenu app={app} onMoveTo={onMoveTo} />}
+            </div>
+          </div>
+          <LocationRow app={app} compact />
+          {hasTaskStatus && (
+            <div className="flex flex-wrap items-center gap-2">
+              {meta.stalled ? (
+                <StalledPill />
+              ) : (
+                <TaskChip
+                  openCount={meta.openCount}
+                  nextDue={meta.nextDue}
+                  overdue={meta.overdue}
+                  hasPriority={meta.hasPriority}
+                />
+              )}
+            </div>
+          )}
+        </Card>
+      </Link>
+    );
+  }
+
+  if (variant === "grid") {
+    return (
+      <Link to="/applications/$id" params={{ id: app.id }} className="block h-full">
+        <Card
+          className={`flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
+            meta.isClosed ? "bg-muted/30" : ""
+          } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            {identity}
             {rightCluster}
           </div>
           <LocationRow app={app} />
-          <CardMeta app={app} meta={meta} />
+          <div className="mt-auto border-t pt-3">
+            <CardMeta app={app} meta={meta} />
+          </div>
         </Card>
       </Link>
     );

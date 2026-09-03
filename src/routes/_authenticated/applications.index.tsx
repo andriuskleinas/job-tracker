@@ -33,10 +33,10 @@ import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/
 import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { toast } from "sonner";
 import { z } from "zod";
-import { STATUSES, type Status } from "@/lib/status";
+import { STATUSES, CLOSED_STATUSES, type Status } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
-import { Plus, Upload, Download, List, Columns3 } from "lucide-react";
+import { Plus, Upload, Download, List, LayoutGrid, Columns3, ChevronRight } from "lucide-react";
 import Papa from "papaparse";
 import { useRef, useMemo } from "react";
 import {
@@ -46,26 +46,15 @@ import {
   type ApplicationFilters as Filters,
 } from "@/lib/application-filters";
 
-type View = "list" | "board";
+type View = "list" | "grid" | "board";
 
 const VIEW_KEY = "applications-view";
 
-/**
- * The stored preference, with the retired "grid" folded into "board".
- *
- * Grid was the same rows as the list in two dimensions: no extra information,
- * worse scanning, and no action the list did not already offer. The board
- * replaced it because it earns its space with something the list cannot do —
- * move a role between stages by dragging it. Anyone whose last choice was grid
- * wanted cards rather than rows, so the board is where they should land; the
- * raw value is also validated here, since an unrecognised string used to fall
- * straight through to the renderer.
- */
+/** The stored preference, validated so a stale or hand-edited value can never reach the renderer. */
 function storedView(): View {
   if (typeof window === "undefined") return "list";
   const raw = localStorage.getItem(VIEW_KEY);
-  if (raw === "board" || raw === "grid") return "board";
-  return "list";
+  return raw === "grid" || raw === "board" ? raw : "list";
 }
 
 // Filters live in the URL so a filtered board is shareable, survives refresh,
@@ -198,10 +187,13 @@ function ApplicationsPage() {
 
   // A board on a phone is a horizontal scroller wrapping vertical scrollers,
   // which is the worst of both. The list is the honest small-screen answer, so
-  // narrow viewports get it and the toggle goes away rather than offering a
-  // choice that would make the page worse. The stored preference is untouched,
-  // so the board comes back on the desktop it was chosen on.
-  const effectiveView: View = isMobile ? "list" : view;
+  // narrow viewports fall back to it whenever the board is selected, and the
+  // toggle goes away rather than offering a choice that would make the page
+  // worse. Grid is unaffected — its columns already collapse to one on a
+  // narrow screen, which is just the list with cards instead of rows. The
+  // stored preference is untouched, so the board comes back on the desktop it
+  // was chosen on.
+  const effectiveView: View = view === "board" && isMobile ? "list" : view;
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["applications"],
@@ -221,6 +213,20 @@ function ApplicationsPage() {
     () => filterApplications(apps, filters).sort((a, b) => Number(b.priority) - Number(a.priority)),
     [apps, filters],
   );
+
+  // The board drops rejected/withdrawn entirely rather than showing them, so
+  // it needs a way back to them that isn't "switch to list and remember which
+  // two statuses to check". This count — and the link built from it below —
+  // is that way back; it respects whatever filters are already active, same
+  // as the board itself does.
+  const closedCount = useMemo(
+    () => visibleApps.filter((a) => CLOSED_STATUSES.includes(a.status)).length,
+    [visibleApps],
+  );
+  const viewClosedApplications = () => {
+    setView("list");
+    patchFilters({ status: [...CLOSED_STATUSES] });
+  };
 
   const create = useMutation({
     mutationFn: async (values: z.infer<typeof appWithTaskSchema>) => {
@@ -477,6 +483,9 @@ function ApplicationsPage() {
               <ToggleGroupItem value="list" aria-label="List view" size="sm">
                 <List className="h-4 w-4" />
               </ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grid view" size="sm">
+                <LayoutGrid className="h-4 w-4" />
+              </ToggleGroupItem>
               <ToggleGroupItem value="board" aria-label="Board view" size="sm">
                 <Columns3 className="h-4 w-4" />
               </ToggleGroupItem>
@@ -699,12 +708,40 @@ function ApplicationsPage() {
                 />
               ))}
             </div>
+          ) : effectiveView === "grid" ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleApps.map((a) => (
+                <ApplicationCard
+                  key={a.id}
+                  app={a}
+                  variant="grid"
+                  onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
+                />
+              ))}
+            </div>
           ) : (
-            <ApplicationBoard
-              apps={visibleApps}
-              onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
-              onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
-            />
+            <>
+              {/* The board never shows rejected or withdrawn, so this is the
+                  only trace of them while the board is on screen — a count and
+                  a way back, not a place to browse them from. */}
+              {closedCount > 0 && (
+                <div className="mb-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={viewClosedApplications}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
+                    Closed <span className="tabular-nums">{closedCount}</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+              <ApplicationBoard
+                apps={visibleApps}
+                onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+                onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
+              />
+            </>
           )}
         </>
       )}
