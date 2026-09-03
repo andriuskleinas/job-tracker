@@ -1,5 +1,7 @@
 # Job Tracker
 
+![Job Tracker](public/og-image.png)
+
 Your whole job search in one place: applications, follow-ups, and interview
 momentum, tracked in a dashboard instead of a spreadsheet.
 
@@ -40,8 +42,8 @@ tedious parts (capturing a posting, remembering to follow up) automated away.
 Requires [Bun](https://bun.sh).
 
 ```sh
-git clone https://github.com/andriuskleinas/job-tracker-web.git
-cd job-tracker-web
+git clone https://github.com/andriuskleinas/job-tracker.git
+cd job-tracker
 bun install
 bun run dev
 ```
