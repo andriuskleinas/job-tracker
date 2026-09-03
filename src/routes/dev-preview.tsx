@@ -301,7 +301,7 @@ function DevPreview() {
             setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, status } : c)))
           }
         />
-        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationArchive</h2>
+        <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>
         <ApplicationArchive
           apps={cards.filter((c) => CLOSED_STATUSES.includes(c.status))}
           onTogglePriority={() => {}}

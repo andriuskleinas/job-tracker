@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   pointerWithin,
   useDraggable,
   useDroppable,
@@ -251,7 +252,23 @@ export function ApplicationBoard({
 
   // A card is also a link. Without a distance threshold every click would
   // begin a drag and no card would ever open.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  //
+  // MouseSensor + TouchSensor rather than PointerSensor: dnd-kit's own
+  // issue tracker has multiple reports of PointerSensor silently failing to
+  // start a drag when the draggable node's content includes an anchor —
+  // exactly this card's shape, a `<Link>` wrapping everything. Reproduced it
+  // directly: identical geometry, identical sequence of events, and the
+  // drag would register on some cards and silently no-op on others with no
+  // error anywhere. MouseSensor listens to native mouse events instead of
+  // the Pointer Events compatibility layer PointerSensor depends on, which
+  // is the older and more battle-tested of the two for exactly this case.
+  // TouchSensor covers touchscreen laptops, which `useIsMobile`'s
+  // viewport-width check does not — a wide-screen device can still be
+  // driven by touch.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+  );
 
   // Grouped over the four pipeline statuses only. A closed application in
   // `apps` simply has nowhere to land here — that omission is the whole

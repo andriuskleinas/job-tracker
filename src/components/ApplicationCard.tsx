@@ -8,9 +8,9 @@ import {
   Building2,
   Clock,
   Clock3,
+  EllipsisVertical,
   Globe,
   ListChecks,
-  MoveRight,
   Star,
   StickyNote,
   TriangleAlert,
@@ -118,14 +118,20 @@ const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
  * Salary is the one a user scans for, so it carries the foreground weight the
  * location pill doesn't.
  *
- * `compact` is the board's dialect of this row: the place chip drops the
+ * Two fixed rows everywhere this renders — list, grid, and board alike —
+ * rather than one `flex-wrap` row left to break wherever the card happens to
+ * run out of width. A wrap point is a layout accident, not a decision, and
+ * which chip ends up next to which one told a different story on every card
+ * depending on how long the company name was that day. Top row is place and
+ * how far away it is; bottom row is how the role is worked and what it pays,
+ * in that order — how a role is worked is the faster read, and the number is
+ * what a person actually stops to compare.
+ *
+ * `compact` is the board's dialect of the place chip only: it drops the
  * spelled-out country in favour of the flag that is already sitting there
  * doing that job — city alone, falling back to the country name only when
  * there is no city to show instead, so the chip never renders as a bare flag
- * with nothing beside it. It also splits the four chips onto two fixed rows
- * — place with the timezone offset, salary with how the role is worked —
- * rather than one `flex-wrap` row left to break wherever the column happens
- * to run out of width.
+ * with nothing beside it.
  */
 function LocationRow({ app, compact = false }: { app: ApplicationCardData; compact?: boolean }) {
   const userZone = useUserZone();
@@ -181,33 +187,23 @@ function LocationRow({ app, compact = false }: { app: ApplicationCardData; compa
     </span>
   );
 
-  if (compact) {
-    const topRow = placeChip || apartChip;
-    const bottomRow = jobTypeChip || salaryChip;
-    return (
-      <div className="flex flex-col gap-1.5">
-        {topRow && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {placeChip}
-            {apartChip}
-          </div>
-        )}
-        {bottomRow && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {jobTypeChip}
-            {salaryChip}
-          </div>
-        )}
-      </div>
-    );
-  }
+  const topRow = placeChip || apartChip;
+  const bottomRow = jobTypeChip || salaryChip;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {jobTypeChip}
-      {placeChip}
-      {salaryChip}
-      {apartChip}
+    <div className="flex flex-col gap-1.5">
+      {topRow && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {placeChip}
+          {apartChip}
+        </div>
+      )}
+      {bottomRow && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {jobTypeChip}
+          {salaryChip}
+        </div>
+      )}
     </div>
   );
 }
@@ -369,6 +365,10 @@ function AppStar({
  * a fallback bolted on for compliance — for a long column it is quicker than
  * dragging a card three screens sideways, and it is the only route that names
  * the destination out loud before you commit to it.
+ *
+ * The icon is a kebab, not an arrow — the whole card is already the link to
+ * the detail page, so a mark that reads as "go to" would duplicate that and
+ * mislead about what this one actually does, which is open a menu in place.
  */
 function MoveMenu({
   app,
@@ -392,7 +392,7 @@ function MoveMenu({
           aria-label={`Move ${app.position} at ${app.company} to another status`}
           className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
-          <MoveRight className="h-4 w-4" />
+          <EllipsisVertical className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
