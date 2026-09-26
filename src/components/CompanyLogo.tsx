@@ -64,7 +64,7 @@ export function CompanyLogo({
           onLoad={(e) => {
             // A domain with no real favicon comes back as a 16px generic globe —
             // treat only that (not a smaller-but-real mark) as a miss.
-            if (e.currentTarget.naturalWidth <= GENERIC_FAVICON_SIZE) setFailed(true);
+            if (e.currentTarget.naturalWidth === GENERIC_FAVICON_SIZE) setFailed(true);
           }}
         />
       ) : (
