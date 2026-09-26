@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { faviconUrl, GENERIC_FAVICON_SIZE } from "@/lib/company-logo";
+import { faviconUrl, GENERIC_FAVICON_SIZE, siteIconUrl } from "@/lib/company-logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -36,9 +36,11 @@ export function CompanyLogo({
   dim?: boolean;
   className?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const url = faviconUrl(website);
-  const showImg = !!url && !failed;
+  // 0 = Google's favicon service, 1 = the site's own declared icon, 2 = monogram.
+  const [attempt, setAttempt] = useState(0);
+  const url = attempt === 0 ? faviconUrl(website) : attempt === 1 ? siteIconUrl(website) : null;
+  const showImg = !!url;
+  const next = () => setAttempt((a) => a + 1);
   const initial = company.trim().charAt(0).toUpperCase() || "?";
   const { box, px } = SIZES[size];
 
@@ -54,17 +56,19 @@ export function CompanyLogo({
     >
       {showImg ? (
         <img
+          key={url}
           src={url}
           alt=""
           width={px}
           height={px}
           loading="lazy"
           className="h-full w-full object-contain p-1"
-          onError={() => setFailed(true)}
+          onError={next}
           onLoad={(e) => {
-            // A domain with no real favicon comes back as a 16px generic globe —
-            // treat only that (not a smaller-but-real mark) as a miss.
-            if (e.currentTarget.naturalWidth === GENERIC_FAVICON_SIZE) setFailed(true);
+            // A domain Google has no favicon for comes back as a 16px generic
+            // globe — treat only that (not a smaller-but-real mark) as a miss.
+            // The site's own icon is taken at any size.
+            if (attempt === 0 && e.currentTarget.naturalWidth === GENERIC_FAVICON_SIZE) next();
           }}
         />
       ) : (

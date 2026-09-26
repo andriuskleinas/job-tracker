@@ -33,3 +33,12 @@ export function faviconUrl(website: string | null | undefined): string | null {
   const domain = domainFromWebsite(website);
   return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=${LOGO_SIZE}` : null;
 }
+
+/**
+ * Second try when Google has no favicon: our `/logo` endpoint reads the site's
+ * own `<link rel="icon">` and redirects to it (see company-logo.server.ts).
+ */
+export function siteIconUrl(website: string | null | undefined): string | null {
+  const domain = domainFromWebsite(website);
+  return domain ? `/logo?domain=${encodeURIComponent(domain)}` : null;
+}

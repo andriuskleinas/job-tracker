@@ -75,6 +75,12 @@ export default {
         }
       }
 
+      // Company-logo fallback for sites Google's favicon service doesn't index.
+      if (pathname === "/logo") {
+        const { handleLogo } = await import("./lib/company-logo.server");
+        return await handleLogo(request);
+      }
+
       if (pathname.startsWith("/calendar/google/")) {
         const google = await import("./lib/google-calendar.server");
         switch (pathname) {
