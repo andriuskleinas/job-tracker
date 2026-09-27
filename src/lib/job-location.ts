@@ -1,11 +1,8 @@
 /**
  * Job type + location model shared by the application forms and the board.
  *
- * A role is worked one of three ways, and each carries a different rule about
- * where it's based:
- *   remote  — location optional (the whole point is it's anywhere)
- *   hybrid  — a base office exists, so city + country are required
- *   onsite  — same, city + country required
+ * A role is worked one of three ways — remote, hybrid or on-site. Location is
+ * always optional, so a role can be saved with just a company and position.
  *
  * The city picker is the primary control: pick a city and its country fills in
  * automatically. Country stays independently selectable for remote roles where
@@ -15,27 +12,21 @@
 export const JOB_TYPES = ["remote", "hybrid", "onsite"] as const;
 export type JobType = (typeof JOB_TYPES)[number];
 
-export const JOB_TYPE_META: Record<
-  JobType,
-  { label: string; short: string; hint: string; locationRequired: boolean }
-> = {
+export const JOB_TYPE_META: Record<JobType, { label: string; short: string; hint: string }> = {
   remote: {
     label: "Fully remote",
     short: "Remote",
     hint: "Worked from anywhere — location is optional.",
-    locationRequired: false,
   },
   hybrid: {
     label: "Hybrid",
     short: "Hybrid",
-    hint: "Split between home and an office — city and country are required.",
-    locationRequired: true,
+    hint: "Split between home and an office.",
   },
   onsite: {
     label: "On-site",
     short: "On-site",
-    hint: "Based at an office — city and country are required.",
-    locationRequired: true,
+    hint: "Based at an office.",
   },
 };
 

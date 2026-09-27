@@ -38,9 +38,8 @@ const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
  * Job type + location block shared by the New application dialog and the edit
  * page. Fully controlled: it owns no persistence, just surfaces changes.
  *
- * The city picker leads — choosing a city sets its country automatically — and
- * a required marker appears on city/country only when the job type needs a
- * base (hybrid or on-site). Remote roles keep both fields optional.
+ * The city picker leads — choosing a city sets its country automatically.
+ * Both fields are optional for every job type.
  */
 export function LocationFields({
   value,
@@ -49,8 +48,6 @@ export function LocationFields({
   value: LocationValue;
   onChange: (v: LocationValue) => void;
 }) {
-  const required = value.job_type ? JOB_TYPE_META[value.job_type].locationRequired : false;
-
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <div className="space-y-2">
@@ -86,12 +83,7 @@ export function LocationFields({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>
-            City{" "}
-            {required ? (
-              <span className="text-brand-accent">*</span>
-            ) : (
-              <span className="font-normal text-muted-foreground">(optional)</span>
-            )}
+            City <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <CityCombobox
             value={value.city}
@@ -101,12 +93,7 @@ export function LocationFields({
         </div>
         <div className="space-y-2">
           <Label>
-            Country{" "}
-            {required ? (
-              <span className="text-brand-accent">*</span>
-            ) : (
-              <span className="font-normal text-muted-foreground">(optional)</span>
-            )}
+            Country <span className="font-normal text-muted-foreground">(optional)</span>
           </Label>
           <CountryCombobox
             value={value.country}

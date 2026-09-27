@@ -63,36 +63,18 @@ export const Route = createFileRoute("/_authenticated/applications/$id")({
   component: AppDetail,
 });
 
-const editSchema = z
-  .object({
-    company: z.string().trim().min(1).max(120),
-    position: z.string().trim().min(1).max(120),
-    status: z.enum(STATUSES, { errorMap: () => ({ message: "Select application status" }) }),
-    application_date: z.string().min(1),
-    website: z.string().trim().max(255).optional().or(z.literal("")),
-    notes: z.string().max(2000).optional().or(z.literal("")),
-    job_type: z.enum(JOB_TYPES).or(z.literal("")).optional(),
-    country: z.string().trim().max(120).optional().or(z.literal("")),
-    city: z.string().trim().max(120).optional().or(z.literal("")),
-    time_zone: z.string().trim().max(64).optional().or(z.literal("")),
-  })
-  // On-site and hybrid roles need a physical base; remote leaves it optional.
-  .superRefine((val, ctx) => {
-    if (val.job_type === "onsite" || val.job_type === "hybrid") {
-      if (!val.city?.trim())
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["city"],
-          message: "City is required for on-site and hybrid roles",
-        });
-      if (!val.country?.trim())
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["country"],
-          message: "Country is required for on-site and hybrid roles",
-        });
-    }
-  });
+const editSchema = z.object({
+  company: z.string().trim().min(1).max(120),
+  position: z.string().trim().min(1).max(120),
+  status: z.enum(STATUSES, { errorMap: () => ({ message: "Select application status" }) }),
+  application_date: z.string().min(1),
+  website: z.string().trim().max(255).optional().or(z.literal("")),
+  notes: z.string().max(2000).optional().or(z.literal("")),
+  job_type: z.enum(JOB_TYPES).or(z.literal("")).optional(),
+  country: z.string().trim().max(120).optional().or(z.literal("")),
+  city: z.string().trim().max(120).optional().or(z.literal("")),
+  time_zone: z.string().trim().max(64).optional().or(z.literal("")),
+});
 
 type DetailTask = {
   id: string;

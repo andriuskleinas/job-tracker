@@ -115,38 +115,19 @@ const appBase = z.object({
   city: z.string().trim().max(120).optional().or(z.literal("")),
 });
 
-// On-site and hybrid roles have a physical base, so both city and country are
-// mandatory; fully remote roles leave them optional.
-const requireLocation = (val: z.infer<typeof appBase>, ctx: z.RefinementCtx) => {
-  if (val.job_type === "onsite" || val.job_type === "hybrid") {
-    if (!val.city?.trim())
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["city"],
-        message: "City is required for on-site and hybrid roles",
-      });
-    if (!val.country?.trim())
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["country"],
-        message: "Country is required for on-site and hybrid roles",
-      });
-  }
-};
-
-const appSchema = appBase.superRefine(requireLocation);
+// Only company and position are required — location, website, notes and the
+// job ad are all optional, so a role can be logged in a few seconds.
+const appSchema = appBase;
 
 /** One CSV row: the application itself plus its job-ad block. */
 type ImportRow = { app: z.infer<typeof appSchema>; ad: JobAdValue };
 
 // The New application dialog can also seed a first follow-up task, linked to the
 // application that gets created. Both task fields are optional.
-const appWithTaskSchema = appBase
-  .extend({
-    task_title: z.string().trim().max(200, "Task title must be 200 characters or fewer").optional(),
-    task_due_date: z.string().optional(),
-  })
-  .superRefine(requireLocation);
+const appWithTaskSchema = appBase.extend({
+  task_title: z.string().trim().max(200, "Task title must be 200 characters or fewer").optional(),
+  task_due_date: z.string().optional(),
+});
 
 function ApplicationsPage() {
   const queryClient = useQueryClient();
@@ -541,18 +522,21 @@ function ApplicationsPage() {
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    // Fields inside the collapsed "job ad, salary & notes" section aren't in the
+    // DOM, so FormData returns null for them — read those as empty, not invalid.
+    const field = (name: string) => (fd.get(name) as string | null) ?? "";
     const parsed = appWithTaskSchema.safeParse({
-      company: fd.get("company"),
-      position: fd.get("position"),
-      status: fd.get("status"),
-      application_date: fd.get("application_date"),
-      website: fd.get("website"),
-      notes: fd.get("notes"),
+      company: field("company"),
+      position: field("position"),
+      status: field("status"),
+      application_date: field("application_date"),
+      website: field("website"),
+      notes: field("notes"),
       job_type: location.job_type,
       country: location.country,
       city: location.city,
-      task_title: fd.get("task_title"),
-      task_due_date: fd.get("task_due_date"),
+      task_title: field("task_title"),
+      task_due_date: field("task_due_date"),
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message);
