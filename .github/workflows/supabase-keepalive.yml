@@ -6,8 +6,11 @@ on:
     # auto-pause threshold even if a run is skipped or delayed; the previous
     # every-5-days schedule still let the project get paused (see git log),
     # possibly because the identical repeated GET was served from a CDN/edge
-    # cache instead of reaching the Supabase backend, so a cache-busting
-    # param and no-cache headers were added below too.
+    # cache instead of reaching the Supabase backend, so no-cache headers
+    # were added below too. The REST ping takes no cache-busting param:
+    # PostgREST parses unknown query params as column filters and returns
+    # 400 (PGRST100); its responses are not edge-cached (cf-cache-status:
+    # DYNAMIC) anyway.
     - cron: "17 9 */3 * *"
   workflow_dispatch:
 
@@ -22,7 +25,7 @@ jobs:
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
             -H "Cache-Control: no-cache, no-store" \
             -H "Pragma: no-cache" \
-            "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1&_cb=$(date +%s)-${GITHUB_RUN_ID}"
+            "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1"
         env:
           SUPABASE_URL: https://ojhxziejichxbubmdxdb.supabase.co
           SUPABASE_ANON_KEY: sb_publishable_WmrrRztiCjckh4yU3EtQbw_LUlokhe_
