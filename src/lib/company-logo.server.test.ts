@@ -25,7 +25,14 @@ describe("isPublicHostname", () => {
   });
 
   test("rejects IPs, localhost and single-label hosts", () => {
-    for (const d of ["127.0.0.1", "169.254.169.254", "localhost", "intranet", "a.localhost", "x.com:8080"]) {
+    for (const d of [
+      "127.0.0.1",
+      "169.254.169.254",
+      "localhost",
+      "intranet",
+      "a.localhost",
+      "x.com:8080",
+    ]) {
       expect(isPublicHostname(d)).toBe(false);
     }
   });

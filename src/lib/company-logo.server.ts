@@ -38,7 +38,8 @@ export function pickIconHref(html: string): string | null {
     const href = attr(tag, "href");
     if (!rel || !href) continue;
     const rels = rel.split(/\s+/);
-    const isTouch = rels.includes("apple-touch-icon") || rels.includes("apple-touch-icon-precomposed");
+    const isTouch =
+      rels.includes("apple-touch-icon") || rels.includes("apple-touch-icon-precomposed");
     if (!isTouch && !rels.includes("icon")) continue;
     const sizes = attr(tag, "sizes") ?? "";
     const size = Math.max(0, ...[...sizes.matchAll(/(\d+)x\d+/gi)].map((m) => Number(m[1])));
@@ -78,7 +79,10 @@ async function readCapped(res: Response): Promise<string> {
 
 async function findIconUrl(domain: string): Promise<string | null> {
   const res = await fetch(`https://${domain}/`, {
-    headers: { "user-agent": "Mozilla/5.0 (compatible; JobTrackerLogoBot/1.0)", accept: "text/html" },
+    headers: {
+      "user-agent": "Mozilla/5.0 (compatible; JobTrackerLogoBot/1.0)",
+      accept: "text/html",
+    },
     redirect: "follow",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
