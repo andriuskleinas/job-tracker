@@ -27,7 +27,17 @@ export default defineConfig(async ({ command }): Promise<UserConfig> => {
   // a `.vercel/output` Build Output API directory that Vercel deploys directly.
   if (command === "build") {
     const { nitro } = await import("nitro/vite");
-    plugins.push(nitro({ preset: "vercel" }));
+    plugins.push(
+      nitro({
+        preset: "vercel",
+        // Crons go in the Build Output config, since Vercel deploys .vercel/output
+        // as-is. The daily keepalive backs up the GitHub Action, which GitHub turns
+        // off after 60 days with no repo activity (src/lib/keepalive.server.ts).
+        vercel: {
+          config: { version: 3, crons: [{ path: "/cron/keepalive", schedule: "43 6 * * *" }] },
+        },
+      }),
+    );
   }
 
   // React plugin must come after tanstackStart.

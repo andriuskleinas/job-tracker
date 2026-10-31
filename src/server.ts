@@ -81,6 +81,12 @@ export default {
         return await handleLogo(request);
       }
 
+      // Daily Supabase keepalive, called by the Vercel cron in vercel.json.
+      if (pathname === "/cron/keepalive") {
+        const { handleKeepalive } = await import("./lib/keepalive.server");
+        return await handleKeepalive(request);
+      }
+
       if (pathname.startsWith("/calendar/google/")) {
         const google = await import("./lib/google-calendar.server");
         switch (pathname) {
