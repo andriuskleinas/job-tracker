@@ -193,6 +193,8 @@ function ApplicationsPage() {
     subject: string;
     initial: RejectionReason;
     commit: (reason: RejectionReason | null) => void;
+    /** False when only editing a reason — there is no move to skip ahead to. */
+    skippable: boolean;
   } | null>(null);
   const isMobile = useIsMobile();
 
@@ -325,6 +327,7 @@ function ApplicationsPage() {
           subject: `${values.position} at ${values.company}`,
           initial: EMPTY_REJECTION,
           commit: (reason) => reason && saveRejection.mutate({ aid: appId, reason }),
+          skippable: true,
         });
       }
     },
@@ -501,8 +504,17 @@ function ApplicationsPage() {
       subject: `${app.position} at ${app.company}`,
       initial: rejectionFromRow(app),
       commit: (reason) => moveStatus.mutate({ app, status, reason: reason ?? undefined }),
+      skippable: true,
     });
   };
+
+  const editRejection = (app: ApplicationCardData) =>
+    setPendingRejection({
+      subject: `${app.position} at ${app.company}`,
+      initial: rejectionFromRow(app),
+      commit: (reason) => reason && saveRejection.mutate({ aid: app.id, reason }),
+      skippable: false,
+    });
 
   const handleFile = (file: File) => {
     setImportErrors([]);
@@ -956,6 +968,7 @@ function ApplicationsPage() {
             apps={archivedApps}
             onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
             onDelete={(a) => deleteApp.mutate(a.id)}
+            onEditRejection={editRejection}
           />
         </>
       )}
@@ -968,10 +981,14 @@ function ApplicationsPage() {
           pendingRejection?.commit(reason);
           setPendingRejection(null);
         }}
-        onSkip={() => {
-          pendingRejection?.commit(null);
-          setPendingRejection(null);
-        }}
+        onSkip={
+          pendingRejection?.skippable
+            ? () => {
+                pendingRejection.commit(null);
+                setPendingRejection(null);
+              }
+            : undefined
+        }
       />
     </main>
   );

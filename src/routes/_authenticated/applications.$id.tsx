@@ -52,7 +52,7 @@ import {
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
 import type { Database } from "@/integrations/supabase/types";
-import { ArrowLeft, Plus, Star, Trash2 } from "lucide-react";
+import { ArrowLeft, MessageSquareX, Pencil, Plus, Star, Trash2 } from "lucide-react";
 
 type ApplicationRow = Database["public"]["Tables"]["applications"]["Row"];
 
@@ -596,35 +596,53 @@ function DetailsCard({
  * on this card.
  */
 function RejectionSummary({ reason, onEdit }: { reason: RejectionReason; onEdit: () => void }) {
-  const has = hasRejectionReason(reason);
   const note = reason.note.trim();
+
+  // Nothing recorded yet: the whole box is the button, outlined and labelled
+  // as an action, so it can't be mistaken for a heading over empty space.
+  if (!hasRejectionReason(reason)) {
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        className="flex w-full items-center gap-3 rounded-lg border border-dashed border-[var(--status-rejected-text)]/40 p-3 text-left transition-colors hover:border-[var(--status-rejected-text)]/70 hover:bg-[var(--status-rejected-soft)]/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--status-rejected-soft)] text-[var(--status-rejected-text)]">
+          <Plus className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-medium">Add a rejection reason</span>
+          <span className="block text-xs text-muted-foreground">
+            Ghosted, auto-reply, didn't pass the interview… or your own words.
+          </span>
+        </span>
+      </button>
+    );
+  }
+
   return (
-    <div className="space-y-2 rounded-lg border border-dashed p-3">
+    <div className="space-y-2 rounded-lg bg-[var(--status-rejected-soft)]/40 p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">Rejection reason</p>
-        <Button type="button" variant="ghost" size="sm" className="-my-1" onClick={onEdit}>
-          {has ? "Edit" : "Add reason"}
+        <p className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--status-rejected-text)]">
+          <MessageSquareX className="h-4 w-4" /> Why it was rejected
+        </p>
+        <Button type="button" variant="outline" size="sm" className="-my-1" onClick={onEdit}>
+          <Pencil className="h-3.5 w-3.5" /> Edit
         </Button>
       </div>
-      {has ? (
-        <>
-          {reason.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {reason.tags.map((t) => (
-                <span
-                  key={t}
-                  className="inline-flex items-center rounded-full bg-[var(--status-rejected-soft)] px-2 py-0.5 text-xs text-[var(--status-rejected-text)]"
-                >
-                  {rejectionTagLabel(t)}
-                </span>
-              ))}
-            </div>
-          )}
-          {note && <p className="text-sm whitespace-pre-wrap text-muted-foreground">{note}</p>}
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">No reason recorded.</p>
+      {reason.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {reason.tags.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center rounded-full bg-[var(--status-rejected-soft)] px-2 py-0.5 text-xs font-medium text-[var(--status-rejected-text)]"
+            >
+              {rejectionTagLabel(t)}
+            </span>
+          ))}
+        </div>
       )}
+      {note && <p className="text-sm whitespace-pre-wrap text-foreground/80">{note}</p>}
     </div>
   );
 }

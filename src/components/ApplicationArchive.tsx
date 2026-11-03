@@ -19,10 +19,13 @@ export function ApplicationArchive({
   apps,
   onTogglePriority,
   onDelete,
+  onEditRejection,
 }: {
   apps: ApplicationCardData[];
   onTogglePriority: (app: ApplicationCardData, priority: boolean) => void;
   onDelete: (app: ApplicationCardData) => void;
+  /** Add or edit a rejected card's reason without leaving the list. */
+  onEditRejection?: (app: ApplicationCardData) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -52,6 +55,7 @@ export function ApplicationArchive({
               variant="list"
               onTogglePriority={(priority) => onTogglePriority(a, priority)}
               onDelete={() => onDelete(a)}
+              onEditRejection={onEditRejection && (() => onEditRejection(a))}
             />
           ))}
         </div>

@@ -366,6 +366,7 @@ function DevPreview() {
           apps={boardCards.filter((c) => CLOSED_STATUSES.includes(c.status))}
           onTogglePriority={() => {}}
           onDelete={() => {}}
+          onEditRejection={setRejecting}
         />
         <RejectionReasonDialog
           open={rejecting !== null}

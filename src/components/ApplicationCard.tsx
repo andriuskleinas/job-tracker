@@ -13,6 +13,9 @@ import {
   Globe,
   ListChecks,
   Star,
+  MessageSquareX,
+  Pencil,
+  Plus,
   StickyNote,
   Trash2,
   TriangleAlert,
@@ -281,31 +284,76 @@ function StalledPill() {
 }
 
 /**
- * Why it was rejected, on the archive card. Neutral chips rather than the red
- * tint — the badge beside the title already says "rejected" in red, and a row
- * of red chips under it would shout the one fact twice. The note is clamped to
- * two lines; the detail page has the rest.
+ * Why it was rejected, on the archive card — labelled, so it reads as the
+ * answer to a question rather than as two more metadata chips. Tags share the
+ * badge's red tint because they are the explanation of that badge; the note
+ * is clamped to two lines and the detail page has the rest.
+ *
+ * With no reason yet it becomes a visible "Add rejection reason" button
+ * instead of nothing, so the gap is noticed and fixable from the list.
  */
-function RejectionRow({ app }: { app: ApplicationCardData }) {
+function RejectionRow({ app, onEdit }: { app: ApplicationCardData; onEdit?: () => void }) {
   if (app.status !== "rejected") return null;
   const reason = rejectionFromRow(app);
-  if (!hasRejectionReason(reason)) return null;
+  const has = hasRejectionReason(reason);
+  if (!has && !onEdit) return null;
+
+  // Inside a Link and (on the board) a draggable card: claim neither.
+  const editProps = {
+    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+    onClick: (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onEdit?.();
+    },
+  };
+
+  if (!has) {
+    return (
+      <button
+        type="button"
+        {...editProps}
+        className="inline-flex w-fit items-center gap-1.5 rounded-full border border-dashed border-foreground/30 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-foreground/60 hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        <Plus className="h-3.5 w-3.5" /> Add rejection reason
+      </button>
+    );
+  }
+
   const note = reason.note.trim();
   return (
-    <div className="flex flex-col gap-1.5" aria-label="Rejection reason">
+    <div
+      className="flex flex-col gap-1.5 rounded-lg bg-[var(--status-rejected-soft)]/40 px-3 py-2"
+      aria-label="Rejection reason"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--status-rejected-text)]">
+          <MessageSquareX className="h-3.5 w-3.5" /> Why it was rejected
+        </span>
+        {onEdit && (
+          <button
+            type="button"
+            {...editProps}
+            aria-label={`Edit rejection reason for ${app.position} at ${app.company}`}
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <Pencil className="h-3 w-3" /> Edit
+          </button>
+        )}
+      </div>
       {reason.tags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {reason.tags.map((t) => (
             <span
               key={t}
-              className="inline-flex items-center rounded-full border bg-background px-2 py-0.5 text-xs text-muted-foreground"
+              className="inline-flex items-center rounded-full bg-[var(--status-rejected-soft)] px-2 py-0.5 text-xs font-medium text-[var(--status-rejected-text)]"
             >
               {rejectionTagLabel(t)}
             </span>
           ))}
         </div>
       )}
-      {note && <p className="line-clamp-2 text-xs text-muted-foreground">“{note}”</p>}
+      {note && <p className="line-clamp-2 text-sm text-foreground/80">“{note}”</p>}
     </div>
   );
 }
@@ -503,6 +551,7 @@ export function ApplicationCard({
   onTogglePriority,
   onMoveTo,
   onDelete,
+  onEditRejection,
 }: {
   app: ApplicationCardData;
   variant: "list" | "grid" | "board";
@@ -510,6 +559,8 @@ export function ApplicationCard({
   /** Board only: change this application's status without opening it. */
   onMoveTo?: (status: Status) => void;
   onDelete: () => void;
+  /** Opens the rejection-reason prompt; rejected cards show an add/edit control when given. */
+  onEditRejection?: () => void;
 }) {
   const meta = deriveMeta(app);
   const dimTitle = meta.isClosed ? "text-muted-foreground" : "";
@@ -594,7 +645,7 @@ export function ApplicationCard({
             {rightCluster}
           </div>
           <LocationRow app={app} />
-          <RejectionRow app={app} />
+          <RejectionRow app={app} onEdit={onEditRejection} />
           <div className="mt-auto border-t pt-3">
             <CardMeta app={app} meta={meta} />
           </div>
@@ -616,7 +667,7 @@ export function ApplicationCard({
         </div>
         <div className="mt-3 space-y-2">
           <LocationRow app={app} />
-          <RejectionRow app={app} />
+          <RejectionRow app={app} onEdit={onEditRejection} />
           <CardMeta app={app} meta={meta} />
         </div>
       </Card>
