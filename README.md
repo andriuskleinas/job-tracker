@@ -48,7 +48,7 @@ extension, calendar integration and analytics.
 | 📈 | **Analytics** | Headline numbers, applications by status, stage reach from applied to offer, applications per week, median response times and date-range filters. |
 | 💬 | **Rejection reasons** | A rejection asks why, from common reasons or your own words. Analytics then shows the top reason and word clouds of what keeps coming up. |
 | ⏱️ | **Status history** | Every stage change is timestamped, so you know how long each company takes to respond. |
-| 🏳️‍🌈 | **Flag logo** | Wear your colours: switch your own Job Tracker logo (and browser-tab icon) to a pride flag or any of 120+ country and region flags. Only you see it. |
+| 🏳️‍🌈 | **Flag logo** | Wear your colours: switch your own Job Tracker logo (and browser-tab icon) to a pride flag, a movement flag such as Black Lives Matter or Pan-African, or any of 120+ country and region flags. Only you see it. |
 | 📥 | **CSV import** | Bring an existing spreadsheet in through a downloadable template. |
 | 🏢 | **Company logos** | Each card shows the company's icon, read from the site's declared favicon when Google's service has none. |
 
@@ -96,7 +96,7 @@ what's due. The priority role is outlined in gold.
 **Flag logo.** Every theme a user can pick for their own logo on the account page.
 
 <p align="center">
-  <img src="docs/screenshots/logo-themes.png" alt="Grid of logo tiles in pride and country flag colours" width="820">
+  <img src="docs/screenshots/logo-themes.png" alt="Grid of logo tiles in pride, movement and country flag colours" width="820">
 </p>
 
 <sub>Screenshots use the fixture data on the dev-only `/dev-preview` route, so every company and
