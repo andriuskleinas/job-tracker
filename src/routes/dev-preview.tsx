@@ -14,7 +14,7 @@ import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { TaskSummaryPanel } from "@/components/TaskSummaryPanel";
 import { DailyGoalTracker } from "@/components/DailyGoalTracker";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
-import { rejectionColumns, rejectionFromRow } from "@/lib/rejection";
+import { rejectionColumns, rejectionFromRow, type RejectionFields } from "@/lib/rejection";
 import { CLOSED_STATUSES } from "@/lib/status";
 import type { Status } from "@/lib/status";
 import type { StatsApplication, StatsStatusEvent } from "@/lib/stats";
@@ -52,12 +52,37 @@ const STATUS_CYCLE: Status[] = [
   "applied",
 ];
 
+// Cycled across the rejected rows so the rejection reasons card has a spread
+// of common and rare tags, a few notes, and one rejection with no reason.
+const REJECTION_SAMPLES: { tags: string[]; note: string | null }[] = [
+  { tags: ["ghosted"], note: null },
+  { tags: ["auto_reply"], note: "Generic email two days after applying" },
+  {
+    tags: ["failed_interview", "salary_mismatch"],
+    note: "Wanted more Go experience; salary band too low",
+  },
+  { tags: ["ghosted"], note: null },
+  { tags: [], note: null },
+  { tags: ["position_filled"], note: "Filled internally before the interview" },
+  { tags: ["ghosted", "auto_reply"], note: null },
+  { tags: ["salary_mismatch"], note: "Salary capped below my floor" },
+  { tags: ["underqualified"], note: "Wanted more years of Go and Kubernetes experience" },
+];
+
 // ~150 days of history so the weekly trend and monthly cohorts both fill.
-const apps: StatsApplication[] = Array.from({ length: 46 }, (_, i) => ({
-  id: `app-${i}`,
-  status: STATUS_CYCLE[i % STATUS_CYCLE.length],
-  application_date: iso(Math.floor((i * 150) / 46) + (i % 4)),
-}));
+const apps: (StatsApplication & RejectionFields)[] = Array.from({ length: 46 }, (_, i) => {
+  const status = STATUS_CYCLE[i % STATUS_CYCLE.length];
+  const sample = REJECTION_SAMPLES[i % REJECTION_SAMPLES.length];
+  return {
+    id: `app-${i}`,
+    status,
+    application_date: iso(Math.floor((i * 150) / 46) + (i % 4)),
+    ...(status === "rejected" && {
+      rejection_reason_tags: sample.tags,
+      rejection_note: sample.note,
+    }),
+  };
+});
 
 // Give the interviewed/offered ones a real transition pair so "Time to
 // interview" and "Stage reach" have something beyond current status.

@@ -37,6 +37,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { STATUSES, statusColor, statusFill, type Status } from "@/lib/status";
+import { summarizeRejections, type RejectionFields, type RejectionSummary } from "@/lib/rejection";
 import {
   appliedOnly,
   applicationTrend,
@@ -233,7 +234,7 @@ export function AnalyticsView({
   onPresetChange,
   onCustomChange,
 }: {
-  apps: StatsApplication[];
+  apps: (StatsApplication & Partial<RejectionFields>)[];
   tasks: StatsTask[];
   events?: StatsStatusEvent[];
   range?: RangePreset;
@@ -351,6 +352,7 @@ export function AnalyticsView({
     [periodApps, periodEvents],
   );
   const historySince = useMemo(() => historyStartedAt(periodEvents), [periodEvents]);
+  const rejections = useMemo(() => summarizeRejections(periodApps), [periodApps]);
 
   const periodLabel = rangeLabel(range, from, to);
   const priorLabel = priorRangeLabel(range, from, to);
@@ -736,6 +738,8 @@ export function AnalyticsView({
           </CardContent>
         </Card>
       </section>
+
+      <RejectionReasons summary={rejections} periodLabel={periodLabel} />
     </main>
   );
 }
@@ -928,6 +932,137 @@ function ResponseTimeStat({
           <p className="text-2xl font-semibold text-muted-foreground">—</p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Why rejections happened, as two clouds rather than a chart: the tags you
+ * picked, and the words that recur in the notes you wrote.
+ *
+ * Size carries the frequency, but never alone — every tag also prints its
+ * count, so the cloud reads correctly for someone who can't judge type size
+ * and still survives a screenshot. Tags wear the rejected status colour,
+ * deeper for the common ones; note words stay in text ink so the two clouds
+ * read as the structured answer and the free-form one.
+ *
+ * Sorted, not scattered: a real word cloud places words randomly, which is
+ * pretty and impossible to scan. Largest-first in a centred wrap keeps the
+ * shape and puts the answer where the eye starts.
+ */
+function RejectionReasons({
+  summary,
+  periodLabel,
+}: {
+  summary: RejectionSummary;
+  periodLabel: string;
+}) {
+  const { rejected, withReason, tags, words } = summary;
+  const missing = rejected - withReason;
+
+  return (
+    <Card className="mt-4">
+      <CardHeader>
+        <CardTitle className="text-base">Rejection reasons</CardTitle>
+        <CardDescription>
+          {rejected === 0
+            ? `No rejections from ${periodLabel}.`
+            : withReason === 0
+              ? `None of the ${rejected} rejection${rejected === 1 ? "" : "s"} from ${periodLabel} has a reason yet — add one from a rejected application's card menu.`
+              : `From ${withReason} of ${rejected} rejection${rejected === 1 ? "" : "s"} in ${periodLabel}${missing > 0 ? ` — ${missing} without a reason` : ""}. Bigger means more common.`}
+        </CardDescription>
+      </CardHeader>
+      {withReason > 0 && (
+        <CardContent className="grid gap-6 lg:grid-cols-2 lg:gap-0 lg:divide-x">
+          <ReasonCloud
+            title="Reasons you picked"
+            empty="No tags picked yet."
+            items={tags.map((t) => ({ key: t.key, text: t.label, count: t.count }))}
+            variant="tag"
+          />
+          <ReasonCloud
+            title="In your own words"
+            empty="No notes written yet."
+            items={words.map((w) => ({ key: w.word, text: w.word, count: w.count }))}
+            variant="word"
+          />
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function ReasonCloud({
+  title,
+  empty,
+  items,
+  variant,
+}: {
+  title: string;
+  empty: string;
+  items: { key: string; text: string; count: number }[];
+  variant: "tag" | "word";
+}) {
+  const max = Math.max(1, ...items.map((i) => i.count));
+  const min = Math.min(max, ...items.map((i) => i.count));
+  // 0 for the rarest item, 1 for the most common. With every count equal the
+  // cloud renders at its middle size rather than all-large or all-small.
+  const weight = (count: number) => (max === min ? 0.5 : (count - min) / (max - min));
+  const [smallRem, largeRem] = variant === "tag" ? [0.875, 1.625] : [0.8125, 1.5];
+
+  return (
+    <div className="min-w-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
+      <p className="mb-3 text-sm font-medium">{title}</p>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2 py-2">
+          {items.map((item) => {
+            const w = weight(item.count);
+            const label = `${item.text}: ${item.count} rejection${item.count === 1 ? "" : "s"}`;
+            return (
+              <li
+                key={item.key}
+                aria-label={label}
+                title={label}
+                style={{
+                  fontSize: `${smallRem + (largeRem - smallRem) * w}rem`,
+                  // The wash deepens with frequency, from a hint to the full
+                  // soft tint the rejection chips elsewhere wear.
+                  background:
+                    variant === "tag"
+                      ? `color-mix(in oklch, var(--status-rejected-soft) ${Math.round(45 + 55 * w)}%, transparent)`
+                      : undefined,
+                }}
+                className={
+                  variant === "tag"
+                    ? "inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 leading-tight text-[var(--status-rejected-text)]"
+                    : "inline-flex items-baseline gap-1 leading-tight"
+                }
+              >
+                <span
+                  className={
+                    variant === "word"
+                      ? w > 0.5
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                      : ""
+                  }
+                  style={{ fontWeight: Math.round(400 + 200 * w) }}
+                >
+                  {item.text}
+                </span>
+                <span
+                  className="text-xs font-normal tabular-nums text-muted-foreground"
+                  aria-hidden
+                >
+                  {item.count}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
