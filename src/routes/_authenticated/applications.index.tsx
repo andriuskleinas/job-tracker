@@ -683,7 +683,12 @@ function ApplicationsPage() {
   };
 
   return (
-    <main className={`container-page page-body ${tasksPanelOpen ? "xl:max-w-[92rem]" : ""}`}>
+    // data-wide lets the navbar widen with the page (see styles.css), so its
+    // right edge stays in line with the toolbar below it.
+    <main
+      data-wide={tasksPanelOpen || undefined}
+      className={`container-page page-body ${tasksPanelOpen ? "xl:max-w-[92rem]" : ""}`}
+    >
       <PageHeader
         title="Applications"
         count={isLoading ? undefined : filtersActive ? visibleApps.length : apps.length}

@@ -304,6 +304,17 @@
   }
 }
 
+/*
+ * A page that widens past container-page (the applications page with its
+ * tasks panel open) marks its <main> with data-wide; the header follows, so
+ * the nav's right edge stays in line with the page's own.
+ */
+@media (width >= 80rem) {
+  :root:has(main[data-wide]) header > .container-page {
+    max-width: 92rem;
+  }
+}
+
 @utility container-narrow {
   margin-inline: auto;
   width: 100%;
