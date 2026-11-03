@@ -1,10 +1,8 @@
-import { useState, type ReactNode } from "react";
-import { useMemo } from "react";
-import { Blend, Building2, Globe, ListFilter, Search, SlidersHorizontal, X } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { Blend, Building2, Globe, Search, SlidersHorizontal, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox, type ComboboxOption } from "@/components/Combobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -16,107 +14,21 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { statusColor } from "@/lib/status";
+import { BOARD_COLUMNS, CLOSED_STATUSES, statusFill, statusLabel, type Status } from "@/lib/status";
 import { flagForCountry, JOB_TYPE_META, type JobType } from "@/lib/job-location";
 import {
-  activeFilterCount,
   availableCities,
   availableCountries,
   availableJobTypes,
+  filterApplications,
   hasActiveFilters,
-  STATUS_ORDER,
   type ApplicationFilters as Filters,
 } from "@/lib/application-filters";
 import type { ApplicationCardData } from "@/components/ApplicationCard";
 import { cn } from "@/lib/utils";
 
-/** Multi-select status control: a popover of coloured checkboxes. Five states,
- * so no search — just tap the ones you want. The trigger carries a count.
- * `fullWidth` stretches it for the stacked mobile sheet. */
-function StatusFilter({
-  value,
-  onChange,
-  fullWidth,
-}: {
-  value: Filters["status"];
-  onChange: (next: Filters["status"]) => void;
-  fullWidth?: boolean;
-}) {
-  const toggle = (s: (typeof STATUS_ORDER)[number]) =>
-    onChange(value.includes(s) ? value.filter((x) => x !== s) : [...value, s]);
-
-  const label =
-    value.length === 0 ? "Status" : value.length === 1 ? value[0] : `${value.length} statuses`;
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "h-9 gap-2 font-normal",
-            // Inline: hug the label like a chip. Stacked (mobile sheet):
-            // full width with the count pushed to the right edge.
-            fullWidth ? "w-full justify-between" : "",
-            value.length > 0 && "border-brand/50",
-          )}
-        >
-          <span
-            className={cn(
-              "flex items-center gap-2 truncate",
-              value.length === 0 && "text-muted-foreground",
-            )}
-          >
-            <ListFilter className="h-4 w-4 shrink-0 opacity-60" />
-            <span className="truncate capitalize">{label}</span>
-          </span>
-          {value.length > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand/15 px-1.5 text-xs font-medium tabular-nums text-brand-accent">
-              {value.length}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 p-1.5">
-        {STATUS_ORDER.map((s) => {
-          const checked = value.includes(s);
-          return (
-            <button
-              key={s}
-              type="button"
-              onClick={() => toggle(s)}
-              className="flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            >
-              <Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
-              <span
-                className={cn(
-                  // `border` is required, not decorative: statusColor gives
-                  // `applied` a coloured edge and the other four a transparent
-                  // one, so without a border width here the ink badge silently
-                  // loses the channel that separates it from `withdrawn`.
-                  // Every chip carries the 1px so they stay the same size.
-                  "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium capitalize",
-                  statusColor[s],
-                )}
-              >
-                {s}
-              </span>
-            </button>
-          );
-        })}
-        {value.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            className="mt-1 flex w-full items-center gap-1.5 border-t px-2 pb-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" /> Clear statuses
-          </button>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
+/** The search box's id, so the page's `/` shortcut can focus it. */
+export const SEARCH_INPUT_ID = "applications-search";
 
 const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
   remote: Globe,
@@ -124,107 +36,81 @@ const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
   onsite: Building2,
 };
 
-/** Multi-select job-type control, mirroring {@link StatusFilter}. Only the
- * types present in the data are offered, each with its board icon + label. */
-function JobTypeFilter({
-  options,
+/**
+ * The pipeline as a row of tabs, each with its count — the one filter people
+ * reach for constantly, so it is always on screen rather than inside a menu,
+ * and the counts double as an at-a-glance summary of where the search stands.
+ *
+ * Only the live statuses get a tab; rejected and withdrawn have their own home
+ * in the archive below. Counts honour every other active filter, so a number
+ * always says exactly what clicking it will show.
+ */
+function StatusTabs({
+  apps,
   value,
   onChange,
-  fullWidth,
 }: {
-  options: JobType[];
-  value: Filters["jobType"];
-  onChange: (next: Filters["jobType"]) => void;
-  fullWidth?: boolean;
+  apps: ApplicationCardData[];
+  value: Filters;
+  onChange: (status: Status[]) => void;
 }) {
-  const toggle = (t: JobType) =>
-    onChange(value.includes(t) ? value.filter((x) => x !== t) : [...value, t]);
+  const counts = useMemo(() => {
+    const live = filterApplications(apps, { ...value, status: [] }).filter(
+      (a) => !CLOSED_STATUSES.includes(a.status),
+    );
+    const by = new Map<Status | "all", number>([["all", live.length]]);
+    for (const a of live) by.set(a.status, (by.get(a.status) ?? 0) + 1);
+    return by;
+  }, [apps, value]);
 
-  const label =
-    value.length === 0
-      ? "Job type"
-      : value.length === 1
-        ? JOB_TYPE_META[value[0]].short
-        : `${value.length} types`;
+  // A hand-edited URL can hold several statuses at once; then no tab is lit.
+  const active =
+    value.status.length === 0 ? "all" : value.status.length === 1 ? value.status[0] : null;
+  const tabs: (Status | "all")[] = ["all", ...BOARD_COLUMNS];
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "h-9 gap-2 font-normal",
-            fullWidth ? "w-full justify-between" : "",
-            value.length > 0 && "border-brand/50",
-          )}
-        >
-          <span
+    <div
+      role="group"
+      aria-label="Filter by status"
+      className="-mx-1 flex min-w-0 items-center gap-1 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]"
+    >
+      {tabs.map((tab) => {
+        const selected = active === tab;
+        const count = counts.get(tab) ?? 0;
+        return (
+          <button
+            key={tab}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(tab === "all" ? [] : [tab])}
             className={cn(
-              "flex items-center gap-2 truncate",
-              value.length === 0 && "text-muted-foreground",
+              "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+              selected
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              !selected && count === 0 && "opacity-60",
             )}
           >
-            <Globe className="h-4 w-4 shrink-0 opacity-60" />
-            <span className="truncate">{label}</span>
-          </span>
-          {value.length > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand/15 px-1.5 text-xs font-medium tabular-nums text-brand-accent">
-              {value.length}
+            {tab !== "all" && (
+              <span
+                aria-hidden
+                className="h-2 w-2 rounded-full"
+                style={{ background: statusFill[tab] }}
+              />
+            )}
+            {tab === "all" ? "All" : statusLabel(tab)}
+            <span className={cn("text-xs tabular-nums", selected ? "opacity-70" : "opacity-60")}>
+              {count}
             </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 p-1.5">
-        {options.map((t) => {
-          const checked = value.includes(t);
-          const Icon = JOB_TYPE_ICON[t];
-          return (
-            <button
-              key={t}
-              type="button"
-              onClick={() => toggle(t)}
-              className="flex w-full items-center gap-2.5 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            >
-              <Checkbox checked={checked} tabIndex={-1} className="pointer-events-none" />
-              <Icon className="h-4 w-4 text-muted-foreground" />
-              {JOB_TYPE_META[t].label}
-            </button>
-          );
-        })}
-        {value.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            className="mt-1 flex w-full items-center gap-1.5 border-t px-2 pb-1 pt-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" /> Clear job types
           </button>
-        )}
-      </PopoverContent>
-    </Popover>
+        );
+      })}
+    </div>
   );
 }
 
-/**
- * One filter control plus, in the stacked mobile sheet, a small label above it.
- *
- * `desktopWidth` sizes the inline (non-stacked) wrapper: comboboxes need a
- * stable width so they don't jump when a long value is picked; the hug-content
- * pills pass "" so their wrapper shrinks to the pill and no empty space is left
- * masquerading as a gap. In the sheet every control is full width regardless.
- */
-function Field({
-  label,
-  stacked,
-  desktopWidth = "sm:w-52",
-  children,
-}: {
-  label: string;
-  stacked: boolean;
-  desktopWidth?: string;
-  children: ReactNode;
-}) {
-  if (!stacked) return <div className={desktopWidth || undefined}>{children}</div>;
+/** A labelled block inside the Filters popover or sheet. */
+function FilterField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
@@ -234,15 +120,17 @@ function Field({
 }
 
 /**
- * The applications board filter toolbar. Keyword search, multi-select status,
- * and company/country/city pickers scoped to values that actually exist in the
- * data. Fully controlled — the route owns the filter state (mirrored in the
- * URL) and passes down a single patch callback.
+ * The applications toolbar: status tabs, search, and everything else behind
+ * one Filters button.
  *
- * Responsive by the hybrid pattern: on desktop every control sits inline (the
- * `hidden sm:contents` wrapper lets them flow as direct flex children); on
- * mobile they collapse behind a single "Filters" button that opens a bottom
- * sheet, so a narrow screen isn't dominated by a tall stack of controls.
+ * Job type, country and city used to sit inline as three more controls, so
+ * the bar read as a form to fill in before seeing anything. They are used far
+ * less than status and search, so they now live in a popover (a bottom sheet
+ * on phones) and show up as removable chips once set — out of the way until
+ * wanted, impossible to forget once applied.
+ *
+ * Fully controlled — the route owns the filter state (mirrored in the URL) and
+ * passes down a single patch callback.
  */
 export function ApplicationFilters({
   apps,
@@ -250,12 +138,15 @@ export function ApplicationFilters({
   onChange,
   onClear,
   resultCount,
+  showStatusTabs = true,
 }: {
   apps: ApplicationCardData[];
   value: Filters;
   onChange: (patch: Partial<Filters>) => void;
   onClear: () => void;
   resultCount: number;
+  /** Off on the board, whose columns already are the statuses. */
+  showStatusTabs?: boolean;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -280,46 +171,56 @@ export function ApplicationFilters({
 
   const jobTypeOptions = useMemo(() => availableJobTypes(apps), [apps]);
 
-  const active = hasActiveFilters(value);
-  const total = apps.length;
   const hasJobTypes = jobTypeOptions.length > 0;
   const hasCountries = countryOptions.length > 1;
   const hasCities = cityOptions.length > 1;
+  const hasMoreFilters = hasJobTypes || hasCountries || hasCities;
+  const moreCount = value.jobType.length + (value.country ? 1 : 0) + (value.city ? 1 : 0);
+  const clearMore = () => onChange({ jobType: [], country: "", city: "" });
 
-  // Search sits outside the sheet (always visible), so the sheet's own badge
-  // counts only the controls it holds.
-  const sheetCount = activeFilterCount(value) - (value.q.trim() ? 1 : 0);
+  const toggleJobType = (t: JobType) =>
+    onChange({
+      jobType: value.jobType.includes(t)
+        ? value.jobType.filter((x) => x !== t)
+        : [...value.jobType, t],
+    });
 
-  // The status + company/country/city controls, shared by the desktop inline
-  // row and the mobile sheet. `stacked` switches to full-width labelled fields.
-  const fields = (stacked: boolean) => (
+  const fields = (
     <>
-      <Field label="Status" stacked={stacked} desktopWidth="">
-        <StatusFilter
-          value={value.status}
-          onChange={(status) => onChange({ status })}
-          fullWidth={stacked}
-        />
-      </Field>
-
       {hasJobTypes && (
-        <Field label="Job type" stacked={stacked} desktopWidth="">
-          <JobTypeFilter
-            options={jobTypeOptions}
-            value={value.jobType}
-            onChange={(jobType) => onChange({ jobType })}
-            fullWidth={stacked}
-          />
-        </Field>
+        <FilterField label="Job type">
+          <div className="flex flex-wrap gap-1.5">
+            {jobTypeOptions.map((t) => {
+              const Icon = JOB_TYPE_ICON[t];
+              const on = value.jobType.includes(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleJobType(t)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+                    on
+                      ? "border-foreground bg-foreground text-background"
+                      : "text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {JOB_TYPE_META[t].short}
+                </button>
+              );
+            })}
+          </div>
+        </FilterField>
       )}
-
       {hasCountries && (
-        <Field label="Country" stacked={stacked}>
+        <FilterField label="Country">
           <Combobox
             options={countryOptions}
             value={value.country}
             onSelect={(country) => onChange({ country, city: "" })}
-            placeholder="Country"
+            placeholder="Any country"
             searchPlaceholder="Search countries…"
             triggerIcon={
               value.country && flagForCountry(value.country) ? (
@@ -327,100 +228,178 @@ export function ApplicationFilters({
               ) : undefined
             }
           />
-        </Field>
+        </FilterField>
       )}
-
       {hasCities && (
-        <Field label="City" stacked={stacked}>
+        <FilterField label="City">
           <Combobox
             options={cityOptions}
             value={value.city}
             onSelect={(city) => onChange({ city })}
-            placeholder="City"
+            placeholder="Any city"
             searchPlaceholder="Search cities…"
           />
-        </Field>
+        </FilterField>
       )}
     </>
   );
 
-  return (
-    <div className="mb-5 space-y-2.5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        {/* Search — always visible, at both sizes. Grows to fill but capped
-            so the bar reads as a tidy left-packed row, not one giant field. */}
-        <div className="relative sm:min-w-56 sm:max-w-sm sm:flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            value={value.q}
-            onChange={(e) => onChange({ q: e.target.value })}
-            placeholder="Search company or role…"
-            aria-label="Search applications"
-            className="pl-9"
-          />
-        </div>
+  const triggerContent = (
+    <>
+      <SlidersHorizontal className="h-4 w-4 opacity-70" />
+      Filters
+      {moreCount > 0 && (
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1.5 text-xs font-medium tabular-nums text-background">
+          {moreCount}
+        </span>
+      )}
+    </>
+  );
 
-        {/* Desktop: controls flow inline (contents = no wrapper box). */}
-        <div className="hidden sm:contents">
-          {fields(false)}
-          {active && (
-            <Button variant="ghost" onClick={onClear} className="h-9 text-muted-foreground">
-              <X className="h-4 w-4" /> Clear
-              <span className="ml-0.5 rounded-full bg-muted px-1.5 text-xs tabular-nums">
-                {activeFilterCount(value)}
-              </span>
-            </Button>
-          )}
-        </div>
-
-        {/* Mobile: one Filters button that opens a bottom sheet. */}
-        <div className="sm:hidden">
-          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn("w-full justify-center gap-2", sheetCount > 0 && "border-brand/50")}
-              >
-                <SlidersHorizontal className="h-4 w-4 opacity-70" />
-                Filters
-                {sheetCount > 0 && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand/15 px-1.5 text-xs font-medium tabular-nums text-brand-accent">
-                    {sheetCount}
-                  </span>
+  // Every narrowing that isn't visible elsewhere on the bar, as a chip that
+  // undoes itself.
+  const chips: { key: string; name: string; label: ReactNode; clear: () => void }[] = [
+    ...value.jobType.map((t) => ({
+      key: `type-${t}`,
+      name: JOB_TYPE_META[t].short,
+      label: JOB_TYPE_META[t].short,
+      clear: () => toggleJobType(t),
+    })),
+    ...(value.country
+      ? [
+          {
+            key: "country",
+            name: value.country,
+            label: (
+              <>
+                {flagForCountry(value.country) && (
+                  <span aria-hidden>{flagForCountry(value.country)}</span>
                 )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="flex max-h-[85vh] flex-col rounded-t-xl p-0">
-              <SheetHeader className="px-6 pt-6 text-left">
-                <SheetTitle>Filters</SheetTitle>
-              </SheetHeader>
-              <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">{fields(true)}</div>
-              {/* Pinned footer: Clear / Show-results stay reachable no matter
-                  how tall the control stack grows. */}
-              <SheetFooter className="flex-row gap-2 border-t px-6 py-3">
-                <Button
-                  variant="ghost"
-                  onClick={onClear}
-                  disabled={!active}
-                  className="flex-1 text-muted-foreground"
-                >
-                  Clear all
-                </Button>
-                <SheetClose asChild>
-                  <Button className="flex-1">Show {resultCount} results</Button>
-                </SheetClose>
-              </SheetFooter>
-            </SheetContent>
-          </Sheet>
+                {value.country}
+              </>
+            ),
+            clear: () => onChange({ country: "", city: "" }),
+          },
+        ]
+      : []),
+    ...(value.city
+      ? [{ key: "city", name: value.city, label: value.city, clear: () => onChange({ city: "" }) }]
+      : []),
+  ];
+
+  return (
+    <div className="mb-5 space-y-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        {showStatusTabs && (
+          <StatusTabs apps={apps} value={value} onChange={(status) => onChange({ status })} />
+        )}
+
+        <div className="flex items-center gap-2 lg:ml-auto">
+          <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id={SEARCH_INPUT_ID}
+              type="search"
+              value={value.q}
+              onChange={(e) => onChange({ q: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  onChange({ q: "" });
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Search company or role…"
+              aria-label="Search applications"
+              aria-keyshortcuts="/"
+              className="pl-9 pr-8"
+            />
+            {!value.q && (
+              <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 rounded border bg-muted px-1.5 font-sans text-[11px] text-muted-foreground sm:block">
+                /
+              </kbd>
+            )}
+          </div>
+
+          {hasMoreFilters && (
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="hidden h-9 gap-2 font-normal sm:inline-flex">
+                    {triggerContent}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 space-y-4 p-4">
+                  {fields}
+                  {moreCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearMore}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" /> Clear these filters
+                    </button>
+                  )}
+                </PopoverContent>
+              </Popover>
+
+              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="h-9 gap-2 font-normal sm:hidden">
+                    {triggerContent}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="flex max-h-[85vh] flex-col rounded-t-xl p-0">
+                  <SheetHeader className="px-6 pt-6 text-left">
+                    <SheetTitle>Filters</SheetTitle>
+                  </SheetHeader>
+                  <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">{fields}</div>
+                  {/* Pinned footer: Clear / Show-results stay reachable no
+                      matter how tall the control stack grows. */}
+                  <SheetFooter className="flex-row gap-2 border-t px-6 py-3">
+                    <Button
+                      variant="ghost"
+                      onClick={clearMore}
+                      disabled={moreCount === 0}
+                      className="flex-1 text-muted-foreground"
+                    >
+                      Clear
+                    </Button>
+                    <SheetClose asChild>
+                      <Button className="flex-1">Show {resultCount} results</Button>
+                    </SheetClose>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
         </div>
       </div>
 
-      {active && (
-        <p className="text-xs text-muted-foreground" aria-live="polite">
-          Showing <span className="font-medium tabular-nums text-foreground">{resultCount}</span> of{" "}
-          <span className="tabular-nums">{total}</span> application{total === 1 ? "" : "s"}
-        </p>
+      {(chips.length > 0 || (hasActiveFilters(value) && value.q.trim())) && (
+        <div className="flex flex-wrap items-center gap-1.5" aria-live="polite">
+          {chips.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={c.clear}
+              aria-label={`Remove filter: ${c.name}`}
+              className="inline-flex items-center gap-1 rounded-full border bg-background px-2.5 py-1 text-xs transition-colors hover:border-foreground/30"
+            >
+              {c.label}
+              <X className="h-3 w-3 text-muted-foreground" />
+            </button>
+          ))}
+          <span className="px-1 text-xs text-muted-foreground">
+            {resultCount} result{resultCount === 1 ? "" : "s"}
+          </span>
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
       )}
     </div>
   );

@@ -15,6 +15,12 @@ import { TaskSummaryPanel } from "@/components/TaskSummaryPanel";
 import { DailyGoalTracker } from "@/components/DailyGoalTracker";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { NewApplicationDialog } from "@/components/NewApplicationDialog";
+import { ApplicationFilters } from "@/components/ApplicationFilters";
+import {
+  EMPTY_FILTERS,
+  filterApplications,
+  type ApplicationFilters as Filters,
+} from "@/lib/application-filters";
 import { Button } from "@/components/ui/button";
 import { rejectionColumns, rejectionFromRow, type RejectionFields } from "@/lib/rejection";
 import { CLOSED_STATUSES } from "@/lib/status";
@@ -324,6 +330,12 @@ function DevPreview() {
   // the control at all.
   const [dailyGoal, setDailyGoal] = useState(2);
   const [newOpen, setNewOpen] = useState(false);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const shownCards = filterApplications(boardCards, filters).filter(
+    (c) => !CLOSED_STATUSES.includes(c.status),
+  );
+  const patchCard = (id: string, patch: Partial<ApplicationCardData>) =>
+    setBoardCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   const [range, setRange] = useState<RangePreset>("all");
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
@@ -364,26 +376,38 @@ function DevPreview() {
           trigger={<Button>New application</Button>}
         />
 
-        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationCard — list</h2>
+        {/* The list and grid share the board's state, behind the same
+            filter bar as the real page, so status tabs, filters and the
+            card's status menu can all be exercised together. */}
+        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationFilters + list</h2>
+        <ApplicationFilters
+          apps={boardCards}
+          value={filters}
+          onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+          onClear={() => setFilters(EMPTY_FILTERS)}
+          resultCount={shownCards.length}
+        />
         <div className="space-y-3">
-          {cards.map((c) => (
+          {shownCards.map((c) => (
             <ApplicationCard
               key={c.id}
               app={c}
               variant="list"
-              onTogglePriority={() => {}}
+              onTogglePriority={(priority) => patchCard(c.id, { priority })}
+              onMoveTo={(status) => patchCard(c.id, { status })}
               onDelete={() => {}}
             />
           ))}
         </div>
         <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationCard — grid</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((c) => (
+          {shownCards.map((c) => (
             <ApplicationCard
               key={c.id}
               app={c}
               variant="grid"
-              onTogglePriority={() => {}}
+              onTogglePriority={(priority) => patchCard(c.id, { priority })}
+              onMoveTo={(status) => patchCard(c.id, { status })}
               onDelete={() => {}}
             />
           ))}

@@ -17,7 +17,7 @@ import { CalendarCheck } from "lucide-react";
 type CalendarStatus = { connected: boolean; email: string | null };
 
 /** The Google Calendar brand mark, used on the sync control and connect button. */
-function GoogleCalendarIcon({ className }: { className?: string }) {
+export function GoogleCalendarIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={className} aria-hidden="true" focusable="false">
       <rect width="22" height="22" x="13" y="13" fill="#fff" />
@@ -55,8 +55,20 @@ async function authedFetch(path: string, init?: RequestInit): Promise<Response> 
  * pushed there automatically (see src/lib/calendar-sync.ts). Shows connection
  * state and lets them disconnect. One provider by design for this build.
  */
-export function CalendarSyncDialog() {
-  const [open, setOpen] = useState(false);
+export function CalendarSyncDialog({
+  open: openProp,
+  onOpenChange,
+  hideTrigger = false,
+}: {
+  /** Controlled open state, for opening it from a menu elsewhere. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Drop the icon button when something else opens the dialog. */
+  hideTrigger?: boolean;
+} = {}) {
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const setOpen = onOpenChange ?? setOpenState;
   const queryClient = useQueryClient();
 
   const { data: status, isLoading } = useQuery({
@@ -103,16 +115,18 @@ export function CalendarSyncDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="Sync tasks to Google Calendar"
-          title="Sync tasks to Google Calendar"
-        >
-          <GoogleCalendarIcon className="h-5 w-5" />
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Sync tasks to Google Calendar"
+            title="Sync tasks to Google Calendar"
+          >
+            <GoogleCalendarIcon className="h-5 w-5" />
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Sync tasks to Google Calendar</DialogTitle>

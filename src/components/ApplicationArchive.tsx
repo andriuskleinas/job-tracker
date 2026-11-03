@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
+import type { Status } from "@/lib/status";
 
 /**
  * Rejected and withdrawn applications, held at the bottom of the page rather
@@ -18,11 +19,14 @@ import { ApplicationCard, type ApplicationCardData } from "@/components/Applicat
 export function ApplicationArchive({
   apps,
   onTogglePriority,
+  onMoveTo,
   onDelete,
   onEditRejection,
 }: {
   apps: ApplicationCardData[];
   onTogglePriority: (app: ApplicationCardData, priority: boolean) => void;
+  /** Reopen a closed application, or move it between rejected and withdrawn. */
+  onMoveTo?: (app: ApplicationCardData, status: Status) => void;
   onDelete: (app: ApplicationCardData) => void;
   /** Add or edit a rejected card's reason without leaving the list. */
   onEditRejection?: (app: ApplicationCardData) => void;
@@ -54,6 +58,7 @@ export function ApplicationArchive({
               app={a}
               variant="list"
               onTogglePriority={(priority) => onTogglePriority(a, priority)}
+              onMoveTo={onMoveTo && ((status) => onMoveTo(a, status))}
               onDelete={() => onDelete(a)}
               onEditRejection={onEditRejection && (() => onEditRejection(a))}
             />

@@ -13,18 +13,18 @@ import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NewApplicationDialog, type NewApplicationSubmit } from "@/components/NewApplicationDialog";
 import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/job-ad-form";
 import { applicationSchema } from "@/lib/application-form";
-import { ApplicationFilters } from "@/components/ApplicationFilters";
-import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
+import { ApplicationFilters, SEARCH_INPUT_ID } from "@/components/ApplicationFilters";
+import { CalendarSyncDialog, GoogleCalendarIcon } from "@/components/CalendarSyncDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TaskForm, type TaskFormValues } from "@/components/TaskForm";
 import { TaskSummaryPanel, countOverdue, useAllTasks } from "@/components/TaskSummaryPanel";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -33,7 +33,7 @@ import { DEFAULT_DAILY_GOAL, fetchProfile, type AccountProfile } from "@/lib/pro
 import type { RoleOption } from "@/components/RoleMultiSelect";
 import { toast } from "sonner";
 import { z } from "zod";
-import { STATUSES, CLOSED_STATUSES, type Status } from "@/lib/status";
+import { STATUSES, CLOSED_STATUSES, statusLabel, type Status } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import {
   EMPTY_REJECTION,
@@ -42,7 +42,16 @@ import {
   type RejectionReason,
 } from "@/lib/rejection";
 import { JOB_TYPES } from "@/lib/job-location";
-import { Plus, Upload, Download, List, LayoutGrid, Columns3, ListChecks } from "lucide-react";
+import {
+  Plus,
+  Upload,
+  Download,
+  List,
+  LayoutGrid,
+  Columns3,
+  Ellipsis,
+  ListChecks,
+} from "lucide-react";
 import Papa from "papaparse";
 import { useRef, useMemo } from "react";
 import {
@@ -118,6 +127,10 @@ function ApplicationsPage() {
     [search.q, search.status, search.jobType, search.country, search.city],
   );
   const filtersActive = hasActiveFilters(filters);
+  // Only a status tab is narrowing the list — an empty tab gets its own
+  // message rather than "widen your filters".
+  const onlyStatusFilter =
+    filters.status.length === 1 && !hasActiveFilters({ ...filters, status: [] });
 
   // Write filters back to the URL, dropping empties so the querystring stays
   // clean (?status=offer, not ?q=&country=&city=&status=offer).
@@ -138,6 +151,7 @@ function ApplicationsPage() {
 
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<View>(storedView);
@@ -238,6 +252,31 @@ function ApplicationsPage() {
   // was chosen on.
   const effectiveView: View = view === "board" && isMobile ? "list" : view;
 
+  // Two keys for the two things people come here to do: N adds a role, /
+  // jumps to search. Ignored while typing or with a dialog open, so they
+  // never eat a keystroke meant for a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("input, textarea, select, [contenteditable=true], [role=dialog], [role=menu]"))
+        return;
+      if (document.querySelector("[role=dialog], [role=alertdialog]")) return;
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        setOpen(true);
+      } else if (e.key === "/") {
+        const search = document.getElementById(SEARCH_INPUT_ID);
+        if (search) {
+          e.preventDefault();
+          search.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ["applications"],
     queryFn: async () => {
@@ -269,6 +308,16 @@ function ApplicationsPage() {
   const archivedApps = useMemo(
     () => visibleApps.filter((a) => CLOSED_STATUSES.includes(a.status)),
     [visibleApps],
+  );
+
+  // The board's columns already are the statuses, so the status tabs are
+  // hidden there and a status picked in the list doesn't empty three columns.
+  const boardApps = useMemo(
+    () =>
+      filterApplications(apps, { ...filters, status: [] })
+        .filter((a) => !CLOSED_STATUSES.includes(a.status))
+        .sort((a, b) => Number(b.priority) - Number(a.priority)),
+    [apps, filters],
   );
 
   // The role picker in the "New task" dialog — every application already
@@ -632,11 +681,6 @@ function ApplicationsPage() {
               </ToggleGroupItem>
             </ToggleGroup>
 
-            <div className="flex items-center gap-2">
-              <span className="hidden text-sm text-muted-foreground sm:inline">Sync Calendar:</span>
-              <CalendarSyncDialog />
-            </div>
-
             {/* One button, two behaviours: below xl it opens the sheet, at xl
                 it shows or hides the column beside the board. */}
             <Button
@@ -649,13 +693,38 @@ function ApplicationsPage() {
             </Button>
             <Button
               variant="outline"
-              className="hidden xl:inline-flex"
+              className={`hidden xl:inline-flex ${tasksPanelOpen ? "bg-muted" : ""}`}
               aria-pressed={tasksPanelOpen}
+              title={tasksPanelOpen ? "Hide the task panel" : "Show the task panel"}
               onClick={() => setTasksPanelOpen((v) => !v)}
             >
-              <ListChecks className="h-4 w-4" /> {tasksPanelOpen ? "Hide tasks" : "Tasks"}
+              <ListChecks className="h-4 w-4" /> Tasks
               {!tasksPanelOpen && overdueTasks > 0 && <OverdueBadge count={overdueTasks} />}
             </Button>
+
+            {/* Set-up actions — used once, not daily — wait behind one button
+                instead of taking a slot each in the toolbar. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="hidden sm:inline-flex"
+                  aria-label="More actions"
+                >
+                  <Ellipsis className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60">
+                <DropdownMenuItem onSelect={() => setCalendarOpen(true)}>
+                  <GoogleCalendarIcon className="h-4 w-4" /> Sync tasks to Google Calendar
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                  <Upload className="h-4 w-4" /> Import from CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <CalendarSyncDialog open={calendarOpen} onOpenChange={setCalendarOpen} hideTrigger />
 
             <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
               <DialogContent>
@@ -677,11 +746,6 @@ function ApplicationsPage() {
                 if (!v) setImportErrors([]);
               }}
             >
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Upload className="h-4 w-4" /> Import CSV
-                </Button>
-              </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Import applications from CSV</DialogTitle>
@@ -748,8 +812,15 @@ function ApplicationsPage() {
               isPending={create.isPending}
               onSubmit={(values) => create.mutateAsync(values)}
               trigger={
-                <Button className="w-full sm:w-auto">
+                <Button
+                  className="w-full sm:w-auto"
+                  aria-keyshortcuts="n"
+                  title="New application (N)"
+                >
                   <Plus className="h-4 w-4" /> New application
+                  <kbd className="ml-1 hidden rounded border border-background/25 px-1 font-sans text-[11px] opacity-70 lg:inline">
+                    N
+                  </kbd>
                 </Button>
               }
             />
@@ -777,9 +848,10 @@ function ApplicationsPage() {
                 value={filters}
                 onChange={patchFilters}
                 onClear={clearFilters}
-                resultCount={visibleApps.length}
+                resultCount={effectiveView === "board" ? boardApps.length : visibleApps.length}
+                showStatusTabs={effectiveView !== "board"}
               />
-              {liveApps.length === 0 ? (
+              {effectiveView !== "board" && liveApps.length === 0 ? (
                 archivedApps.length > 0 ? (
                   // Not "no matches" — there are matches, they're just all closed.
                   // Sending someone to "widen or clear filters" when the fix is
@@ -787,6 +859,16 @@ function ApplicationsPage() {
                   <EmptyState
                     title="Nothing in your active pipeline"
                     body="Every application that matches is closed — see it in the archive below."
+                  />
+                ) : onlyStatusFilter ? (
+                  <EmptyState
+                    title={`Nothing in ${statusLabel(filters.status[0])} right now`}
+                    body="Roles land here as they move — change a status from any card, or drag it on the board."
+                    action={
+                      <Button variant="outline" onClick={clearFilters}>
+                        Show all
+                      </Button>
+                    }
                   />
                 ) : (
                   <EmptyState
@@ -809,6 +891,7 @@ function ApplicationsPage() {
                       onTogglePriority={(priority) =>
                         togglePriority.mutate({ aid: a.id, priority })
                       }
+                      onMoveTo={(status) => requestMove(a, status)}
                       onDelete={() => deleteApp.mutate(a.id)}
                     />
                   ))}
@@ -823,13 +906,14 @@ function ApplicationsPage() {
                       onTogglePriority={(priority) =>
                         togglePriority.mutate({ aid: a.id, priority })
                       }
+                      onMoveTo={(status) => requestMove(a, status)}
                       onDelete={() => deleteApp.mutate(a.id)}
                     />
                   ))}
                 </div>
               ) : (
                 <ApplicationBoard
-                  apps={liveApps}
+                  apps={boardApps}
                   onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
                   onMoveTo={requestMove}
                   onDelete={(a) => deleteApp.mutate(a.id)}
@@ -841,6 +925,7 @@ function ApplicationsPage() {
               <ApplicationArchive
                 apps={archivedApps}
                 onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+                onMoveTo={requestMove}
                 onDelete={(a) => deleteApp.mutate(a.id)}
                 onEditRejection={editRejection}
               />

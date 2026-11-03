@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Banknote,
   Blend,
   Building2,
+  Check,
+  ChevronDown,
   Clock,
   Clock3,
   EllipsisVertical,
@@ -25,6 +26,7 @@ import {
   CLOSED_STATUSES,
   STATUSES,
   statusColor,
+  statusFill,
   statusLabel,
   type Status,
 } from "@/lib/status";
@@ -143,26 +145,19 @@ const PRIORITY_CARD =
   "border-[var(--status-interviewing)] bg-[linear-gradient(135deg,var(--status-interviewing-soft),transparent_70%)] shadow-[inset_0_3px_0_var(--status-interviewing)]";
 
 /**
- * The facts row: how the role is worked, where it's based, and what it pays.
- * Salary is the one a user scans for, so it carries the foreground weight the
- * location pill doesn't.
+ * The facts line: where the role is, how it's worked, what it pays, and how
+ * far its clock sits from the user's — one quiet line of text, not a stack of
+ * chips. A row of bordered pills read as a second set of status badges and
+ * cost each card two extra rows; plain text with dot separators says the
+ * same thing at a glance and leaves the eye free for the title and status.
+ * Salary is the one figure people stop to compare, so it alone carries the
+ * foreground weight.
  *
- * Two fixed rows everywhere this renders — list, grid, and board alike —
- * rather than one `flex-wrap` row left to break wherever the card happens to
- * run out of width. A wrap point is a layout accident, not a decision, and
- * which chip ends up next to which one told a different story on every card
- * depending on how long the company name was that day. Top row is place and
- * how far away it is; bottom row is how the role is worked and what it pays,
- * in that order — how a role is worked is the faster read, and the number is
- * what a person actually stops to compare.
- *
- * `compact` is the board's dialect of the place chip only: it drops the
- * spelled-out country in favour of the flag that is already sitting there
- * doing that job — city alone, falling back to the country name only when
- * there is no city to show instead, so the chip never renders as a bare flag
- * with nothing beside it.
+ * `compact` is the board's dialect of the place: the flag already says the
+ * country, so only the city is spelled out — falling back to the country
+ * name when there is no city, so the place never renders as a bare flag.
  */
-function LocationRow({ app, compact = false }: { app: ApplicationCardData; compact?: boolean }) {
+function FactsLine({ app, compact = false }: { app: ApplicationCardData; compact?: boolean }) {
   const userZone = useUserZone();
   const meta = jobTypeMeta(app.job_type);
   const city = app.city?.trim();
@@ -182,57 +177,51 @@ function LocationRow({ app, compact = false }: { app: ApplicationCardData; compa
   const offset = zone && userZone ? offsetBetween(zone, userZone) : null;
   const apart = offset !== null && offset !== 0 ? formatOffset(offset) : null;
 
-  if (!meta && !place && !salary && !apart) return null;
-
   const Icon = meta ? JOB_TYPE_ICON[app.job_type as JobType] : null;
   const flag = flagForCountry(country);
 
-  const jobTypeChip = meta && Icon && (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
-    >
-      <Icon className="h-3.5 w-3.5" /> {meta.short}
-    </span>
-  );
-  const placeChip = place && (
-    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-      {flag ? <span aria-hidden>{flag}</span> : null}
-      {place}
-    </span>
-  );
-  const salaryChip = salary && (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${JOB_TYPE_CHIP}`}
-    >
-      <Banknote className="h-3.5 w-3.5" /> {salary}
-    </span>
-  );
-  const apartChip = apart && (
-    <span
-      className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
-      title={`${zone} — ${apart} from your ${userZone}`}
-    >
-      <Clock3 className="h-3.5 w-3.5" /> {apart}
-    </span>
-  );
+  const facts = [
+    place && (
+      <span key="place" className="inline-flex min-w-0 items-center gap-1">
+        {flag ? <span aria-hidden>{flag}</span> : null}
+        <span className="truncate">{place}</span>
+      </span>
+    ),
+    meta && Icon && (
+      <span key="type" className="inline-flex items-center gap-1">
+        <Icon className="h-3.5 w-3.5" /> {meta.short}
+      </span>
+    ),
+    salary && (
+      <span key="salary" className="font-medium text-foreground">
+        {salary}
+      </span>
+    ),
+    apart && (
+      <span
+        key="apart"
+        className="inline-flex items-center gap-1"
+        title={`${zone} — ${apart} from your ${userZone}`}
+      >
+        <Clock3 className="h-3.5 w-3.5" /> {apart}
+      </span>
+    ),
+  ].filter(Boolean);
 
-  const topRow = placeChip || apartChip;
-  const bottomRow = jobTypeChip || salaryChip;
+  if (facts.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {topRow && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {placeChip}
-          {apartChip}
-        </div>
-      )}
-      {bottomRow && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {jobTypeChip}
-          {salaryChip}
-        </div>
-      )}
+    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+      {facts.map((fact, i) => (
+        <Fragment key={i}>
+          {i > 0 && (
+            <span aria-hidden className="text-muted-foreground/40">
+              ·
+            </span>
+          )}
+          {fact}
+        </Fragment>
+      ))}
     </div>
   );
 }
@@ -368,51 +357,116 @@ function RejectionRow({ app, onEdit }: { app: ApplicationCardData; onEdit?: () =
   );
 }
 
-/** The shared meta row: how long ago, what's owed, and whether notes exist. */
-function CardMeta({
+/**
+ * The status badge, and — when the page can move the application — the menu
+ * that changes it. Updating a status is the most common edit there is, so it
+ * happens where the status is shown, not two clicks away on the detail page.
+ */
+function StatusMenu({
   app,
-  meta,
+  onMoveTo,
 }: {
   app: ApplicationCardData;
-  meta: ReturnType<typeof deriveMeta>;
+  onMoveTo?: (status: Status) => void;
 }) {
+  const label = statusLabel(app.status);
+  const badgeClass = `${statusColor[app.status]} gap-1`;
+  if (!onMoveTo) {
+    return (
+      <Badge className={badgeClass} variant="outline">
+        {label}
+      </Badge>
+    );
+  }
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-        // The tooltip date renders in the viewer's locale, so the server (its
-        // own locale) and client can format the same day differently. That's
-        // cosmetic and unavoidable, so tell React not to flag the mismatch.
-        suppressHydrationWarning
-        title={`${app.status === "wishlist" ? "Saved" : "Applied"} ${new Date(
-          app.application_date,
-        ).toLocaleDateString()}`}
-      >
-        <Clock className="h-3.5 w-3.5" /> {relativeDay(app.application_date)}
-      </span>
-      {meta.stalled ? (
-        <StalledPill />
-      ) : (
-        <TaskChip
-          openCount={meta.openCount}
-          nextDue={meta.nextDue}
-          overdue={meta.overdue}
-          hasPriority={meta.hasPriority}
-        />
-      )}
-      {meta.hasNotes && (
-        <TooltipProvider delayDuration={150}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="ml-auto flex shrink-0" aria-label="Has notes">
-                <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Has notes</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          // Inside a Link (and on the board, a draggable card): claim neither.
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          aria-label={`Status: ${label}. Change status of ${app.position} at ${app.company}`}
+          className="group/status shrink-0 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          <Badge className={badgeClass} variant="outline">
+            {label}
+            <ChevronDown className="h-3 w-3 opacity-50 transition-opacity group-hover/status:opacity-100" />
+          </Badge>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+          Move to
+        </DropdownMenuLabel>
+        {STATUSES.map((s) => (
+          <DropdownMenuItem
+            key={s}
+            disabled={s === app.status}
+            onSelect={() => onMoveTo(s)}
+            className="gap-2.5"
+          >
+            <span
+              aria-hidden
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: statusFill[s] }}
+            />
+            {statusLabel(s)}
+            {s === app.status && <Check className="ml-auto h-3.5 w-3.5" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** How long ago it was sent (or saved), with the exact date on hover. */
+function AppliedWhen({ app }: { app: ApplicationCardData }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+      // The tooltip date renders in the viewer's locale, so the server (its
+      // own locale) and client can format the same day differently. That's
+      // cosmetic and unavoidable, so tell React not to flag the mismatch.
+      suppressHydrationWarning
+      title={`${app.status === "wishlist" ? "Saved" : "Applied"} ${new Date(
+        app.application_date,
+      ).toLocaleDateString()}`}
+    >
+      <Clock className="h-3.5 w-3.5" /> {relativeDay(app.application_date)}
+    </span>
+  );
+}
+
+/** What is owed on it: a task chip, or the stalled warning when nothing is. */
+function Owed({ meta }: { meta: ReturnType<typeof deriveMeta> }) {
+  return meta.stalled ? (
+    <StalledPill />
+  ) : (
+    <TaskChip
+      openCount={meta.openCount}
+      nextDue={meta.nextDue}
+      overdue={meta.overdue}
+      hasPriority={meta.hasPriority}
+    />
+  );
+}
+
+function NotesMark() {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="flex shrink-0" aria-label="Has notes">
+            <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>Has notes</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -566,7 +620,7 @@ export function ApplicationCard({
   app: ApplicationCardData;
   variant: "list" | "grid" | "board";
   onTogglePriority: (priority: boolean) => void;
-  /** Board only: change this application's status without opening it. */
+  /** Change this application's status without opening it. */
   onMoveTo?: (status: Status) => void;
   onDelete: () => void;
   /** Opens the rejection-reason prompt; rejected cards show an add/edit control when given. */
@@ -574,31 +628,9 @@ export function ApplicationCard({
 }) {
   const meta = deriveMeta(app);
   const dimTitle = meta.isClosed ? "text-muted-foreground" : "";
-
-  const identity = (
-    <div className="flex min-w-0 items-center gap-3">
-      <CompanyLogo company={app.company} website={app.website} dim={meta.isClosed} />
-      <div className="min-w-0">
-        {/* Board keeps the role name in full rather than truncating it — a
-            narrow column is exactly where a one-line ellipsis hides the one
-            fact the card exists to show, so it wraps instead. */}
-        <p className={`font-medium ${variant === "board" ? "" : "truncate"} ${dimTitle}`}>
-          {app.position}
-        </p>
-        <p className="truncate text-sm text-muted-foreground">{app.company}</p>
-      </div>
-    </div>
-  );
-
-  const rightCluster = (
-    <div className="flex shrink-0 items-center gap-1.5">
-      <AppStar app={app} onToggle={onTogglePriority} />
-      <Badge className={statusColor[app.status] + " capitalize"} variant="outline">
-        {app.status}
-      </Badge>
-      <CardMenu app={app} onDelete={onDelete} />
-    </div>
-  );
+  const cardTone = `transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
+    meta.isClosed ? "bg-muted/30" : ""
+  } ${app.priority ? PRIORITY_CARD : ""}`;
 
   if (variant === "board") {
     // How much this application is worth showing on the board: the star
@@ -611,30 +643,24 @@ export function ApplicationCard({
     const hasTaskStatus = meta.stalled || meta.openCount > 0;
     return (
       <Link to="/applications/$id" params={{ id: app.id }} className="block">
-        <Card
-          className={`gap-2 p-3 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
-            meta.isClosed ? "bg-muted/30" : ""
-          } ${app.priority ? PRIORITY_CARD : ""}`}
-        >
+        <Card className={`gap-2 p-3 ${cardTone}`}>
           <div className="flex items-start justify-between gap-2">
-            {identity}
-            <div className="flex shrink-0 items-center gap-1.5">
-              <CardMenu app={app} onMoveTo={onMoveTo} onDelete={onDelete} />
+            <div className="flex min-w-0 items-center gap-3">
+              <CompanyLogo company={app.company} website={app.website} dim={meta.isClosed} />
+              <div className="min-w-0">
+                {/* Board keeps the role name in full rather than truncating
+                    it — a narrow column is exactly where a one-line ellipsis
+                    hides the one fact the card exists to show. */}
+                <p className={`font-medium leading-snug ${dimTitle}`}>{app.position}</p>
+                <p className="truncate text-sm text-muted-foreground">{app.company}</p>
+              </div>
             </div>
+            <CardMenu app={app} onMoveTo={onMoveTo} onDelete={onDelete} />
           </div>
-          <LocationRow app={app} compact />
+          <FactsLine app={app} compact />
           {hasTaskStatus && (
             <div className="flex flex-wrap items-center gap-2">
-              {meta.stalled ? (
-                <StalledPill />
-              ) : (
-                <TaskChip
-                  openCount={meta.openCount}
-                  nextDue={meta.nextDue}
-                  overdue={meta.overdue}
-                  hasPriority={meta.hasPriority}
-                />
-              )}
+              <Owed meta={meta} />
             </div>
           )}
         </Card>
@@ -643,43 +669,93 @@ export function ApplicationCard({
   }
 
   if (variant === "grid") {
+    // The title owns the top of the card. Status used to share its row with
+    // the star and the menu, which left a role name like "Head of Consumer
+    // Marketing" six characters before its ellipsis; it now sits in the
+    // footer, where it is also the control that changes it.
     return (
       <Link to="/applications/$id" params={{ id: app.id }} className="block h-full">
-        <Card
-          className={`flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
-            meta.isClosed ? "bg-muted/30" : ""
-          } ${app.priority ? PRIORITY_CARD : ""}`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            {identity}
-            {rightCluster}
+        <Card className={`flex h-full flex-col gap-3 p-4 ${cardTone}`}>
+          <div className="flex items-start gap-3">
+            <CompanyLogo company={app.company} website={app.website} dim={meta.isClosed} />
+            <div className="min-w-0 flex-1">
+              <p
+                className={`line-clamp-2 font-medium leading-snug ${dimTitle}`}
+                title={app.position}
+              >
+                {app.position}
+              </p>
+              <p className="truncate text-sm text-muted-foreground">{app.company}</p>
+            </div>
+            <div className="-mr-1.5 -mt-1 flex shrink-0 items-center">
+              <AppStar app={app} onToggle={onTogglePriority} />
+              <CardMenu app={app} onDelete={onDelete} />
+            </div>
           </div>
-          <LocationRow app={app} />
+          <FactsLine app={app} />
           <RejectionRow app={app} onEdit={onEditRejection} />
-          <div className="mt-auto border-t pt-3">
-            <CardMeta app={app} meta={meta} />
+          <div className="mt-auto flex flex-wrap items-center gap-2 pt-1">
+            <StatusMenu app={app} onMoveTo={onMoveTo} />
+            <AppliedWhen app={app} />
+            <Owed meta={meta} />
+            {meta.hasNotes && (
+              <span className="ml-auto">
+                <NotesMark />
+              </span>
+            )}
           </div>
         </Card>
       </Link>
     );
   }
 
+  // List: one scannable row on a wide screen — who, where and what it pays,
+  // then where it stands — so a column of them reads like a table without
+  // being one. On a phone the facts and the status drop under the title,
+  // leaving the row's full width to the role name.
   return (
     <Link to="/applications/$id" params={{ id: app.id }} className="block">
-      <Card
-        className={`p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 sm:p-5 ${
-          meta.isClosed ? "bg-muted/30" : ""
-        } ${app.priority ? PRIORITY_CARD : ""}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          {identity}
-          {rightCluster}
+      <Card className={`px-4 py-3 ${cardTone}`}>
+        <div className="flex items-start gap-3 md:items-center">
+          <CompanyLogo company={app.company} website={app.website} dim={meta.isClosed} />
+          <div className="min-w-0 flex-1 md:flex md:items-center md:gap-6">
+            <div className="min-w-0 md:w-[42%] md:shrink-0">
+              <p className={`truncate font-medium ${dimTitle}`} title={app.position}>
+                {app.position}
+              </p>
+              <p className="truncate text-sm text-muted-foreground">{app.company}</p>
+            </div>
+            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 md:mt-0 md:flex-1">
+              <FactsLine app={app} />
+              <Owed meta={meta} />
+              {meta.hasNotes && <NotesMark />}
+            </div>
+            <div className="mt-2.5 flex items-center gap-2 md:hidden">
+              <StatusMenu app={app} onMoveTo={onMoveTo} />
+              <AppliedWhen app={app} />
+            </div>
+          </div>
+          {/* Fixed width from md up, so the title and facts columns line up
+              down the list whatever each row's status happens to be. */}
+          <div className="flex shrink-0 items-center justify-end gap-2 md:w-[14.5rem]">
+            <span className="hidden lg:inline-flex">
+              <AppliedWhen app={app} />
+            </span>
+            <span className="hidden md:inline-flex">
+              <StatusMenu app={app} onMoveTo={onMoveTo} />
+            </span>
+            <div className="-mr-1.5 -mt-1 flex items-center md:mt-0">
+              <AppStar app={app} onToggle={onTogglePriority} />
+              <CardMenu app={app} onDelete={onDelete} />
+            </div>
+          </div>
         </div>
-        <div className="mt-3 space-y-2">
-          <LocationRow app={app} />
-          <RejectionRow app={app} onEdit={onEditRejection} />
-          <CardMeta app={app} meta={meta} />
-        </div>
+        {app.status === "rejected" &&
+          (onEditRejection || hasRejectionReason(rejectionFromRow(app))) && (
+            <div className="mt-3">
+              <RejectionRow app={app} onEdit={onEditRejection} />
+            </div>
+          )}
       </Card>
     </Link>
   );

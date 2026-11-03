@@ -278,15 +278,19 @@ export function TaskSummaryPanel({
             <Progress value={progress} className="h-1.5" aria-label="Tasks completed" />
           </div>
 
-          <dl className="grid grid-cols-3 gap-2">
-            <SummaryStat
-              label="Overdue"
-              value={groups.get("overdue")!.length}
-              alert={groups.get("overdue")!.length > 0}
-            />
-            <SummaryStat label="This week" value={thisWeek} />
-            <SummaryStat label="Open" value={openCount} />
-          </dl>
+          {/* Three zeros say nothing "All caught up" doesn't, so the tiles
+              only appear when there is something open to count. */}
+          {openCount > 0 && (
+            <dl className="grid grid-cols-3 gap-2">
+              <SummaryStat
+                label="Overdue"
+                value={groups.get("overdue")!.length}
+                alert={groups.get("overdue")!.length > 0}
+              />
+              <SummaryStat label="This week" value={thisWeek} />
+              <SummaryStat label="Open" value={openCount} />
+            </dl>
+          )}
 
           {openCount === 0 ? (
             <p className="text-sm text-muted-foreground">All caught up — nothing open.</p>
