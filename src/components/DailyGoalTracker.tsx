@@ -3,6 +3,7 @@ import { Flame, Minus, Pencil, Plus, Target, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   applicationsPerDay,
   bestStreak,
@@ -110,47 +111,60 @@ export function DailyGoalTracker({
           still in progress, so with nothing sent yet it's a hollow ring
           rather than a miss. */}
       <div>
-        <div className="grid grid-cols-7 gap-y-2.5" role="grid" aria-label="Last five weeks">
-          {WEEKDAYS.map((d, i) => (
-            <span key={i} className="text-center text-[10px] text-muted-foreground" aria-hidden>
-              {d}
-            </span>
-          ))}
-          {grid.map(({ key, date }) => {
-            const n = counts.get(key) ?? 0;
-            const isToday = key === today;
-            const label = date.toLocaleDateString(undefined, {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-            });
-            const [tone, state] =
-              key > today || key < firstDay
-                ? ["bg-muted-foreground/20", key > today ? "upcoming" : "before you started"]
-                : n >= goal
-                  ? ["bg-[var(--status-offer)]", `${n} of ${goal}, goal met`]
-                  : n > 0
-                    ? ["bg-[var(--status-interviewing)]", `${n} of ${goal}`]
-                    : isToday
-                      ? ["border-2 border-foreground/50", "nothing sent yet"]
-                      : ["bg-foreground", "missed"];
-            return (
-              <span
-                key={key}
-                role="gridcell"
-                title={`${label}: ${state}`}
-                aria-label={`${label}: ${state}`}
-                className="flex justify-center"
-              >
-                <span
-                  className={`block h-2.5 w-2.5 rounded-full ${tone} ${
-                    isToday ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-muted" : ""
-                  }`}
-                />
+        <TooltipProvider delayDuration={0}>
+          <div className="grid grid-cols-7 gap-y-2.5" role="grid" aria-label="Last five weeks">
+            {WEEKDAYS.map((d, i) => (
+              <span key={i} className="text-center text-[10px] text-muted-foreground" aria-hidden>
+                {d}
               </span>
-            );
-          })}
-        </div>
+            ))}
+            {grid.map(({ key, date }) => {
+              const n = counts.get(key) ?? 0;
+              const isToday = key === today;
+              const label = date.toLocaleDateString(undefined, {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+              });
+              const future = key > today;
+              const tone =
+                future || key < firstDay
+                  ? "bg-muted-foreground/20"
+                  : n >= goal
+                    ? "bg-[var(--status-offer)]"
+                    : n > 0
+                      ? "bg-[var(--status-interviewing)]"
+                      : isToday
+                        ? "border-2 border-foreground/50"
+                        : "bg-foreground";
+              // Just the day and the plain total — 0 included. A day still to
+              // come has nothing to count yet.
+              const total = future ? null : `${n} ${n === 1 ? "application" : "applications"}`;
+              return (
+                <Tooltip key={key}>
+                  <TooltipTrigger asChild>
+                    <span
+                      role="gridcell"
+                      tabIndex={0}
+                      aria-label={total ? `${label}: ${total}` : label}
+                      className="flex cursor-default justify-center rounded-sm py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span
+                        className={`block h-2.5 w-2.5 rounded-full ${tone} ${
+                          isToday ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-muted" : ""
+                        }`}
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-center">
+                    <p className="font-medium">{label}</p>
+                    {total && <p>{total}</p>}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </TooltipProvider>
         <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
           <LegendDot className="bg-[var(--status-offer)]">Goal met</LegendDot>
           <LegendDot className="bg-[var(--status-interviewing)]">Partly</LegendDot>
