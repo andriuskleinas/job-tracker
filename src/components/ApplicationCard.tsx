@@ -133,6 +133,16 @@ const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
 const JOB_TYPE_CHIP = "border bg-background font-medium text-foreground";
 
 /**
+ * A starred application, picked out from across the page: a gold rule on the
+ * top edge, a gold border, and a warm wash fading from the corner the star's
+ * row starts in. Gold because the star itself is gold — the card wears the
+ * colour of the control that set it. The wash fades out before the chips, so
+ * every label on the card keeps its usual contrast.
+ */
+const PRIORITY_CARD =
+  "border-[var(--status-interviewing)] bg-[linear-gradient(135deg,var(--status-interviewing-soft),transparent_70%)] shadow-[inset_0_3px_0_var(--status-interviewing)]";
+
+/**
  * The facts row: how the role is worked, where it's based, and what it pays.
  * Salary is the one a user scans for, so it carries the foreground weight the
  * location pill doesn't.
@@ -604,7 +614,7 @@ export function ApplicationCard({
         <Card
           className={`gap-2 p-3 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
             meta.isClosed ? "bg-muted/30" : ""
-          } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
+          } ${app.priority ? PRIORITY_CARD : ""}`}
         >
           <div className="flex items-start justify-between gap-2">
             {identity}
@@ -638,7 +648,7 @@ export function ApplicationCard({
         <Card
           className={`flex h-full flex-col gap-3 p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 ${
             meta.isClosed ? "bg-muted/30" : ""
-          } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
+          } ${app.priority ? PRIORITY_CARD : ""}`}
         >
           <div className="flex items-start justify-between gap-3">
             {identity}
@@ -659,7 +669,7 @@ export function ApplicationCard({
       <Card
         className={`p-4 transition-colors hover:border-foreground/20 hover:bg-accent/40 sm:p-5 ${
           meta.isClosed ? "bg-muted/30" : ""
-        } ${app.priority ? "border-[var(--status-interviewing-text)]/40" : ""}`}
+        } ${app.priority ? PRIORITY_CARD : ""}`}
       >
         <div className="flex items-start justify-between gap-3">
           {identity}
