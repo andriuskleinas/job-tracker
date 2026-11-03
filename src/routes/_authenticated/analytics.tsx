@@ -9,15 +9,15 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   LabelList,
+  ReferenceLine,
   XAxis,
   YAxis,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
@@ -36,7 +36,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { STATUSES, statusColor, statusFill, type Status } from "@/lib/status";
+import { statusFill, type Status } from "@/lib/status";
 import { summarizeRejections, type RejectionFields, type RejectionSummary } from "@/lib/rejection";
 import {
   appliedOnly,
@@ -60,8 +60,9 @@ import {
   type StatsApplication,
   type StatsStatusEvent,
   type StatsTask,
+  type FunnelStage,
 } from "@/lib/stats";
-import { ArrowDown, ArrowUp, Plus, Quote } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowDownRight, Info, Plus, Quote, Table2 } from "lucide-react";
 
 /*
  * The date-range filter lives in the URL, same reasoning as the
@@ -99,9 +100,9 @@ export const Route = createFileRoute("/_authenticated/analytics")({
 
 /*
  * Colour on this page is the status language from `@/lib/status`, nothing
- * else. A bar and a badge that share a hue always share a meaning, so the
- * page needs no legend of its own to be read — the one under the heading is
- * a key to the whole vocabulary, not an index of these particular charts.
+ * else. A bar and a badge that share a hue always share a meaning — and every
+ * coloured mark here sits beside the status name it stands for, so the page
+ * needs no separate legend to be read.
  *
  * Where a chart counts applications generally rather than by outcome
  * (trend, cohort size) it takes `applied` ink: those are applications you
@@ -122,8 +123,14 @@ const stageConfig = {
   count: { label: "Applications", color: "var(--status-applied)" },
 } satisfies ChartConfig;
 
+// The total is a faint ink column with the interviews drawn inside it, so the
+// cohort reads as one shape — how much of it turned gold — rather than two
+// bars side by side that leave the reader to do the division.
 const cohortConfig = {
-  applied: { label: "Applied", color: "var(--status-applied)" },
+  applied: {
+    label: "Applied",
+    color: "color-mix(in oklch, var(--status-applied) 16%, transparent)",
+  },
   reachedInterview: { label: "Reached interview", color: "var(--status-interviewing)" },
 } satisfies ChartConfig;
 
@@ -330,7 +337,12 @@ export function AnalyticsView({
 
   const cohortGranularity = useMemo(() => cohortGranularityFor(from, to), [from, to]);
   const cohorts = useMemo(
-    () => conversionCohorts(periodApps, periodEvents, from, to, cohortGranularity),
+    () =>
+      conversionCohorts(periodApps, periodEvents, from, to, cohortGranularity).map((c) => ({
+        ...c,
+        // Printed above each column, so the rate is read, not worked out.
+        rateLabel: c.rate === null ? "" : `${Math.round(c.rate * 100)}%`,
+      })),
     [periodApps, periodEvents, from, to, cohortGranularity],
   );
 
@@ -353,6 +365,11 @@ export function AnalyticsView({
   );
   const historySince = useMemo(() => historyStartedAt(periodEvents), [periodEvents]);
   const rejections = useMemo(() => summarizeRejections(periodApps), [periodApps]);
+
+  const trendTotal = trend.reduce((sum, b) => sum + b.count, 0);
+  const trendAverage = trend.length > 0 ? trendTotal / trend.length : 0;
+  const perUnit =
+    trendGranularity === "day" ? "day" : trendGranularity === "week" ? "week" : "month";
 
   const periodLabel = rangeLabel(range, from, to);
   const priorLabel = priorRangeLabel(range, from, to);
@@ -392,61 +409,76 @@ export function AnalyticsView({
           )
         }
       />
-      <StatusLegend />
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Key metrics">
-        {/* Saved roles are counted, never added in: every rate on this page
-            divides by applications sent, so a wishlist row must not inflate
-            the headline it is measured against. It rides along as a hint so
-            the number is still visible somewhere. */}
-        <StatTile
-          label="Applications"
-          value={period.total}
-          delta={showComparison ? period.total - priorTotal : undefined}
-          hint={
-            period.saved > 0
-              ? `${period.saved} more saved, not applied${showComparison ? ` · vs ${priorLabel}` : ""}`
-              : showComparison
-                ? `vs ${priorLabel}`
-                : periodLabel
-          }
-        />
-        <StatTile
-          label="Active pipeline"
-          value={snapshot.activePipeline}
-          hint="Applied or interviewing, right now"
-          accent="applied"
-        />
-        {/* Reads from the same funnel as the Stage reach chart, so the two can
-            never disagree on screen. */}
-        <StatTile
-          label="Interview rate"
-          value={funnelTotal === 0 ? "—" : `${Math.round((funnel[1]?.share ?? 0) * 100)}%`}
-          hint={
-            historyDepth > 0
-              ? `Ever reached interview · ${periodLabel}`
-              : `Ever reached interview (lower bound) · ${periodLabel}`
-          }
-          accent="interviewing"
-        />
-        <StatTile label="Offers" value={period.offers} hint={periodLabel} accent="offer" />
-        {/* New: the applications that are still technically alive but have
-            gone quiet. Distinct from Overdue tasks below — this fires with no
-            task involved at all, which is exactly the case a task list can't
-            catch. */}
-        <StatTile
-          label="No response in 30+ days"
-          value={period.stale}
-          alert={period.stale > 0}
-          hint={`Applied or interviewing, no movement · ${periodLabel}`}
-        />
-        <StatTile
-          label="Overdue tasks"
-          value={snapshot.overdueTasks}
-          alert={snapshot.overdueTasks > 0}
-          hint={`${snapshot.openTasks} open in total`}
-        />
-      </section>
+      {/* One panel of figures rather than six cards: the hairlines between
+          cells group them as one reading, and the page loses five borders
+          and five shadows competing with the charts below. */}
+      <Card className="overflow-hidden p-0">
+        <section
+          aria-label="Key metrics"
+          className="grid grid-cols-2 gap-px bg-border lg:grid-cols-3"
+        >
+          {/* Saved roles are counted, never added in: every rate on this page
+              divides by applications sent, so a wishlist row must not inflate
+              the headline it is measured against. It rides along as a hint so
+              the number is still visible somewhere. */}
+          <StatTile
+            label="Applications"
+            value={period.total}
+            delta={showComparison ? period.total - priorTotal : undefined}
+            hint={
+              period.saved > 0
+                ? `${period.saved} more saved, not applied${showComparison ? ` · vs ${priorLabel}` : ""}`
+                : showComparison
+                  ? `vs ${priorLabel}`
+                  : sentenceCase(periodLabel)
+            }
+            visual={trend.length > 1 && <Sparkline data={trend} />}
+          />
+          <StatTile
+            label="Active pipeline"
+            value={snapshot.activePipeline}
+            hint="Applied or interviewing, right now"
+            accent="applied"
+          />
+          {/* Reads from the same funnel as the Stage reach chart, so the two can
+              never disagree on screen. */}
+          <StatTile
+            label="Interview rate"
+            value={funnelTotal === 0 ? "—" : `${Math.round((funnel[1]?.share ?? 0) * 100)}%`}
+            hint={
+              historyDepth > 0
+                ? `Ever reached interview · ${periodLabel}`
+                : `Ever reached interview (lower bound) · ${periodLabel}`
+            }
+            accent="interviewing"
+            visual={
+              funnelTotal > 0 && <Meter share={funnel[1]?.share ?? 0} status="interviewing" />
+            }
+          />
+          <StatTile
+            label="Offers"
+            value={period.offers}
+            hint={sentenceCase(periodLabel)}
+            accent="offer"
+          />
+          {/* The applications that are still technically alive but have gone
+              quiet. Distinct from Overdue tasks — this fires with no task
+              involved at all, which is exactly the case a task list can't
+              catch. */}
+          <StatTile
+            label="No response in 30+ days"
+            value={period.stale}
+            alert={period.stale > 0}
+            hint={`Applied or interviewing, no movement · ${periodLabel}`}
+          />
+          <StatTile
+            label="Overdue tasks"
+            value={snapshot.overdueTasks}
+            alert={snapshot.overdueTasks > 0}
+            hint={`${snapshot.openTasks} open in total`}
+          />
+        </section>
+      </Card>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
@@ -462,139 +494,67 @@ export function AnalyticsView({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer
-              config={barConfig}
-              className="chart-bars-h aspect-auto h-[220px] w-full"
-            >
-              <BarChart
-                accessibilityLayer
-                data={breakdown}
-                layout="vertical"
-                margin={{ left: 4, right: 28, top: 4, bottom: 4 }}
-              >
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  width={axisWidth}
-                  tick={axisTick}
-                  tickMargin={6}
-                />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                <Bar
-                  dataKey="count"
-                  radius={[0, 4, 4, 0]}
-                  maxBarSize={24}
-                  isAnimationActive={false}
-                >
-                  {breakdown.map((b) => (
-                    <Cell key={b.status} fill={statusFill[b.status as Status]} />
-                  ))}
-                  <LabelList
-                    dataKey="count"
-                    position="right"
-                    offset={8}
-                    className="fill-foreground"
-                    fontSize={12}
-                  />
-                </Bar>
-              </BarChart>
-            </ChartContainer>
+            <BarList
+              label="Applications by status"
+              rows={breakdown.map((b) => ({
+                key: b.status,
+                label: b.label,
+                count: b.count,
+                share: periodApps.length === 0 ? 0 : b.count / periodApps.length,
+                status: b.status as Status,
+              }))}
+            />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Stage reach</CardTitle>
-            <CardDescription>
-              {historyDepth > 0 ? (
-                <>
-                  How far each application from {periodLabel} got, including {historyDepth} that
-                  moved past a stage before reaching {historyDepth === 1 ? "its" : "their"} current
-                  status.
-                </>
-              ) : (
-                <>
-                  Still current-status only — no recorded transition yet credits an application with
-                  a stage its status doesn&apos;t already show, so these remain lower bounds.
-                  {historySince &&
-                    ` Transitions recorded since ${historySince.toLocaleDateString()}.`}
-                </>
-              )}
-            </CardDescription>
+            <CardTitle className="flex items-center gap-1.5 text-base">
+              Stage reach
+              <InfoTip>
+                {historyDepth > 0 ? (
+                  <>
+                    Counts how far each application got, including {historyDepth} that moved past a
+                    stage before reaching {historyDepth === 1 ? "its" : "their"} current status.
+                  </>
+                ) : (
+                  <>
+                    Still current-status only — no recorded transition yet credits an application
+                    with a stage its status doesn&apos;t already show, so these are lower bounds.
+                    {historySince &&
+                      ` Transitions recorded since ${historySince.toLocaleDateString()}.`}
+                  </>
+                )}
+              </InfoTip>
+            </CardTitle>
+            <CardDescription>How far your applications from {periodLabel} got.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer
-              config={stageConfig}
-              className="chart-bars-h aspect-auto h-[220px] w-full"
-            >
-              <BarChart
-                accessibilityLayer
-                data={funnel}
-                layout="vertical"
-                margin={{ left: 4, right: labelGutter, top: 4, bottom: 4 }}
-              >
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" hide />
-                <YAxis
-                  type="category"
-                  dataKey="stage"
-                  tickLine={false}
-                  axisLine={false}
-                  width={axisWidth}
-                  tick={axisTick}
-                  tickMargin={6}
-                />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                <Bar
-                  dataKey="count"
-                  radius={[0, 4, 4, 0]}
-                  maxBarSize={24}
-                  isAnimationActive={false}
-                >
-                  {funnel.map((stage, i) => (
-                    <Cell key={stage.stage} fill={statusFill[PIPELINE[i]]} />
-                  ))}
-                  <LabelList
-                    dataKey="count"
-                    position="right"
-                    offset={8}
-                    className="fill-foreground"
-                    fontSize={12}
-                    // Without an explicit width recharts inherits the bar's own
-                    // width, and a short bar wraps its label onto two lines.
-                    width={isMobile ? 28 : 88}
-                    // recharts 3 types this as RenderableText (string | number
-                    // | boolean | null | undefined), so the share is computed
-                    // only once the value is known to be a real number.
-                    formatter={(value: string | number | boolean | null | undefined) => {
-                      if (typeof value !== "number" || funnelTotal === 0 || isMobile) {
-                        return `${value ?? ""}`;
-                      }
-                      return `${value} (${Math.round((value / funnelTotal) * 100)}%)`;
-                    }}
-                  />
-                </Bar>
-              </BarChart>
-            </ChartContainer>
+            <Funnel stages={funnel} />
           </CardContent>
         </Card>
       </section>
 
       <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="text-base">
-            Applications{" "}
-            {trendGranularity === "day"
-              ? "per day"
-              : trendGranularity === "week"
-                ? "per week"
-                : "per month"}
-          </CardTitle>
-          <CardDescription>{sentenceCase(periodLabel)}, by the date you applied.</CardDescription>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-x-6 gap-y-2">
+          <div className="space-y-1.5">
+            <CardTitle className="text-base">Applications per {perUnit}</CardTitle>
+            <CardDescription>{sentenceCase(periodLabel)}, by the date you applied.</CardDescription>
+          </div>
+          {/* The two numbers the shape is about, so the chart needn't be read
+              off the axis to get them. */}
+          <dl className="flex gap-6 text-right">
+            <div>
+              <dt className="text-xs text-muted-foreground">Total</dt>
+              <dd className="text-xl font-semibold tracking-[-0.02em]">{trendTotal}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Average per {perUnit}</dt>
+              <dd className="text-xl font-semibold tracking-[-0.02em]">
+                {trendAverage.toFixed(trendAverage >= 10 ? 0 : 1)}
+              </dd>
+            </div>
+          </dl>
         </CardHeader>
         <CardContent>
           {/* A line, not columns: this panel is about the shape of the
@@ -606,8 +566,14 @@ export function AnalyticsView({
             <AreaChart
               accessibilityLayer
               data={trend}
-              margin={{ left: 4, right: 4, top: 8, bottom: 4 }}
+              margin={{ left: 4, right: 8, top: 12, bottom: 4 }}
             >
+              <defs>
+                <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-count)" stopOpacity={0.16} />
+                  <stop offset="100%" stopColor="var(--color-count)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid vertical={false} />
               <XAxis
                 dataKey="label"
@@ -628,19 +594,32 @@ export function AnalyticsView({
                 cursor={{ stroke: "var(--border)", strokeWidth: 1 }}
                 content={<ChartTooltipContent labelKey="label" />}
               />
+              {trendAverage > 0 && (
+                <ReferenceLine
+                  y={trendAverage}
+                  stroke="var(--muted-foreground)"
+                  strokeOpacity={0.5}
+                  ifOverflow="extendDomain"
+                  label={{
+                    value: "avg",
+                    position: "insideTopRight",
+                    fontSize: 11,
+                    fill: "var(--muted-foreground)",
+                  }}
+                />
+              )}
               <Area
                 type="monotone"
                 dataKey="count"
                 stroke="var(--color-count)"
                 strokeWidth={2}
-                // A wash, not a block — it gives the line a body to read
-                // against without competing with the bars on this page.
-                fill="var(--color-count)"
-                fillOpacity={0.12}
-                // Dots ring themselves in the card colour so they stay
-                // legible where the line runs through them.
-                dot={{ r: 3.5, strokeWidth: 2, stroke: "var(--card)" }}
-                activeDot={{ r: 5, strokeWidth: 2, stroke: "var(--card)" }}
+                // A wash that fades to nothing, so the line has a body to
+                // read against without a grey block under it.
+                fill="url(#trend-fill)"
+                // No marker on every point — the tooltip and the active dot
+                // carry exact values; the line carries the shape.
+                dot={false}
+                activeDot={{ r: 4.5, strokeWidth: 2, stroke: "var(--card)" }}
                 animationDuration={trendMs}
               />
             </AreaChart>
@@ -656,22 +635,31 @@ export function AnalyticsView({
       <section className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Interview conversion by cohort</CardTitle>
+            <CardTitle className="flex items-center gap-1.5 text-base">
+              Interview conversion by cohort
+              <InfoTip>
+                Applications grouped by the {cohortGranularity === "week" ? "week" : "month"} you
+                sent them, and how many ever reached an interview. Recent cohorts have had less time
+                to convert.
+              </InfoTip>
+            </CardTitle>
             <CardDescription>
-              Applications from {periodLabel} grouped by the{" "}
-              {cohortGranularity === "week" ? "week" : "month"} you sent them, and how many ever
-              reached an interview. Recent cohorts have had less time to convert.
+              Of what you sent each {cohortGranularity === "week" ? "week" : "month"}, how much
+              reached an interview.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
               config={cohortConfig}
-              className="chart-bars-v aspect-auto h-[220px] w-full"
+              className="chart-bars-v aspect-auto h-[240px] w-full"
             >
               <BarChart
                 accessibilityLayer
                 data={cohorts}
-                margin={{ left: 4, right: 4, top: 8, bottom: 4 }}
+                // A negative gap the width of a bar draws the subset inside
+                // its total instead of beside it.
+                barGap={-24}
+                margin={{ left: 4, right: 4, top: 20, bottom: 4 }}
               >
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
@@ -682,24 +670,32 @@ export function AnalyticsView({
                   allowDecimals={false}
                   tickMargin={4}
                 />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent labelKey="label" />} />
+                <ChartTooltip
+                  cursor={{ fill: "var(--muted)", opacity: 0.5 }}
+                  content={<ChartTooltipContent labelKey="label" />}
+                />
                 <ChartLegend content={<ChartLegendContent />} />
-                {/* Nested magnitudes: interviews are a subset of applications, so
-                    they share one hue at two steps rather than two identities. */}
                 <Bar
                   dataKey="applied"
                   fill="var(--color-applied)"
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={24}
+                  barSize={24}
                   isAnimationActive={false}
-                />
-                {/* The subset lands after the total it sits inside, so the
-                    nesting is legible as the pair draws. */}
+                >
+                  <LabelList
+                    dataKey="rateLabel"
+                    position="top"
+                    offset={6}
+                    className="fill-foreground"
+                    fontSize={11}
+                    fontWeight={500}
+                  />
+                </Bar>
                 <Bar
                   dataKey="reachedInterview"
                   fill="var(--color-reachedInterview)"
                   radius={[4, 4, 0, 0]}
-                  maxBarSize={24}
+                  barSize={24}
                   isAnimationActive={false}
                 />
               </BarChart>
@@ -779,26 +775,6 @@ function sentenceCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/**
- * The key to the colour language, and it belongs above the charts it explains
- * — at the foot it sat below the fold, which is the one place a legend is no
- * use. It lists all six statuses rather than only the ones currently in the
- * data, so the vocabulary reads the same on an empty account as a full one.
- */
-function StatusLegend() {
-  return (
-    // Badge renders a <div>, so this wrapper must not be a <p>.
-    <div className="mb-4 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:mb-6">
-      <span className="mr-0.5">Status legend:</span>
-      {STATUSES.map((s) => (
-        <Badge key={s} variant="outline" className={`${statusColor[s]} capitalize`}>
-          {s}
-        </Badge>
-      ))}
-    </div>
-  );
-}
-
 function PageHeading({ actions }: { actions?: ReactNode }) {
   return (
     <PageHeader
@@ -810,16 +786,16 @@ function PageHeading({ actions }: { actions?: ReactNode }) {
 }
 
 /**
- * `accent` ties a tile to the status it counts, and `alert` marks the one tile
- * that is a warning rather than an identity.
+ * One cell of the key-metrics panel.
  *
- * Either way the hue rides the tile's top edge, never the figure: a number is
- * text, and text stays in text ink so it keeps its full contrast. The rule
- * replaces a 2px dot that sat beside the label. The dot was correct and
- * unreadable — at that size gold on white is a smudge, which meant the three
- * tiles that carry the page's only colour were the three you couldn't see it
- * on. A 3px edge is the same claim at a size that survives the trip to the
- * screen, and it costs the tile no contrast anywhere.
+ * `accent` ties a tile to the status it counts, and `alert` marks a tile that
+ * is a warning rather than an identity. Either way the hue rides a marker
+ * beside the label, never the figure: a number is text, and text stays in
+ * text ink so it keeps its full contrast. The marker is 8px — the old 2px dot
+ * was a smudge in gold — and every one sits next to a label that names it.
+ *
+ * `visual` is an optional mark at the figure's right: the trend's shape for
+ * the applications count, a meter for a rate.
  */
 function StatTile({
   label,
@@ -828,6 +804,7 @@ function StatTile({
   delta,
   alert,
   accent,
+  visual,
 }: {
   label: string;
   value: number | string;
@@ -835,23 +812,26 @@ function StatTile({
   delta?: number;
   alert?: boolean;
   accent?: Status;
+  visual?: ReactNode;
 }) {
   // Overdue work is the one warning on this page, and it wears the same red the
   // overdue chips on the cards and tasks list wear.
-  const edge = alert ? "var(--status-rejected)" : accent ? statusFill[accent] : null;
+  const mark = alert ? "var(--status-rejected)" : accent ? statusFill[accent] : null;
 
   return (
-    <Card className="relative overflow-hidden">
-      {edge && (
-        <span
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-[3px]"
-          style={{ background: edge }}
-        />
-      )}
-      <CardContent className="p-5">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <div className="mt-1 flex items-baseline gap-2">
+    <div className="flex min-w-0 flex-col bg-card p-4 sm:p-5">
+      <p className="flex items-start gap-2 text-sm leading-snug text-muted-foreground">
+        {mark && (
+          <span
+            aria-hidden
+            className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+            style={{ background: mark }}
+          />
+        )}
+        {label}
+      </p>
+      <div className="mt-1.5 flex items-end justify-between gap-4">
+        <div className="flex items-baseline gap-2">
           {/* Proportional figures: tabular-nums makes a display-size number look loose. */}
           <span
             className={`text-3xl font-semibold tracking-[-0.02em] ${alert ? "text-brand-accent" : ""}`}
@@ -874,9 +854,195 @@ function StatTile({
             </span>
           )}
         </div>
-        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
-      </CardContent>
-    </Card>
+        {visual && (
+          <div aria-hidden className="mb-1.5 hidden w-28 shrink-0 sm:block">
+            {visual}
+          </div>
+        )}
+      </div>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+/**
+ * The period's applications as a running total — no axes, no values; the
+ * chart below has those. Cumulative rather than per-bucket because at this
+ * size a week-to-week line of ones and threes is a zigzag, while a running
+ * total shows the one thing a glance can take in: is the count still
+ * climbing, and where did it flatten.
+ */
+function Sparkline({ data }: { data: { label: string; count: number }[] }) {
+  const running = useMemo(() => {
+    let sum = 0;
+    return data.map((d) => ({ label: d.label, count: (sum += d.count) }));
+  }, [data]);
+  return (
+    <ChartContainer config={barConfig} className="aspect-auto h-9 w-full">
+      <AreaChart data={running} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+        <defs>
+          <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-count)" stopOpacity={0.18} />
+            <stop offset="100%" stopColor="var(--color-count)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area
+          type="monotone"
+          dataKey="count"
+          stroke="var(--color-count)"
+          strokeWidth={1.5}
+          fill="url(#spark-fill)"
+          dot={false}
+          isAnimationActive={false}
+        />
+      </AreaChart>
+    </ChartContainer>
+  );
+}
+
+/** A rate as a filled track, in the colour of the status it measures. */
+function Meter({ share, status }: { share: number; status: Status }) {
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        className="h-full rounded-full"
+        style={{
+          width: `${Math.max(2, Math.round(share * 100))}%`,
+          background: statusFill[status],
+        }}
+      />
+    </div>
+  );
+}
+
+/** The grow-in shared by every HTML bar on the page; off under reduced motion. */
+const BAR_GROW = "origin-left motion-safe:animate-[bar-grow-x_480ms_cubic-bezier(0.2,0.8,0.2,1)]";
+
+/**
+ * Horizontal bars in plain HTML: label, bar on a faint track, then the count
+ * and its share. The track gives every bar the same full length to be read
+ * against, so a short bar reads as a fraction of something rather than a
+ * stray block; the numbers sit in their own column so they line up.
+ */
+function BarList({
+  label,
+  rows,
+}: {
+  label: string;
+  rows: { key: string; label: string; count: number; share: number; status: Status }[];
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  return (
+    <ul aria-label={label} className="space-y-3">
+      {rows.map((r) => (
+        <li
+          key={r.key}
+          className="grid grid-cols-[5.5rem_minmax(0,1fr)_4.75rem] items-center gap-3 text-sm sm:grid-cols-[6.5rem_minmax(0,1fr)_5rem]"
+        >
+          <span className="truncate text-muted-foreground">{r.label}</span>
+          <span className="h-5 overflow-hidden rounded-r-[4px] bg-muted/70">
+            {r.count > 0 && (
+              <span
+                className={`block h-full rounded-r-[4px] ${BAR_GROW}`}
+                style={{ width: `${(r.count / max) * 100}%`, background: statusFill[r.status] }}
+              />
+            )}
+          </span>
+          <span className="text-right tabular-nums">
+            <span className="font-medium">{r.count}</span>
+            <span className="ml-1.5 text-xs text-muted-foreground">
+              {Math.round(r.share * 100)}%
+            </span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Stage reach as a funnel: each stage's bar is its share of applications
+ * sent, centred so the narrowing reads at a glance, and between stages the
+ * step rate — how many of the stage above made it to this one — which is the
+ * number the old bar chart left the reader to work out.
+ */
+function Funnel({ stages }: { stages: FunnelStage[] }) {
+  return (
+    <ol aria-label="Stage reach" className="space-y-1">
+      {stages.map((st, i) => {
+        const prev = stages[i - 1];
+        const step = prev && prev.count > 0 ? st.count / prev.count : null;
+        return (
+          <li key={st.stage}>
+            {prev && (
+              <p className="flex items-center justify-center gap-1 py-1.5 text-xs text-muted-foreground">
+                <ArrowDownRight className="h-3.5 w-3.5" aria-hidden />
+                {step === null ? (
+                  "—"
+                ) : (
+                  <>
+                    <span className="font-medium text-foreground">{Math.round(step * 100)}%</span>{" "}
+                    of {prev.stage.toLowerCase()} reached {st.stage.toLowerCase()}
+                  </>
+                )}
+              </p>
+            )}
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: statusFill[PIPELINE[i]] }}
+                />
+                {st.stage}
+              </span>
+              <span className="tabular-nums">
+                <span className="font-medium">{st.count}</span>
+                <span className="ml-1.5 text-xs text-muted-foreground">
+                  {Math.round(st.share * 100)}%
+                </span>
+              </span>
+            </div>
+            <div className="mt-1.5 flex h-6 justify-center rounded-[4px] bg-muted/70">
+              {st.count > 0 && (
+                <div
+                  className="h-full rounded-[4px] motion-safe:animate-[bar-grow-x_480ms_cubic-bezier(0.2,0.8,0.2,1)]"
+                  style={{
+                    width: `${Math.max(2, st.share * 100)}%`,
+                    background: statusFill[PIPELINE[i]],
+                  }}
+                />
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * The fine print behind a chart — how it's counted and where it's a lower
+ * bound — one hover away instead of a paragraph above every plot.
+ */
+function InfoTip({ children }: { children: ReactNode }) {
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="How this is counted"
+            className="rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs text-xs leading-relaxed font-normal">
+          {children}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -1094,7 +1260,14 @@ function DataTable({
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-3">
-      <Button variant="ghost" size="sm" onClick={() => setOpen((v) => !v)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs text-muted-foreground"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <Table2 className="h-3.5 w-3.5" />
         {open ? "Hide data table" : "Show data table"}
       </Button>
       {open && (
@@ -1132,11 +1305,7 @@ function AnalyticsSkeleton() {
   return (
     <main className="container-page page-body">
       <PageHeading />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-[104px] rounded-xl" />
-        ))}
-      </div>
+      <Skeleton className="h-[236px] rounded-xl" />
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Skeleton className="h-[318px] rounded-xl" />
         <Skeleton className="h-[318px] rounded-xl" />
