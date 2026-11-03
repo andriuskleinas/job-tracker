@@ -61,7 +61,7 @@ import {
   type StatsStatusEvent,
   type StatsTask,
 } from "@/lib/stats";
-import { ArrowDown, ArrowUp, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Quote } from "lucide-react";
 
 /*
  * The date-range filter lives in the URL, same reasoning as the
@@ -937,14 +937,15 @@ function ResponseTimeStat({
 }
 
 /**
- * Why rejections happened, as two clouds rather than a chart: the tags you
- * picked, and the words that recur in the notes you wrote.
+ * Why rejections happened: the most common reason called out on its own, then
+ * every reason as a cloud, with the words that recur in your notes trailing
+ * underneath as quieter text.
  *
  * Size carries the frequency, but never alone — every tag also prints its
  * count, so the cloud reads correctly for someone who can't judge type size
  * and still survives a screenshot. Tags wear the rejected status colour,
- * deeper for the common ones; note words stay in text ink so the two clouds
- * read as the structured answer and the free-form one.
+ * deeper for the common ones; note words stay in text ink so the structured
+ * answer and the free-form one never blur together.
  *
  * Sorted, not scattered: a real word cloud places words randomly, which is
  * pretty and impossible to scan. Largest-first in a centred wrap keeps the
@@ -959,6 +960,8 @@ function RejectionReasons({
 }) {
   const { rejected, withReason, tags, words } = summary;
   const missing = rejected - withReason;
+  const topCount = tags[0]?.count ?? 0;
+  const top = tags.filter((t) => t.count === topCount);
 
   return (
     <Card className="mt-4">
@@ -969,102 +972,113 @@ function RejectionReasons({
             ? `No rejections from ${periodLabel}.`
             : withReason === 0
               ? `None of the ${rejected} rejection${rejected === 1 ? "" : "s"} from ${periodLabel} has a reason yet — add one from a rejected application's card menu.`
-              : `From ${withReason} of ${rejected} rejection${rejected === 1 ? "" : "s"} in ${periodLabel}${missing > 0 ? ` — ${missing} without a reason` : ""}. Bigger means more common.`}
+              : `${rejected} rejection${rejected === 1 ? "" : "s"} in ${periodLabel}${missing > 0 ? `, ${missing} without a reason` : ""}.`}
         </CardDescription>
       </CardHeader>
       {withReason > 0 && (
-        <CardContent className="grid gap-6 lg:grid-cols-2 lg:gap-0 lg:divide-x">
-          <ReasonCloud
-            title="Reasons you picked"
-            empty="No tags picked yet."
-            items={tags.map((t) => ({ key: t.key, text: t.label, count: t.count }))}
-            variant="tag"
-          />
-          <ReasonCloud
-            title="In your own words"
-            empty="No notes written yet."
-            items={words.map((w) => ({ key: w.word, text: w.word, count: w.count }))}
-            variant="word"
-          />
+        <CardContent
+          className={`grid gap-4 ${top.length > 0 ? "md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]" : ""}`}
+        >
+          {top.length > 0 && (
+            <div className="flex flex-col justify-center rounded-xl border border-[var(--status-rejected-soft)] p-5">
+              <p className="text-5xl font-semibold tracking-[-0.03em] text-[var(--status-rejected-text)]">
+                {Math.round((topCount / withReason) * 100)}%
+              </p>
+              <p className="mt-2 text-lg leading-snug font-medium">
+                {top.map((t) => t.label).join(" & ")}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {topCount} of {withReason} rejection{withReason === 1 ? "" : "s"}
+                {top.length > 1 ? " each" : ""}
+              </p>
+            </div>
+          )}
+          <div
+            className="flex min-h-[10rem] flex-col items-center justify-center gap-5 rounded-xl px-4 py-6"
+            style={{
+              // A faint glow behind the cloud's centre, where the biggest
+              // reasons sit, so the shape reads as one thing.
+              background:
+                "radial-gradient(ellipse at center, color-mix(in oklch, var(--status-rejected-soft) 60%, transparent), transparent 70%)",
+            }}
+          >
+            {tags.length > 0 && (
+              <ul
+                aria-label="Reasons picked"
+                className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2.5"
+              >
+                {tags.map((t) => {
+                  const w = cloudWeight(t.count, tags);
+                  return (
+                    <li
+                      key={t.key}
+                      title={`${t.label}: ${t.count} rejection${t.count === 1 ? "" : "s"}`}
+                      style={{
+                        fontSize: `${0.875 + 0.875 * w}rem`,
+                        fontWeight: Math.round(450 + 200 * w),
+                        // The wash deepens with frequency, from a hint to the
+                        // full soft tint the rejection chips elsewhere wear.
+                        background: `color-mix(in oklch, var(--status-rejected-soft) ${Math.round(55 + 45 * w)}%, var(--card))`,
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 leading-tight text-[var(--status-rejected-text)] shadow-xs"
+                    >
+                      {t.label}
+                      <span className="rounded-full bg-card px-1.5 text-[0.6875rem] font-medium tabular-nums">
+                        {t.count}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {words.length > 0 && (
+              <div className="flex max-w-xl items-start gap-2">
+                <Quote
+                  aria-hidden
+                  className="mt-1 h-4 w-4 shrink-0 text-[var(--status-rejected-text)] opacity-60"
+                />
+                <ul
+                  aria-label="Words from your notes"
+                  className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
+                >
+                  {words.map((w) => {
+                    const weight = cloudWeight(w.count, words);
+                    return (
+                      <li
+                        key={w.word}
+                        title={`${w.word}: in ${w.count} note${w.count === 1 ? "" : "s"}`}
+                        style={{ fontSize: `${0.8125 + 0.4375 * weight}rem` }}
+                        className={`italic ${weight > 0.5 ? "font-medium text-foreground" : "text-muted-foreground"}`}
+                      >
+                        {w.word}
+                        {w.count > 1 && (
+                          <sup className="ml-0.5 text-[0.625rem] not-italic tabular-nums text-muted-foreground">
+                            {w.count}
+                          </sup>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
         </CardContent>
       )}
     </Card>
   );
 }
 
-function ReasonCloud({
-  title,
-  empty,
-  items,
-  variant,
-}: {
-  title: string;
-  empty: string;
-  items: { key: string; text: string; count: number }[];
-  variant: "tag" | "word";
-}) {
-  const max = Math.max(1, ...items.map((i) => i.count));
-  const min = Math.min(max, ...items.map((i) => i.count));
-  // 0 for the rarest item, 1 for the most common. With every count equal the
-  // cloud renders at its middle size rather than all-large or all-small.
-  const weight = (count: number) => (max === min ? 0.5 : (count - min) / (max - min));
-  const [smallRem, largeRem] = variant === "tag" ? [0.875, 1.625] : [0.8125, 1.5];
-
-  return (
-    <div className="min-w-0 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-      <p className="mb-3 text-sm font-medium">{title}</p>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{empty}</p>
-      ) : (
-        <ul className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2 py-2">
-          {items.map((item) => {
-            const w = weight(item.count);
-            const label = `${item.text}: ${item.count} rejection${item.count === 1 ? "" : "s"}`;
-            return (
-              <li
-                key={item.key}
-                aria-label={label}
-                title={label}
-                style={{
-                  fontSize: `${smallRem + (largeRem - smallRem) * w}rem`,
-                  // The wash deepens with frequency, from a hint to the full
-                  // soft tint the rejection chips elsewhere wear.
-                  background:
-                    variant === "tag"
-                      ? `color-mix(in oklch, var(--status-rejected-soft) ${Math.round(45 + 55 * w)}%, transparent)`
-                      : undefined,
-                }}
-                className={
-                  variant === "tag"
-                    ? "inline-flex items-baseline gap-1.5 rounded-full px-3 py-1 leading-tight text-[var(--status-rejected-text)]"
-                    : "inline-flex items-baseline gap-1 leading-tight"
-                }
-              >
-                <span
-                  className={
-                    variant === "word"
-                      ? w > 0.5
-                        ? "text-foreground"
-                        : "text-muted-foreground"
-                      : ""
-                  }
-                  style={{ fontWeight: Math.round(400 + 200 * w) }}
-                >
-                  {item.text}
-                </span>
-                <span
-                  className="text-xs font-normal tabular-nums text-muted-foreground"
-                  aria-hidden
-                >
-                  {item.count}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
+/**
+ * 0 for the rarest item in a cloud, 1 for the most common. With every count
+ * equal the cloud renders at its middle size rather than all-large or
+ * all-small.
+ */
+function cloudWeight(count: number, items: { count: number }[]): number {
+  const counts = items.map((i) => i.count);
+  const max = Math.max(...counts);
+  const min = Math.min(...counts);
+  return max === min ? 0.5 : (count - min) / (max - min);
 }
 
 /** Table twin for a chart — every plotted value stays reachable without colour. */
