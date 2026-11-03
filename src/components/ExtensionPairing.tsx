@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Check, Copy, Puzzle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -47,45 +46,36 @@ export function ExtensionPairing() {
     }
   };
 
-  return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Puzzle className="h-4 w-4" /> Browser extension
-        </CardTitle>
-        <CardDescription>
-          Clip a job ad straight from the page you're looking at — salary, requirements and the full
-          text — so you still have it when the posting comes down. Pair once per browser.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {code ? (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Paste this into the extension. Treat it like a password — anyone with it can add
-              applications to your account.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <code className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs whitespace-nowrap">
-                {code}
-              </code>
-              <Button type="button" variant="outline" onClick={copy} className="shrink-0">
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied ? "Copied" : "Copy"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => mint.mutate()}
-            disabled={mint.isPending}
-          >
-            {mint.isPending ? "Creating…" : "Show my pairing code"}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+  return code ? (
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">
+        Paste this into the extension. Treat it like a password — anyone with it can add
+        applications to your account.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <code className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs whitespace-nowrap">
+          {code}
+        </code>
+        <Button type="button" variant="outline" onClick={copy} className="shrink-0">
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex items-center justify-between gap-4">
+      <p className="text-sm text-muted-foreground">Pair once in each browser you use.</p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => mint.mutate()}
+        disabled={mint.isPending}
+        className="shrink-0"
+      >
+        <Puzzle className="h-4 w-4" />
+        {mint.isPending ? "Creating…" : "Get pairing code"}
+      </Button>
+    </div>
   );
 }
