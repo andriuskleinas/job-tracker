@@ -105,13 +105,20 @@ const tasks = [
   { id: "t5", title: "Update CV with new project", done: true, due_date: iso(20) },
   { id: "t6", title: "Research the team on LinkedIn", done: false, due_date: null },
   { id: "t7", title: "Thank-you note after onsite", done: false, due_date: iso(0), priority: true },
-].map((t) => ({
+].map((t, i) => ({
   priority: false,
   due_time: null,
   ...t,
+  // A mix for the task panel's role filter: one role, another, both, none.
   task_applications: [
-    { application: { id: "app-1", company: "Northwind", position: "Staff Engineer" } },
-  ],
+    [{ application: { id: "app-1", company: "Northwind", position: "Staff Engineer" } }],
+    [{ application: { id: "app-2", company: "Globex", position: "Product Designer" } }],
+    [
+      { application: { id: "app-1", company: "Northwind", position: "Staff Engineer" } },
+      { application: { id: "app-2", company: "Globex", position: "Product Designer" } },
+    ],
+    [],
+  ][i % 4],
 }));
 
 const cards: ApplicationCardData[] = [
