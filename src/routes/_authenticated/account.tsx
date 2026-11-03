@@ -417,10 +417,11 @@ function ProfileSection({ profile }: { profile: AccountProfile | null | undefine
 /* ------------------------------------------------------------------ */
 
 const PRIDE_THEMES = LOGO_THEMES.filter((t) => t.group === "pride");
+const CAUSE_THEMES = LOGO_THEMES.filter((t) => t.group === "cause");
 const COUNTRY_THEMES = LOGO_THEMES.filter((t) => t.group === "country");
 
 /**
- * Pick the colours of your own logo — standard, a pride flag, or a country's.
+ * Pick the colours of your own logo — standard, a pride flag, a movement, or a country's.
  * Saves on pick (no form), and writes the cache first so the header tile
  * changes the moment you click.
  */
@@ -506,6 +507,26 @@ function LogoSection({ profile }: { profile: AccountProfile | null | undefined }
               <LogoTile theme={null} className="h-6 w-6" />
             </ThemeSwatch>
             {PRIDE_THEMES.map((t) => (
+              <ThemeSwatch
+                key={t.id}
+                label={t.name}
+                selected={current?.id === t.id}
+                onSelect={() => pick(t.id)}
+              >
+                <LogoTile theme={t} className="h-6 w-6" />
+              </ThemeSwatch>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label id="logo-cause-label">Movements</Label>
+          <div
+            role="radiogroup"
+            aria-labelledby="logo-cause-label"
+            className="flex flex-wrap gap-2"
+          >
+            {CAUSE_THEMES.map((t) => (
               <ThemeSwatch
                 key={t.id}
                 label={t.name}

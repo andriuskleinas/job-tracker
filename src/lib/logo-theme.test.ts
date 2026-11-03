@@ -12,7 +12,7 @@ describe("LOGO_THEMES", () => {
   });
 
   test("covers the flags people asked for", () => {
-    for (const id of ["flag:UA", "flag:PS", "flag:IL", "pride:rainbow"]) {
+    for (const id of ["flag:UA", "flag:PS", "flag:IL", "pride:rainbow", "cause:blm"]) {
       expect(logoTheme(id)?.id).toBe(id);
     }
   });

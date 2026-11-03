@@ -17,7 +17,7 @@ export type FlagShape =
 export type LogoTheme = {
   id: string;
   name: string;
-  group: "pride" | "country";
+  group: "pride" | "cause" | "country";
   shapes: FlagShape[];
 };
 
@@ -186,6 +186,55 @@ const PRIDE: [id: string, name: string, shapes: FlagShape[]][] = [
   ["pansexual", "Pansexual", h("#FF218C", "#FFD800", "#21B1FF")],
   ["nonbinary", "Non-binary", h("#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C")],
   ["asexual", "Asexual", h("#000000", "#A3A3A3", "#FFFFFF", "#800080")],
+];
+
+/* ------------------------------------------------------------------ */
+/* Movements & causes                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Parallel stripes along the top-left → bottom-right diagonal, centred on it. */
+function diagonalBand(colors: string[], w: number): FlagShape[] {
+  const k = Math.SQRT1_2;
+  return colors.map((color, i) => {
+    const o = (i - (colors.length - 1) / 2) * w;
+    return line(color, -0.2 + o * k, -0.2 - o * k, 1.2 + o * k, 1.2 - o * k, w + 0.01);
+  });
+}
+
+const CAUSES: [id: string, name: string, shapes: FlagShape[]][] = [
+  ["blm", "Black Lives Matter", h("#FCE300", ["#000000", 4], "#FCE300")],
+  ["pan-african", "Pan-African", h("#E31B23", "#000000", "#00853F")],
+  [
+    "peace",
+    "Peace",
+    h("#6B2C91", "#2E3192", "#00AEEF", "#00A651", "#FFF200", "#F7941D", "#ED1C24"),
+  ],
+  [
+    "climate",
+    "Climate stripes",
+    v(
+      "#08306B",
+      "#2171B5",
+      "#6BAED6",
+      "#C6DBEF",
+      "#FEE0D2",
+      "#FC9272",
+      "#EF3B2C",
+      "#CB181D",
+      "#A50F15",
+      "#67000D",
+    ),
+  ],
+  ["womens-rights", "Women's rights", h("#6A1B9A", "#FFFFFF", "#2E7D32")],
+  [
+    "disability",
+    "Disability pride",
+    [
+      fill("#595959"),
+      ...diagonalBand(["#CF7280", "#EEDE77", "#E8E8E8", "#7BC2E0", "#3BB07D"], 0.07),
+    ],
+  ],
+  ["refugees", "Refugees", h(["#F7921E", 2], "#000000", ["#F7921E", 2])],
 ];
 
 /* ------------------------------------------------------------------ */
@@ -672,6 +721,9 @@ const COUNTRY_FLAGS: [code: string, name: string, shapes: FlagShape[]][] = [
 export const LOGO_THEMES: LogoTheme[] = [
   ...PRIDE.map(
     ([id, name, shapes]): LogoTheme => ({ id: `pride:${id}`, name, group: "pride", shapes }),
+  ),
+  ...CAUSES.map(
+    ([id, name, shapes]): LogoTheme => ({ id: `cause:${id}`, name, group: "cause", shapes }),
   ),
   ...COUNTRY_FLAGS.map(
     ([code, name, shapes]): LogoTheme => ({ id: `flag:${code}`, name, group: "country", shapes }),
