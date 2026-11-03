@@ -38,6 +38,8 @@ import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { TaskForm, type TaskFormValues } from "@/components/TaskForm";
 import { TaskSummaryPanel, countOverdue, useAllTasks } from "@/components/TaskSummaryPanel";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
+import { DailyGoalTracker } from "@/components/DailyGoalTracker";
+import { DEFAULT_DAILY_GOAL, fetchProfile, type AccountProfile } from "@/lib/profile";
 import type { RoleOption } from "@/components/RoleMultiSelect";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -218,6 +220,39 @@ function ApplicationsPage() {
 
   const { data: allTasks = [], isLoading: tasksLoading } = useAllTasks();
   const overdueTasks = useMemo(() => countOverdue(allTasks), [allTasks]);
+
+  // The daily goal lives on the profile so it follows the user across
+  // devices. Same `["profile"]` cache entry as the navbar and account page.
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: fetchProfile });
+  const dailyGoal = profile?.daily_application_goal ?? DEFAULT_DAILY_GOAL;
+  const saveDailyGoal = useMutation({
+    mutationFn: async (goal: number) => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Not signed in");
+      // Upsert, not update: a profile row isn't guaranteed to exist yet.
+      const { error } = await supabase
+        .from("profiles")
+        .upsert({ id: userData.user.id, daily_application_goal: goal });
+      if (error) throw error;
+    },
+    onMutate: async (goal) => {
+      await queryClient.cancelQueries({ queryKey: ["profile"] });
+      const previous = queryClient.getQueryData<AccountProfile | null>(["profile"]);
+      if (previous) {
+        queryClient.setQueryData<AccountProfile>(["profile"], {
+          ...previous,
+          daily_application_goal: goal,
+        });
+      }
+      return { previous };
+    },
+    onError: (e, _goal, context) => {
+      if (context?.previous) queryClient.setQueryData(["profile"], context.previous);
+      toast.error(e instanceof Error ? e.message : "Failed to save goal");
+    },
+    onSuccess: () => toast.success("Daily goal updated"),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["profile"] }),
+  });
 
   const openNewTask = () => {
     setTasksSheetOpen(false);
@@ -1021,8 +1056,17 @@ function ApplicationsPage() {
           )}
         </div>
         {tasksPanelOpen && (
-          <aside className="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border bg-muted p-5 xl:block">
-            <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
+          <aside className="sticky top-20 hidden max-h-[calc(100vh-6rem)] flex-col gap-4 overflow-y-auto xl:flex">
+            <div className="rounded-xl border bg-muted p-5">
+              <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
+            </div>
+            <div className="rounded-xl border bg-muted p-5">
+              <DailyGoalTracker
+                apps={apps}
+                goal={dailyGoal}
+                onGoalChange={(goal) => saveDailyGoal.mutate(goal)}
+              />
+            </div>
           </aside>
         )}
       </div>
@@ -1030,10 +1074,18 @@ function ApplicationsPage() {
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-sm">
           <SheetTitle className="sr-only">Tasks</SheetTitle>
           <SheetDescription className="sr-only">
-            Every task across your applications, grouped by when it is due.
+            Every task across your applications, grouped by when it is due, and your daily
+            application goal.
           </SheetDescription>
-          <div className="pt-6">
+          <div className="space-y-8 pt-6">
             <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
+            <div className="border-t pt-6">
+              <DailyGoalTracker
+                apps={apps}
+                goal={dailyGoal}
+                onGoalChange={(goal) => saveDailyGoal.mutate(goal)}
+              />
+            </div>
           </div>
         </SheetContent>
       </Sheet>

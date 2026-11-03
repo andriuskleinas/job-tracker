@@ -12,6 +12,7 @@ import { ApplicationCard, type ApplicationCardData } from "@/components/Applicat
 import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { TaskSummaryPanel } from "@/components/TaskSummaryPanel";
+import { DailyGoalTracker } from "@/components/DailyGoalTracker";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { rejectionColumns, rejectionFromRow } from "@/lib/rejection";
 import { CLOSED_STATUSES } from "@/lib/status";
@@ -294,6 +295,7 @@ function DevPreview() {
   // Same reasoning for the analytics range filter — it round-trips through
   // the URL on the real page, so the fixture needs its own state to exercise
   // the control at all.
+  const [dailyGoal, setDailyGoal] = useState(2);
   const [range, setRange] = useState<RangePreset>("all");
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
@@ -363,6 +365,10 @@ function DevPreview() {
         <h2 className="mb-3 mt-8 text-lg font-semibold">TaskSummaryPanel</h2>
         <div className="max-w-[19rem] rounded-xl border bg-muted p-5">
           <TaskSummaryPanel tasks={tasks} isLoading={false} onNewTask={() => {}} />
+        </div>
+        <h2 className="mb-3 mt-8 text-lg font-semibold">DailyGoalTracker</h2>
+        <div className="max-w-[19rem] rounded-xl border bg-muted p-5">
+          <DailyGoalTracker apps={apps} goal={dailyGoal} onGoalChange={setDailyGoal} />
         </div>
         <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>
         <ApplicationArchive

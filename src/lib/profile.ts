@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/** Matches the column default, for a profile row that doesn't exist yet. */
+export const DEFAULT_DAILY_GOAL = 2;
+
 /** The account profile as the UI consumes it — always with a resolved email. */
 export type AccountProfile = {
   id: string;
@@ -10,6 +13,8 @@ export type AccountProfile = {
   country: string | null;
   city: string | null;
   time_zone: string | null;
+  /** Applications the user means to send per day; drives the daily goal tracker. */
+  daily_application_goal: number;
 };
 
 /**
@@ -40,6 +45,7 @@ export async function fetchProfile(): Promise<AccountProfile | null> {
     country: data?.country ?? null,
     city: data?.city ?? null,
     time_zone: data?.time_zone ?? null,
+    daily_application_goal: data?.daily_application_goal ?? DEFAULT_DAILY_GOAL,
   };
 }
 
