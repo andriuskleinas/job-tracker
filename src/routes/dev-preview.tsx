@@ -354,7 +354,7 @@ function DevPreview() {
           onDelete={(app) => setBoardCards((prev) => prev.filter((c) => c.id !== app.id))}
         />
         <h2 className="mb-3 mt-8 text-lg font-semibold">TaskSummaryPanel</h2>
-        <div className="max-w-[19rem] rounded-xl border p-5">
+        <div className="max-w-[19rem] rounded-xl border bg-muted p-5">
           <TaskSummaryPanel tasks={tasks} isLoading={false} onNewTask={() => {}} />
         </div>
         <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>

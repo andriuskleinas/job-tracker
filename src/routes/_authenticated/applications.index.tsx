@@ -1021,7 +1021,7 @@ function ApplicationsPage() {
           )}
         </div>
         {tasksPanelOpen && (
-          <aside className="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border p-5 xl:block">
+          <aside className="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border bg-muted p-5 xl:block">
             <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
           </aside>
         )}

@@ -245,7 +245,7 @@ export function TaskSummaryPanel({
 
 function SummaryStat({ label, value, alert }: { label: string; value: number; alert?: boolean }) {
   return (
-    <div className="rounded-lg border px-2.5 py-2">
+    <div className="rounded-lg border bg-background px-2.5 py-2">
       <dt className="whitespace-nowrap text-xs text-muted-foreground">{label}</dt>
       <dd className={`text-lg font-semibold ${alert ? "text-brand-accent" : ""}`}>{value}</dd>
     </div>
