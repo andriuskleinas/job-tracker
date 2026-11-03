@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { Flame, Minus, Pencil, Plus, Target, Trophy } from "lucide-react";
+import { Check, Flame, Minus, Pencil, Plus, Target, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -73,29 +72,29 @@ export function DailyGoalTracker({
         <GoalEditor goal={goal} onSave={onGoalChange} />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-baseline justify-between">
-          <p className="text-sm">
-            <span className="text-2xl font-semibold tracking-tight">{sentToday}</span>
-            <span className="text-muted-foreground">
-              {" "}
-              / {goal} {goal === 1 ? "application" : "applications"} today
-            </span>
-          </p>
-        </div>
-        <Progress
-          value={Math.min((sentToday / goal) * 100, 100)}
-          className={`h-1.5 ${met ? "[&>div]:bg-[var(--status-offer)]" : ""}`}
-          aria-label="Today's applications against the goal"
-        />
-        <p
-          className={`text-xs ${met ? "font-medium text-[var(--status-offer-text)]" : "text-muted-foreground"}`}
+      {/* The goal is on the button above; this line is only today's result,
+          with a quiet note of where it stands against it. */}
+      <p className="flex items-baseline justify-between gap-2 text-sm">
+        <span>
+          <span className="text-2xl font-semibold tracking-tight">{sentToday}</span>{" "}
+          <span className="text-muted-foreground">
+            {sentToday === 1 ? "application" : "applications"} today
+          </span>
+        </span>
+        <span
+          className={`flex items-center gap-1 whitespace-nowrap text-xs ${
+            met ? "font-medium text-[var(--status-offer-text)]" : "text-muted-foreground"
+          }`}
         >
-          {met
-            ? "Consistency is key. Don't give up applying for your dream job!"
-            : `${remaining} more to hit today's goal.`}
-        </p>
-      </div>
+          {met ? (
+            <>
+              <Check className="h-3.5 w-3.5" aria-hidden /> Goal met
+            </>
+          ) : (
+            `${remaining} to go`
+          )}
+        </span>
+      </p>
 
       <dl className="grid grid-cols-3 gap-2">
         <GoalStat icon={<Flame className="h-3.5 w-3.5" aria-hidden />} label="Streak">
