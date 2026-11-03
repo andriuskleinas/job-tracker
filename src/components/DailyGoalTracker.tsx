@@ -42,6 +42,10 @@ export function DailyGoalTracker({
     [counts, goal, today],
   );
 
+  // Before the first application ever sent there was nothing to miss, so
+  // those days stay neutral instead of filling a new account with misses.
+  const firstDay = useMemo(() => [...counts.keys()].sort()[0] ?? today, [counts, today]);
+
   // Calendar rows run Monday → Sunday, so the grid starts on the Monday
   // WEEKS-1 weeks before this one and runs through this Sunday; days after
   // today are drawn as blanks rather than misses.
@@ -87,7 +91,7 @@ export function DailyGoalTracker({
           className={`text-xs ${met ? "font-medium text-[var(--status-offer-text)]" : "text-muted-foreground"}`}
         >
           {met
-            ? "Goal met for today — keep the streak going tomorrow."
+            ? "Consistency is key. Don't give up applying for your dream job!"
             : `${remaining} more to hit today's goal.`}
         </p>
       </div>
@@ -102,8 +106,11 @@ export function DailyGoalTracker({
         <GoalStat label="Last 30d">{last30Met} / 30</GoalStat>
       </dl>
 
+      {/* One dot per day: green met, yellow partly, black missed. Today is
+          still in progress, so with nothing sent yet it's a hollow ring
+          rather than a miss. */}
       <div>
-        <div className="grid grid-cols-7 gap-1" role="grid" aria-label="Last five weeks">
+        <div className="grid grid-cols-7 gap-y-2.5" role="grid" aria-label="Last five weeks">
           {WEEKDAYS.map((d, i) => (
             <span key={i} className="text-center text-[10px] text-muted-foreground" aria-hidden>
               {d}
@@ -111,40 +118,43 @@ export function DailyGoalTracker({
           ))}
           {grid.map(({ key, date }) => {
             const n = counts.get(key) ?? 0;
-            const future = key > today;
+            const isToday = key === today;
             const label = date.toLocaleDateString(undefined, {
               weekday: "short",
               day: "numeric",
               month: "short",
             });
-            const tone = future
-              ? "border-dashed bg-transparent"
-              : n >= goal
-                ? "border-transparent bg-[var(--status-offer)]"
-                : n > 0
-                  ? "border-transparent bg-[var(--status-offer-soft)]"
-                  : "bg-background";
+            const [tone, state] =
+              key > today || key < firstDay
+                ? ["bg-muted-foreground/20", key > today ? "upcoming" : "before you started"]
+                : n >= goal
+                  ? ["bg-[var(--status-offer)]", `${n} of ${goal}, goal met`]
+                  : n > 0
+                    ? ["bg-[var(--status-interviewing)]", `${n} of ${goal}`]
+                    : isToday
+                      ? ["border-2 border-foreground/50", "nothing sent yet"]
+                      : ["bg-foreground", "missed"];
             return (
               <span
                 key={key}
                 role="gridcell"
-                title={future ? label : `${label}: ${n} of ${goal}`}
-                aria-label={future ? `${label}: upcoming` : `${label}: ${n} of ${goal} sent`}
-                className={`aspect-square rounded-[4px] border ${tone} ${
-                  key === today ? "ring-2 ring-foreground/60 ring-offset-1 ring-offset-muted" : ""
-                }`}
-              />
+                title={`${label}: ${state}`}
+                aria-label={`${label}: ${state}`}
+                className="flex justify-center"
+              >
+                <span
+                  className={`block h-2.5 w-2.5 rounded-full ${tone} ${
+                    isToday ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-muted" : ""
+                  }`}
+                />
+              </span>
             );
           })}
         </div>
-        <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
-          <LegendSwatch className="bg-background">None</LegendSwatch>
-          <LegendSwatch className="border-transparent bg-[var(--status-offer-soft)]">
-            Some
-          </LegendSwatch>
-          <LegendSwatch className="border-transparent bg-[var(--status-offer)]">
-            Goal met
-          </LegendSwatch>
+        <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+          <LegendDot className="bg-[var(--status-offer)]">Goal met</LegendDot>
+          <LegendDot className="bg-[var(--status-interviewing)]">Partly</LegendDot>
+          <LegendDot className="bg-foreground">Missed</LegendDot>
         </div>
       </div>
     </section>
@@ -171,10 +181,10 @@ function GoalStat({
   );
 }
 
-function LegendSwatch({ className, children }: { className: string; children: React.ReactNode }) {
+function LegendDot({ className, children }: { className: string; children: React.ReactNode }) {
   return (
     <span className="flex items-center gap-1">
-      <span className={`h-2.5 w-2.5 rounded-[3px] border ${className}`} aria-hidden />
+      <span className={`h-2 w-2 rounded-full ${className}`} aria-hidden />
       {children}
     </span>
   );
