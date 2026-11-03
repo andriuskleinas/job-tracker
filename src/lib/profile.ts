@@ -17,6 +17,13 @@ export type AccountProfile = {
   daily_application_goal: number;
   /** Flag-coloured logo id (see logo-theme.ts); null shows the standard logo. */
   logo_theme: string | null;
+  /** Gender identity ids from gender.ts — any number; empty when not shared. */
+  gender_identities: string[];
+  /** The user's own words for their gender, alongside or instead of the list. */
+  gender_description: string | null;
+  /** Pronoun ids from gender.ts — any number; empty when not shared. */
+  pronouns: string[];
+  pronouns_description: string | null;
 };
 
 /**
@@ -49,6 +56,10 @@ export async function fetchProfile(): Promise<AccountProfile | null> {
     time_zone: data?.time_zone ?? null,
     daily_application_goal: data?.daily_application_goal ?? DEFAULT_DAILY_GOAL,
     logo_theme: data?.logo_theme ?? null,
+    gender_identities: data?.gender_identities ?? [],
+    gender_description: data?.gender_description ?? null,
+    pronouns: data?.pronouns ?? [],
+    pronouns_description: data?.pronouns_description ?? null,
   };
 }
 

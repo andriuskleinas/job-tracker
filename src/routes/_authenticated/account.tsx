@@ -18,10 +18,20 @@ import {
 import { ExtensionPairing } from "@/components/ExtensionPairing";
 import { LogoTile } from "@/components/Logo";
 import { LOGO_THEMES, logoTheme } from "@/lib/logo-theme";
+import {
+  GENDER_GROUPS,
+  GENDER_OPTIONS,
+  PREFER_NOT_TO_SAY,
+  PRONOUN_OPTIONS,
+  genderOption,
+  pronounsLabel,
+  toggleGender,
+  togglePronoun,
+} from "@/lib/gender";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Clock, Eye, EyeOff, MailCheck, MapPin } from "lucide-react";
+import { Check, ChevronDown, Clock, Eye, EyeOff, MailCheck, MapPin } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({
@@ -29,7 +39,8 @@ export const Route = createFileRoute("/_authenticated/account")({
       { title: "Account — Job Tracker" },
       {
         name: "description",
-        content: "Manage your name, location, time zone, logo colours and password.",
+        content:
+          "Manage your name, location, time zone, gender, pronouns, logo colours and password.",
       },
       { property: "og:title", content: "Account — Job Tracker" },
       { property: "og:description", content: "Manage your account details." },
@@ -107,11 +118,17 @@ function AccountPage() {
           <h1 className="truncate text-2xl font-semibold tracking-[-0.02em]">
             {accountDisplayName(profile)}
           </h1>
-          <p className="truncate text-sm text-muted-foreground">{profile?.email}</p>
+          <p className="truncate text-sm text-muted-foreground">
+            {[pronounsLabel(profile?.pronouns, profile?.pronouns_description), profile?.email]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
         </div>
       </header>
 
       <ProfileSection profile={profile} />
+
+      <GenderSection profile={profile} />
 
       <LogoSection profile={profile} />
 
@@ -409,6 +426,246 @@ function ProfileSection({ profile }: { profile: AccountProfile | null | undefine
         </div>
       </form>
     </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Gender & pronouns                                                   */
+/* ------------------------------------------------------------------ */
+
+type GenderForm = {
+  identities: string[];
+  description: string;
+  pronouns: string[];
+  pronounsDescription: string;
+};
+
+function genderFormFromProfile(p: AccountProfile | null | undefined): GenderForm {
+  return {
+    identities: p?.gender_identities ?? [],
+    description: p?.gender_description ?? "",
+    pronouns: p?.pronouns ?? [],
+    pronounsDescription: p?.pronouns_description ?? "",
+  };
+}
+
+const sameIds = (a: string[], b: string[]) =>
+  a.length === b.length && [...a].sort().join() === [...b].sort().join();
+
+/**
+ * Optional gender identity and pronouns. Pick as many identities as fit, add
+ * your own words, or say you'd rather not — all private to you. The less
+ * common identities sit behind "More identities", which opens by itself when
+ * one of them is already picked.
+ */
+function GenderSection({ profile }: { profile: AccountProfile | null | undefined }) {
+  const queryClient = useQueryClient();
+  const saved = useMemo(() => genderFormFromProfile(profile), [profile]);
+  const [form, setForm] = useState<GenderForm>(saved);
+  useEffect(() => setForm(saved), [saved]);
+
+  const pickedMore = form.identities.some((id) => genderOption(id)?.group !== "common");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const showMore = moreOpen || pickedMore;
+
+  const declined = form.identities.includes(PREFER_NOT_TO_SAY);
+
+  const dirty =
+    !sameIds(form.identities, saved.identities) ||
+    !sameIds(form.pronouns, saved.pronouns) ||
+    form.description.trim() !== saved.description ||
+    form.pronounsDescription.trim() !== saved.pronounsDescription;
+
+  const save = useMutation({
+    mutationFn: async (values: GenderForm) => {
+      if (!profile?.id) throw new Error("Not signed in");
+      const declining = values.identities.includes(PREFER_NOT_TO_SAY);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          gender_identities: values.identities.length ? values.identities : null,
+          gender_description: (!declining && values.description.trim()) || null,
+          pronouns: values.pronouns.length ? values.pronouns : null,
+          pronouns_description: values.pronounsDescription.trim() || null,
+        })
+        .eq("id", profile.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Gender & pronouns saved");
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),
+  });
+
+  const onSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    save.mutate(form);
+  };
+
+  const set = (patch: Partial<GenderForm>) => setForm((f) => ({ ...f, ...patch }));
+  const toggle = (id: string) => set({ identities: toggleGender(form.identities, id) });
+
+  const chipsFor = (group: string) =>
+    GENDER_OPTIONS.filter((o) => o.group === group).map((o) => (
+      <Chip
+        key={o.id}
+        label={o.label}
+        hint={o.hint}
+        selected={form.identities.includes(o.id)}
+        onToggle={() => toggle(o.id)}
+      />
+    ));
+
+  return (
+    <Section
+      title="Gender & pronouns"
+      description="Optional, and only you see it. Pick as many as fit you, or describe it in your own words."
+    >
+      <form onSubmit={onSave} className="space-y-6">
+        <div className="space-y-2">
+          <Label id="gender-common-label">Gender identity</Label>
+          <div role="group" aria-labelledby="gender-common-label" className="flex flex-wrap gap-2">
+            {chipsFor("common")}
+            <Chip
+              label="Prefer not to say"
+              selected={declined}
+              onToggle={() => toggle(PREFER_NOT_TO_SAY)}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setMoreOpen((o) => !o)}
+            aria-expanded={showMore}
+            disabled={pickedMore}
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground"
+          >
+            <ChevronDown
+              className={cn("h-4 w-4 transition-transform", showMore && "rotate-180")}
+              aria-hidden="true"
+            />
+            More identities
+          </button>
+          {showMore &&
+            GENDER_GROUPS.filter((g) => g.id !== "common").map((g) => (
+              <div key={g.id} className="space-y-2">
+                <Label id={`gender-${g.id}-label`}>{g.label}</Label>
+                <div
+                  role="group"
+                  aria-labelledby={`gender-${g.id}-label`}
+                  className="flex flex-wrap gap-2"
+                >
+                  {chipsFor(g.id)}
+                </div>
+              </div>
+            ))}
+        </div>
+
+        <Field
+          id="gender_description"
+          label="In your own words"
+          aside={<span className="text-xs text-muted-foreground">Optional</span>}
+          hint={
+            declined
+              ? "Cleared while “Prefer not to say” is picked."
+              : "Anything the list doesn't capture."
+          }
+        >
+          <Input
+            id="gender_description"
+            value={declined ? "" : form.description}
+            onChange={(e) => set({ description: e.target.value })}
+            disabled={declined}
+            maxLength={80}
+            placeholder="e.g. genderfluid, leaning femme"
+            aria-describedby="gender_description-hint"
+          />
+        </Field>
+
+        <div className="space-y-2">
+          <Label id="pronouns-label">Pronouns</Label>
+          <div role="group" aria-labelledby="pronouns-label" className="flex flex-wrap gap-2">
+            {PRONOUN_OPTIONS.map((o) => (
+              <Chip
+                key={o.id}
+                label={o.label}
+                selected={form.pronouns.includes(o.id)}
+                onToggle={() => set({ pronouns: togglePronoun(form.pronouns, o.id) })}
+              />
+            ))}
+          </div>
+        </div>
+
+        <Field
+          id="pronouns_description"
+          label="Other pronouns"
+          aside={<span className="text-xs text-muted-foreground">Optional</span>}
+          hint={
+            pronounsLabel(form.pronouns, form.pronounsDescription)
+              ? `Shown under your name as “${pronounsLabel(form.pronouns, form.pronounsDescription)}”.`
+              : "Neopronouns, or how you'd like them written."
+          }
+        >
+          <Input
+            id="pronouns_description"
+            value={form.pronounsDescription}
+            onChange={(e) => set({ pronounsDescription: e.target.value })}
+            maxLength={40}
+            placeholder="e.g. ve/ver"
+            aria-describedby="pronouns_description-hint"
+          />
+        </Field>
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          {dirty && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setForm(saved)}
+              disabled={save.isPending}
+            >
+              Discard
+            </Button>
+          )}
+          <Button type="submit" disabled={!dirty || save.isPending}>
+            {save.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Section>
+  );
+}
+
+/** A multi-select toggle pill. */
+function Chip({
+  label,
+  hint,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  hint?: string;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onToggle}
+      title={hint}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        selected ? "border-foreground bg-accent font-medium" : "text-muted-foreground",
+      )}
+    >
+      {selected && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+      {label}
+      {hint && <span className="text-xs font-normal text-muted-foreground">· {hint}</span>}
+    </button>
   );
 }
 
