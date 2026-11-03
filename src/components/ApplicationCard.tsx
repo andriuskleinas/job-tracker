@@ -49,6 +49,7 @@ import { formatSalary, type SalaryPeriod } from "@/lib/job-ad";
 import { formatOffset, offsetBetween, zoneForApplication } from "@/lib/time-zone";
 import { useUserZone } from "@/hooks/use-user-zone";
 import { daysAgo, relativeDay, relativeDue } from "@/lib/relative-time";
+import { hasRejectionReason, rejectionFromRow, rejectionTagLabel } from "@/lib/rejection";
 
 export type LinkedTask = {
   id: string;
@@ -74,6 +75,8 @@ export type ApplicationCardData = {
   salary_currency: string | null;
   salary_period: string | null;
   time_zone: string | null;
+  rejection_reason_tags?: string[] | null;
+  rejection_note?: string | null;
   task_applications?: { task: LinkedTask | null }[];
 };
 
@@ -274,6 +277,36 @@ function StalledPill() {
     <span className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground">
       <TriangleAlert className="h-3.5 w-3.5" /> Stalled
     </span>
+  );
+}
+
+/**
+ * Why it was rejected, on the archive card. Neutral chips rather than the red
+ * tint — the badge beside the title already says "rejected" in red, and a row
+ * of red chips under it would shout the one fact twice. The note is clamped to
+ * two lines; the detail page has the rest.
+ */
+function RejectionRow({ app }: { app: ApplicationCardData }) {
+  if (app.status !== "rejected") return null;
+  const reason = rejectionFromRow(app);
+  if (!hasRejectionReason(reason)) return null;
+  const note = reason.note.trim();
+  return (
+    <div className="flex flex-col gap-1.5" aria-label="Rejection reason">
+      {reason.tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {reason.tags.map((t) => (
+            <span
+              key={t}
+              className="inline-flex items-center rounded-full border bg-background px-2 py-0.5 text-xs text-muted-foreground"
+            >
+              {rejectionTagLabel(t)}
+            </span>
+          ))}
+        </div>
+      )}
+      {note && <p className="line-clamp-2 text-xs text-muted-foreground">“{note}”</p>}
+    </div>
   );
 }
 
@@ -561,6 +594,7 @@ export function ApplicationCard({
             {rightCluster}
           </div>
           <LocationRow app={app} />
+          <RejectionRow app={app} />
           <div className="mt-auto border-t pt-3">
             <CardMeta app={app} meta={meta} />
           </div>
@@ -582,6 +616,7 @@ export function ApplicationCard({
         </div>
         <div className="mt-3 space-y-2">
           <LocationRow app={app} />
+          <RejectionRow app={app} />
           <CardMeta app={app} meta={meta} />
         </div>
       </Card>

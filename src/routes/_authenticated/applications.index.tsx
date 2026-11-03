@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
+import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Select,
@@ -40,6 +41,12 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { STATUSES, CLOSED_STATUSES, type Status } from "@/lib/status";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
+import {
+  EMPTY_REJECTION,
+  rejectionColumns,
+  rejectionFromRow,
+  type RejectionReason,
+} from "@/lib/rejection";
 import { JOB_TYPES } from "@/lib/job-location";
 import {
   Plus,
@@ -179,6 +186,14 @@ function ApplicationsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<View>(storedView);
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
+  // An application on its way to `rejected`, waiting on the reason prompt.
+  // `commit` is what Save (with a reason) or Skip (null) goes ahead and does;
+  // closing the prompt drops it, which cancels a move.
+  const [pendingRejection, setPendingRejection] = useState<{
+    subject: string;
+    initial: RejectionReason;
+    commit: (reason: RejectionReason | null) => void;
+  } | null>(null);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -295,14 +310,23 @@ function ApplicationsPage() {
         if (linkError) throw linkError;
         taskId = task.id as string;
       }
-      return taskId;
+      return { appId: appRow.id as string, taskId };
     },
-    onSuccess: (taskId, values) => {
+    onSuccess: ({ appId, taskId }, values) => {
       toast.success(values.task_title?.trim() ? "Application and task added" : "Application added");
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setOpen(false);
       if (taskId) void syncTaskCalendar(taskId);
+      // Logged straight in as rejected — the row already exists, so the
+      // prompt only adds the reason to it; skipping or closing leaves it be.
+      if (values.status === "rejected") {
+        setPendingRejection({
+          subject: `${values.position} at ${values.company}`,
+          initial: EMPTY_REJECTION,
+          commit: (reason) => reason && saveRejection.mutate({ aid: appId, reason }),
+        });
+      }
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to add"),
   });
@@ -398,6 +422,18 @@ function ApplicationsPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Delete failed"),
   });
 
+  const saveRejection = useMutation({
+    mutationFn: async ({ aid, reason }: { aid: string; reason: RejectionReason }) => {
+      const { error } = await supabase
+        .from("applications")
+        .update(rejectionColumns(reason))
+        .eq("id", aid);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["applications"] }),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to save reason"),
+  });
+
   /**
    * Move an application to another status — the board's whole reason to exist,
    * and also what the card's "Move to" menu calls.
@@ -407,7 +443,16 @@ function ApplicationsPage() {
    * and then jump. The snapshot is restored verbatim if the write fails.
    */
   const moveStatus = useMutation({
-    mutationFn: async ({ app, status }: { app: ApplicationCardData; status: Status }) => {
+    mutationFn: async ({
+      app,
+      status,
+      reason,
+    }: {
+      app: ApplicationCardData;
+      status: Status;
+      /** Only when moving to `rejected` and the prompt was answered. */
+      reason?: RejectionReason;
+    }) => {
       // Leaving the wishlist is the moment an application is actually sent, so
       // that is when application_date becomes true. It was the row's creation
       // date until now — a placeholder the NOT NULL column demanded — and
@@ -422,15 +467,18 @@ function ApplicationsPage() {
           ...(becameAnApplication
             ? { application_date: new Date().toISOString().slice(0, 10) }
             : {}),
+          ...(reason ? rejectionColumns(reason) : {}),
         })
         .eq("id", app.id);
       if (error) throw error;
     },
-    onMutate: async ({ app, status }) => {
+    onMutate: async ({ app, status, reason }) => {
       await queryClient.cancelQueries({ queryKey: ["applications"] });
       const previous = queryClient.getQueryData<ApplicationCardData[]>(["applications"]);
       queryClient.setQueryData<ApplicationCardData[]>(["applications"], (old) =>
-        (old ?? []).map((a) => (a.id === app.id ? { ...a, status } : a)),
+        (old ?? []).map((a) =>
+          a.id === app.id ? { ...a, status, ...(reason ? rejectionColumns(reason) : {}) } : a,
+        ),
       );
       return { previous };
     },
@@ -440,6 +488,21 @@ function ApplicationsPage() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["applications"] }),
   });
+
+  // Every status change on this page goes through here, so `rejected` is
+  // always asked about — whichever card, menu or drag it came from. A
+  // previous reason (the card was rejected once, then reopened) pre-fills it.
+  const requestMove = (app: ApplicationCardData, status: Status) => {
+    if (status !== "rejected") {
+      moveStatus.mutate({ app, status });
+      return;
+    }
+    setPendingRejection({
+      subject: `${app.position} at ${app.company}`,
+      initial: rejectionFromRow(app),
+      commit: (reason) => moveStatus.mutate({ app, status, reason: reason ?? undefined }),
+    });
+  };
 
   const handleFile = (file: File) => {
     setImportErrors([]);
@@ -882,7 +945,7 @@ function ApplicationsPage() {
             <ApplicationBoard
               apps={liveApps}
               onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
-              onMoveTo={(app, status) => moveStatus.mutate({ app, status })}
+              onMoveTo={requestMove}
               onDelete={(a) => deleteApp.mutate(a.id)}
             />
           )}
@@ -896,6 +959,20 @@ function ApplicationsPage() {
           />
         </>
       )}
+      <RejectionReasonDialog
+        open={pendingRejection !== null}
+        onOpenChange={(v) => !v && setPendingRejection(null)}
+        subject={pendingRejection?.subject}
+        initial={pendingRejection?.initial}
+        onSave={(reason) => {
+          pendingRejection?.commit(reason);
+          setPendingRejection(null);
+        }}
+        onSkip={() => {
+          pendingRejection?.commit(null);
+          setPendingRejection(null);
+        }}
+      />
     </main>
   );
 }

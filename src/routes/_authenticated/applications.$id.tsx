@@ -30,6 +30,7 @@ import {
 import { LocationFields, type LocationValue } from "@/components/LocationFields";
 import { JobAdFields } from "@/components/JobAdFields";
 import { WorkingHours } from "@/components/WorkingHours";
+import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import {
   EMPTY_JOB_AD,
   jobAdColumns,
@@ -40,7 +41,14 @@ import {
 } from "@/lib/job-ad-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { STATUSES, statusLabel } from "@/lib/status";
+import { STATUSES, statusLabel, type Status } from "@/lib/status";
+import {
+  hasRejectionReason,
+  rejectionColumns,
+  rejectionFromRow,
+  rejectionTagLabel,
+  type RejectionReason,
+} from "@/lib/rejection";
 import { syncTaskCalendar } from "@/lib/calendar-sync";
 import { JOB_TYPES } from "@/lib/job-location";
 import type { Database } from "@/integrations/supabase/types";
@@ -75,6 +83,8 @@ const editSchema = z.object({
   city: z.string().trim().max(120).optional().or(z.literal("")),
   time_zone: z.string().trim().max(64).optional().or(z.literal("")),
 });
+
+type SaveValues = z.infer<typeof editSchema> & JobAdColumns & ReturnType<typeof rejectionColumns>;
 
 type DetailTask = {
   id: string;
@@ -129,7 +139,7 @@ function AppDetail() {
   });
 
   const update = useMutation({
-    mutationFn: async (values: z.infer<typeof editSchema> & JobAdColumns) => {
+    mutationFn: async (values: SaveValues) => {
       const { error } = await supabase
         .from("applications")
         .update({
@@ -395,7 +405,7 @@ function DetailsCard({
 }: {
   app: ApplicationRow;
   isSaving: boolean;
-  onSave: (values: z.infer<typeof editSchema> & JobAdColumns) => void;
+  onSave: (values: SaveValues) => void;
   onDelete: () => void;
 }) {
   const [form, setForm] = useState({
@@ -411,6 +421,19 @@ function DetailsCard({
     time_zone: app.time_zone ?? "",
   });
   const [jobAd, setJobAd] = useState<JobAdValue>(jobAdFromRow(app));
+  const [reason, setReason] = useState<RejectionReason>(rejectionFromRow(app));
+  // The reason prompt. `revertTo` is set when it opened because the status
+  // select just moved to `rejected` — closing it then puts the select back,
+  // the same cancel the board's prompt gives. Opened from "Edit reason" it is
+  // null, and closing only discards the edit.
+  const [reasonPrompt, setReasonPrompt] = useState<{ revertTo: Status | null } | null>(null);
+
+  const onStatusChange = (next: Status) => {
+    if (next === "rejected" && form.status !== "rejected") {
+      setReasonPrompt({ revertTo: form.status });
+    }
+    setForm({ ...form, status: next });
+  };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -424,7 +447,11 @@ function DetailsCard({
       toast.error(ad.error.issues[0].message);
       return;
     }
-    onSave({ ...parsed.data, ...jobAdColumns(jobAd, app.captured_at) });
+    onSave({
+      ...parsed.data,
+      ...jobAdColumns(jobAd, app.captured_at),
+      ...rejectionColumns(reason),
+    });
   };
 
   return (
@@ -457,10 +484,7 @@ function DetailsCard({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select
-                value={form.status}
-                onValueChange={(v) => setForm({ ...form, status: v as (typeof STATUSES)[number] })}
-              >
+              <Select value={form.status} onValueChange={(v) => onStatusChange(v as Status)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select status">{statusLabel(form.status)}</SelectValue>
                 </SelectTrigger>
@@ -484,6 +508,9 @@ function DetailsCard({
               />
             </div>
           </div>
+          {form.status === "rejected" && (
+            <RejectionSummary reason={reason} onEdit={() => setReasonPrompt({ revertTo: null })} />
+          )}
           <div className="space-y-2">
             <Label htmlFor="website">Company website</Label>
             <Input
@@ -542,7 +569,62 @@ function DetailsCard({
             </Button>
           </div>
         </form>
+        <RejectionReasonDialog
+          open={reasonPrompt !== null}
+          onOpenChange={(v) => {
+            if (v) return;
+            const revertTo = reasonPrompt?.revertTo;
+            if (revertTo) setForm((f) => ({ ...f, status: revertTo }));
+            setReasonPrompt(null);
+          }}
+          subject={`${form.position} at ${form.company}`}
+          initial={reason}
+          onSave={(r) => {
+            setReason(r);
+            setReasonPrompt(null);
+          }}
+          onSkip={reasonPrompt?.revertTo ? () => setReasonPrompt(null) : undefined}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The reason under the status, shown only while the status is `rejected`.
+ * Saved with the rest of the form by "Save changes", like every other field
+ * on this card.
+ */
+function RejectionSummary({ reason, onEdit }: { reason: RejectionReason; onEdit: () => void }) {
+  const has = hasRejectionReason(reason);
+  const note = reason.note.trim();
+  return (
+    <div className="space-y-2 rounded-lg border border-dashed p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">Rejection reason</p>
+        <Button type="button" variant="ghost" size="sm" className="-my-1" onClick={onEdit}>
+          {has ? "Edit" : "Add reason"}
+        </Button>
+      </div>
+      {has ? (
+        <>
+          {reason.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {reason.tags.map((t) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center rounded-full bg-[var(--status-rejected-soft)] px-2 py-0.5 text-xs text-[var(--status-rejected-text)]"
+                >
+                  {rejectionTagLabel(t)}
+                </span>
+              ))}
+            </div>
+          )}
+          {note && <p className="text-sm whitespace-pre-wrap text-muted-foreground">{note}</p>}
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">No reason recorded.</p>
+      )}
+    </div>
   );
 }

@@ -55,6 +55,8 @@ export type Database = {
           notes: string | null;
           position: string;
           priority: boolean;
+          rejection_note: string | null;
+          rejection_reason_tags: string[];
           requirements: string | null;
           salary_currency: string | null;
           salary_max: number | null;
@@ -81,6 +83,8 @@ export type Database = {
           notes?: string | null;
           position: string;
           priority?: boolean;
+          rejection_note?: string | null;
+          rejection_reason_tags?: string[];
           requirements?: string | null;
           salary_currency?: string | null;
           salary_max?: number | null;
@@ -107,6 +111,8 @@ export type Database = {
           notes?: string | null;
           position?: string;
           priority?: boolean;
+          rejection_note?: string | null;
+          rejection_reason_tags?: string[];
           requirements?: string | null;
           salary_currency?: string | null;
           salary_max?: number | null;

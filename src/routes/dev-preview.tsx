@@ -12,6 +12,8 @@ import type { TaskWindowPreset } from "@/components/TaskWindowFilter";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
+import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
+import { rejectionColumns, rejectionFromRow } from "@/lib/rejection";
 import { CLOSED_STATUSES } from "@/lib/status";
 import type { Status } from "@/lib/status";
 import type { StatsApplication, StatsStatusEvent } from "@/lib/stats";
@@ -187,6 +189,9 @@ const cards: ApplicationCardData[] = [
     salary_currency: "EUR",
     salary_period: "month",
     time_zone: null,
+    rejection_reason_tags: ["failed_interview", "salary_mismatch"],
+    rejection_note:
+      "Final round went fine, but they wanted Go, not TypeScript — and the band topped out below my floor.",
     task_applications: [],
   },
   {
@@ -272,6 +277,8 @@ function DevPreview() {
   // The board is stateful in a way the cards are not — dragging has to land
   // somewhere — so the fixture holds its own copy and mutates it locally.
   const [boardCards, setBoardCards] = useState([...cards, ...filler]);
+  // Same prompt-before-reject flow as the real applications page.
+  const [rejecting, setRejecting] = useState<ApplicationCardData | null>(null);
 
   // Same reasoning for the analytics range filter — it round-trips through
   // the URL on the real page, so the fixture needs its own state to exercise
@@ -348,15 +355,39 @@ function DevPreview() {
             setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, priority } : c)))
           }
           onMoveTo={(app, status) =>
-            setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, status } : c)))
+            status === "rejected"
+              ? setRejecting(app)
+              : setBoardCards((prev) => prev.map((c) => (c.id === app.id ? { ...c, status } : c)))
           }
           onDelete={(app) => setBoardCards((prev) => prev.filter((c) => c.id !== app.id))}
         />
         <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>
         <ApplicationArchive
-          apps={cards.filter((c) => CLOSED_STATUSES.includes(c.status))}
+          apps={boardCards.filter((c) => CLOSED_STATUSES.includes(c.status))}
           onTogglePriority={() => {}}
           onDelete={() => {}}
+        />
+        <RejectionReasonDialog
+          open={rejecting !== null}
+          onOpenChange={(v) => !v && setRejecting(null)}
+          subject={rejecting ? `${rejecting.position} at ${rejecting.company}` : undefined}
+          initial={rejecting ? rejectionFromRow(rejecting) : undefined}
+          onSave={(reason) => {
+            const id = rejecting?.id;
+            setBoardCards((prev) =>
+              prev.map((c) =>
+                c.id === id ? { ...c, status: "rejected", ...rejectionColumns(reason) } : c,
+              ),
+            );
+            setRejecting(null);
+          }}
+          onSkip={() => {
+            const id = rejecting?.id;
+            setBoardCards((prev) =>
+              prev.map((c) => (c.id === id ? { ...c, status: "rejected" } : c)),
+            );
+            setRejecting(null);
+          }}
         />
       </main>
     </div>
