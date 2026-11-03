@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -50,7 +50,7 @@ import { BOARD_COLUMNS, statusFill, statusLabel, type Status } from "@/lib/statu
 const COLUMN_MIN = "220px";
 
 /**
- * How many cards a column shows before it offers the rest behind a button.
+ * How tall a column's card list grows before it scrolls inside itself.
  *
  * A job search is shaped like a funnel that never empties at the top: `applied`
  * holds most of the board most of the time, and left uncapped it grows into a
@@ -58,12 +58,13 @@ const COLUMN_MIN = "220px";
  * hundred pixels down. At that point the board has stopped being a board — it
  * is the list view again, with three narrow margins.
  *
- * Five keeps the four columns comparable in height, which is the comparison
- * the layout exists to make. It is not an arbitrary truncation either: the
- * parent sorts starred roles first and newest next, so the five a column keeps
- * are the five most worth seeing.
+ * Roughly four cards, so the four columns stay comparable in height. The rest
+ * is a wheel-scroll away inside the column rather than behind a "Show more"
+ * button, which reflowed the whole page to reveal them. The parent sorts
+ * starred roles first and newest next, so the cards on top are the ones most
+ * worth seeing.
  */
-const COLUMN_PREVIEW_COUNT = 5;
+const COLUMN_MAX_HEIGHT = "34rem";
 
 /** Where a card can be dropped: one of the four pipeline statuses. */
 type DropId = Status;
@@ -92,6 +93,7 @@ function BoardCard({
   return (
     <div
       ref={setNodeRef}
+      data-card-id={app.id}
       {...listeners}
       {...attributes}
       // The card underneath is a link and the star and move menu are buttons,
@@ -191,24 +193,33 @@ function PipelineColumn({
   onMoveTo: (app: ApplicationCardData, status: Status) => void;
   onDelete: (app: ApplicationCardData) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // A card dropped into a collapsed column can sort below the cut, and a drop
-  // that appears to do nothing is worse than a long column. When that happens
-  // the column opens itself rather than swallowing the card. Derived, not an
-  // effect: it is a fact about this render, and storing it would leave the
-  // column stuck open after the next move elsewhere.
-  const movedBelowCut = apps.findIndex((a) => a.id === lastMovedId) >= COLUMN_PREVIEW_COUNT;
-  const showAll = expanded || movedBelowCut;
-  const visible = showAll ? apps : apps.slice(0, COLUMN_PREVIEW_COUNT);
-  const hidden = apps.length - visible.length;
+  // A card dropped into a column can sort below the scrolled-to window, and a
+  // drop that appears to do nothing is worse than a jump. When that happens
+  // the column scrolls the card into view rather than swallowing it.
+  // "nearest" moves only this column's list, never the page, when the card is
+  // already visible.
+  useEffect(() => {
+    if (!lastMovedId) return;
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-card-id="${lastMovedId}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [lastMovedId, apps]);
 
   return (
     <section className="flex w-full min-w-0 flex-col" aria-label={statusLabel(status)}>
       <ColumnHeader status={status} count={apps.length} />
       <DropZone id={status} dragging={dragging} className="flex-1 p-1">
-        <div className="grid gap-2">
-          {visible.map((a) => (
+        {/* The scroll lives inside the drop zone, so the whole column — not
+            just its visible cards — stays a drop target. overscroll-contain
+            keeps the page still when the column hits its end. The small
+            right padding gives the cards' shadows room beside a scrollbar. */}
+        <div
+          ref={listRef}
+          className="grid gap-2 overflow-y-auto overscroll-contain pr-1"
+          style={{ maxHeight: COLUMN_MAX_HEIGHT }}
+        >
+          {apps.map((a) => (
             <BoardCard
               key={a.id}
               app={a}
@@ -221,18 +232,6 @@ function PipelineColumn({
             <p className="px-2 py-6 text-center text-xs text-muted-foreground">
               {dragging ? "Drop here" : "Nothing here yet"}
             </p>
-          )}
-          {(hidden > 0 || (showAll && apps.length > COLUMN_PREVIEW_COUNT)) && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              // The count goes in the label rather than a bare "Show more":
-              // how much more is the thing you want to know before deciding
-              // whether to spend the scroll.
-              className="rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-              {hidden > 0 ? `Show ${hidden} more` : "Show less"}
-            </button>
           )}
         </div>
       </DropZone>
