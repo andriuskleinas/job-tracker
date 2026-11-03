@@ -13,6 +13,7 @@ import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { TaskSummaryPanel } from "@/components/TaskSummaryPanel";
 import { DailyGoalTracker } from "@/components/DailyGoalTracker";
+import { localDateKey } from "@/lib/daily-goal";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { NewApplicationDialog } from "@/components/NewApplicationDialog";
 import { ApplicationFilters } from "@/components/ApplicationFilters";
@@ -446,8 +447,24 @@ function DevPreview() {
           <TaskSummaryPanel tasks={tasks} isLoading={false} onNewTask={() => {}} />
         </div>
         <h2 className="mb-3 mt-8 text-lg font-semibold">DailyGoalTracker</h2>
-        <div className="max-w-[19rem] rounded-xl border bg-muted p-5">
-          <DailyGoalTracker apps={apps} goal={dailyGoal} onGoalChange={setDailyGoal} />
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="w-[19rem]">
+            <DailyGoalTracker apps={apps} goal={dailyGoal} onGoalChange={setDailyGoal} />
+          </div>
+          {/* Same data plus today's goal already sent, to show the met state. */}
+          <div className="w-[19rem]" id="daily-goal-met">
+            <DailyGoalTracker
+              apps={[
+                ...apps,
+                ...Array.from({ length: dailyGoal }, () => ({
+                  status: "applied",
+                  application_date: localDateKey(new Date()),
+                })),
+              ]}
+              goal={dailyGoal}
+              onGoalChange={setDailyGoal}
+            />
+          </div>
         </div>
         <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>
         <ApplicationArchive

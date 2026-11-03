@@ -937,13 +937,11 @@ function ApplicationsPage() {
             <div className="rounded-xl border bg-muted p-5">
               <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
             </div>
-            <div className="rounded-xl border bg-muted p-5">
-              <DailyGoalTracker
-                apps={apps}
-                goal={dailyGoal}
-                onGoalChange={(goal) => saveDailyGoal.mutate(goal)}
-              />
-            </div>
+            <DailyGoalTracker
+              apps={apps}
+              goal={dailyGoal}
+              onGoalChange={(goal) => saveDailyGoal.mutate(goal)}
+            />
           </aside>
         )}
       </div>
@@ -956,13 +954,11 @@ function ApplicationsPage() {
           </SheetDescription>
           <div className="space-y-8 pt-6">
             <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
-            <div className="border-t pt-6">
-              <DailyGoalTracker
-                apps={apps}
-                goal={dailyGoal}
-                onGoalChange={(goal) => saveDailyGoal.mutate(goal)}
-              />
-            </div>
+            <DailyGoalTracker
+              apps={apps}
+              goal={dailyGoal}
+              onGoalChange={(goal) => saveDailyGoal.mutate(goal)}
+            />
           </div>
         </SheetContent>
       </Sheet>

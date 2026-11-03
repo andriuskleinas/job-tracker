@@ -64,7 +64,14 @@ export function DailyGoalTracker({
   const remaining = Math.max(goal - sentToday, 0);
 
   return (
-    <section aria-label="Daily goal" className="flex flex-col gap-4">
+    // The card carries its own surface so it can turn green the moment
+    // today's goal is met.
+    <section
+      aria-label="Daily goal"
+      className={`flex flex-col gap-4 rounded-xl border p-5 transition-colors duration-500 ${
+        met ? "border-[var(--status-offer)]/40 bg-[var(--status-offer-soft)]" : "bg-muted"
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold">
           <Target className="h-4 w-4" aria-hidden /> Daily goal
