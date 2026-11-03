@@ -15,6 +15,8 @@ export type AccountProfile = {
   time_zone: string | null;
   /** Applications the user means to send per day; drives the daily goal tracker. */
   daily_application_goal: number;
+  /** Flag-coloured logo id (see logo-theme.ts); null shows the standard logo. */
+  logo_theme: string | null;
 };
 
 /**
@@ -46,6 +48,7 @@ export async function fetchProfile(): Promise<AccountProfile | null> {
     city: data?.city ?? null,
     time_zone: data?.time_zone ?? null,
     daily_application_goal: data?.daily_application_goal ?? DEFAULT_DAILY_GOAL,
+    logo_theme: data?.logo_theme ?? null,
   };
 }
 

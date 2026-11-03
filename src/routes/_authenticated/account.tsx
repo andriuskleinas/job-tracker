@@ -16,6 +16,9 @@ import {
   type AccountProfile,
 } from "@/lib/profile";
 import { ExtensionPairing } from "@/components/ExtensionPairing";
+import { LogoTile } from "@/components/Logo";
+import { LOGO_THEMES, logoTheme } from "@/lib/logo-theme";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Clock, Eye, EyeOff, MailCheck, MapPin } from "lucide-react";
@@ -24,7 +27,10 @@ export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({
     meta: [
       { title: "Account — Job Tracker" },
-      { name: "description", content: "Manage your name, location, time zone and password." },
+      {
+        name: "description",
+        content: "Manage your name, location, time zone, logo colours and password.",
+      },
       { property: "og:title", content: "Account — Job Tracker" },
       { property: "og:description", content: "Manage your account details." },
     ],
@@ -106,6 +112,8 @@ function AccountPage() {
       </header>
 
       <ProfileSection profile={profile} />
+
+      <LogoSection profile={profile} />
 
       <Section title="Sign-in & security" description="How you get into your account.">
         <div className="divide-y">
@@ -401,6 +409,160 @@ function ProfileSection({ profile }: { profile: AccountProfile | null | undefine
         </div>
       </form>
     </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Logo                                                                */
+/* ------------------------------------------------------------------ */
+
+const PRIDE_THEMES = LOGO_THEMES.filter((t) => t.group === "pride");
+const COUNTRY_THEMES = LOGO_THEMES.filter((t) => t.group === "country");
+
+/**
+ * Pick the colours of your own logo — standard, a pride flag, or a country's.
+ * Saves on pick (no form), and writes the cache first so the header tile
+ * changes the moment you click.
+ */
+function LogoSection({ profile }: { profile: AccountProfile | null | undefined }) {
+  const queryClient = useQueryClient();
+  const current = logoTheme(profile?.logo_theme);
+
+  const countryOptions = useMemo(
+    () =>
+      COUNTRY_THEMES.map((t) => ({
+        value: t.name,
+        label: t.name,
+        icon: <LogoTile theme={t} className="h-4 w-4 align-[-3px]" />,
+      })),
+    [],
+  );
+
+  const saveTheme = useMutation({
+    mutationFn: async (id: string | null) => {
+      if (!profile?.id) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ logo_theme: id })
+        .eq("id", profile.id);
+      if (error) throw error;
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["profile"] });
+      const previous = queryClient.getQueryData<AccountProfile | null>(["profile"]);
+      if (previous) {
+        queryClient.setQueryData<AccountProfile>(["profile"], { ...previous, logo_theme: id });
+      }
+      return { previous };
+    },
+    onError: (e, _id, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(["profile"], ctx.previous);
+      toast.error(e instanceof Error ? e.message : "Could not change the logo");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["profile"] }),
+  });
+
+  const pick = (id: string | null) => {
+    if (id === (current?.id ?? null)) return;
+    saveTheme.mutate(id);
+  };
+
+  return (
+    <Section
+      title="Logo"
+      description="Show your colours: wear a flag on your Job Tracker logo. Only you see it."
+    >
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <LogoTile theme={current} className="h-14 w-14" />
+          <div className="min-w-0">
+            <div className="text-sm font-medium">{current ? current.name : "Standard"}</div>
+            <div className="text-sm text-muted-foreground">
+              {current ? "Shown in your header and browser tab." : "The usual black tile."}
+            </div>
+          </div>
+          {current && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => pick(null)}
+              disabled={saveTheme.isPending}
+            >
+              Reset
+            </Button>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label id="logo-pride-label">Pride</Label>
+          <div
+            role="radiogroup"
+            aria-labelledby="logo-pride-label"
+            className="flex flex-wrap gap-2"
+          >
+            <ThemeSwatch label="Standard" selected={!current} onSelect={() => pick(null)}>
+              <LogoTile theme={null} className="h-6 w-6" />
+            </ThemeSwatch>
+            {PRIDE_THEMES.map((t) => (
+              <ThemeSwatch
+                key={t.id}
+                label={t.name}
+                selected={current?.id === t.id}
+                onSelect={() => pick(t.id)}
+              >
+                <LogoTile theme={t} className="h-6 w-6" />
+              </ThemeSwatch>
+            ))}
+          </div>
+        </div>
+
+        <Field label="Country or region" hint="Any country's flag colours, plus a few regions.">
+          <Combobox
+            options={countryOptions}
+            value={current?.group === "country" ? current.name : ""}
+            onSelect={(name) => pick(COUNTRY_THEMES.find((t) => t.name === name)?.id ?? null)}
+            placeholder="Search a country…"
+            searchPlaceholder="Type a country…"
+            emptyText="No flag for that yet."
+            triggerIcon={
+              current?.group === "country" ? (
+                <LogoTile theme={current} className="h-4 w-4" />
+              ) : undefined
+            }
+          />
+        </Field>
+      </div>
+    </Section>
+  );
+}
+
+function ThemeSwatch({
+  label,
+  selected,
+  onSelect,
+  children,
+}: {
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      className={cn(
+        "flex items-center gap-2 rounded-md border py-1.5 pl-1.5 pr-3 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        selected ? "border-foreground bg-accent font-medium" : "text-muted-foreground",
+      )}
+    >
+      {children}
+      {label}
+    </button>
   );
 }
 

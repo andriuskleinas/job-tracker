@@ -177,6 +177,7 @@ export type Database = {
           first_name: string | null;
           id: string;
           last_name: string | null;
+          logo_theme: string | null;
           nickname: string | null;
           time_zone: string | null;
           updated_at: string;
@@ -191,6 +192,7 @@ export type Database = {
           first_name?: string | null;
           id: string;
           last_name?: string | null;
+          logo_theme?: string | null;
           nickname?: string | null;
           time_zone?: string | null;
           updated_at?: string;
@@ -205,6 +207,7 @@ export type Database = {
           first_name?: string | null;
           id?: string;
           last_name?: string | null;
+          logo_theme?: string | null;
           nickname?: string | null;
           time_zone?: string | null;
           updated_at?: string;

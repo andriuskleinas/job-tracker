@@ -16,6 +16,8 @@ import { DailyGoalTracker } from "@/components/DailyGoalTracker";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { NewApplicationDialog } from "@/components/NewApplicationDialog";
 import { ApplicationFilters } from "@/components/ApplicationFilters";
+import { LogoTile } from "@/components/Logo";
+import { LOGO_THEMES } from "@/lib/logo-theme";
 import {
   EMPTY_FILTERS,
   filterApplications,
@@ -361,6 +363,16 @@ function DevPreview() {
         }}
       />
       <main className="container-page pb-20">
+        <h2 className="mb-3 text-lg font-semibold">Logo themes</h2>
+        <div id="logo-themes" className="mb-8 flex flex-wrap gap-3">
+          <LogoTile theme={null} />
+          {LOGO_THEMES.map((t) => (
+            <span key={t.id} title={t.name}>
+              <LogoTile theme={t} />
+            </span>
+          ))}
+        </div>
+
         <h2 className="mb-3 text-lg font-semibold">NewApplicationDialog</h2>
         {/* Saving only pretends: it waits a beat and resolves, so the reset
             after a successful save can be seen without a database. */}

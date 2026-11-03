@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Logo } from "@/components/Logo";
 import { fetchProfile, accountDisplayName, accountInitials } from "@/lib/profile";
+import { logoTheme, logoThemeSvg } from "@/lib/logo-theme";
 import { LogOut, Menu, Settings } from "lucide-react";
 
 /** Single source of truth for the portal nav — desktop bar and mobile sheet. */
@@ -48,6 +49,8 @@ export function Navbar() {
     enabled: signedIn,
     staleTime: 60_000,
   });
+
+  useThemedFavicon(signedIn ? (profile?.logo_theme ?? null) : null);
 
   const displayName = accountDisplayName(profile);
   const initials = accountInitials(profile);
@@ -226,4 +229,29 @@ export function Navbar() {
       </div>
     </header>
   );
+}
+
+/**
+ * Swap the tab icon for the user's flag-coloured tile, and put the shipped
+ * icons back when they reset it or sign out. Originals are kept on the link
+ * elements so repeated swaps never lose them.
+ */
+function useThemedFavicon(themeId: string | null) {
+  useEffect(() => {
+    const links = document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]');
+    const theme = logoTheme(themeId);
+    const href = theme ? `data:image/svg+xml,${encodeURIComponent(logoThemeSvg(theme))}` : null;
+    links.forEach((link) => {
+      link.dataset.originalHref ??= link.getAttribute("href") ?? "";
+      link.dataset.originalType ??= link.getAttribute("type") ?? "";
+      if (href) {
+        link.href = href;
+        link.type = "image/svg+xml";
+      } else {
+        link.href = link.dataset.originalHref;
+        if (link.dataset.originalType) link.type = link.dataset.originalType;
+        else link.removeAttribute("type");
+      }
+    });
+  }, [themeId]);
 }
