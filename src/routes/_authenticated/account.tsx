@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Combobox } from "@/components/Combobox";
+import { Combobox, MultiCombobox, type ComboboxOption } from "@/components/Combobox";
 import { COUNTRIES, CITIES, flagEmoji, flagForCountry } from "@/lib/job-location";
 import {
   fetchProfile,
@@ -23,15 +23,13 @@ import {
   GENDER_OPTIONS,
   PREFER_NOT_TO_SAY,
   PRONOUN_OPTIONS,
-  genderOption,
   pronounsLabel,
   toggleGender,
   togglePronoun,
 } from "@/lib/gender";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Check, ChevronDown, Clock, Eye, EyeOff, MailCheck, MapPin } from "lucide-react";
+import { Clock, Eye, EyeOff, MailCheck, MapPin } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({
@@ -452,21 +450,33 @@ function genderFormFromProfile(p: AccountProfile | null | undefined): GenderForm
 const sameIds = (a: string[], b: string[]) =>
   a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
+/** Identities as dropdown options, headed by group; "Prefer not to say" last. */
+const IDENTITY_OPTIONS: ComboboxOption[] = [
+  ...GENDER_OPTIONS.map((o) => ({
+    value: o.id,
+    label: o.label,
+    hint: o.hint,
+    keywords: `${o.label} ${o.hint ?? ""}`,
+    group: GENDER_GROUPS.find((g) => g.id === o.group)?.label,
+  })),
+  { value: PREFER_NOT_TO_SAY, label: "Prefer not to say", group: "Or" },
+];
+
+const PRONOUN_DROPDOWN_OPTIONS: ComboboxOption[] = PRONOUN_OPTIONS.map((o) => ({
+  value: o.id,
+  label: o.label,
+}));
+
 /**
- * Optional gender identity and pronouns. Pick as many identities as fit, add
- * your own words, or say you'd rather not — all private to you. The less
- * common identities sit behind "More identities", which opens by itself when
- * one of them is already picked.
+ * Optional gender identity and pronouns, as two multi-select dropdowns with
+ * a free-text field under each. Pick as many as fit, add your own words, or
+ * say you'd rather not — all private to you.
  */
 function GenderSection({ profile }: { profile: AccountProfile | null | undefined }) {
   const queryClient = useQueryClient();
   const saved = useMemo(() => genderFormFromProfile(profile), [profile]);
   const [form, setForm] = useState<GenderForm>(saved);
   useEffect(() => setForm(saved), [saved]);
-
-  const pickedMore = form.identities.some((id) => genderOption(id)?.group !== "common");
-  const [moreOpen, setMoreOpen] = useState(false);
-  const showMore = moreOpen || pickedMore;
 
   const declined = form.identities.includes(PREFER_NOT_TO_SAY);
 
@@ -504,123 +514,72 @@ function GenderSection({ profile }: { profile: AccountProfile | null | undefined
   };
 
   const set = (patch: Partial<GenderForm>) => setForm((f) => ({ ...f, ...patch }));
-  const toggle = (id: string) => set({ identities: toggleGender(form.identities, id) });
-
-  const chipsFor = (group: string) =>
-    GENDER_OPTIONS.filter((o) => o.group === group).map((o) => (
-      <Chip
-        key={o.id}
-        label={o.label}
-        hint={o.hint}
-        selected={form.identities.includes(o.id)}
-        onToggle={() => toggle(o.id)}
-      />
-    ));
+  const shownAs = pronounsLabel(form.pronouns, form.pronounsDescription);
 
   return (
     <Section
       title="Gender & pronouns"
-      description="Optional, and only you see it. Pick as many as fit you, or describe it in your own words."
+      description="Optional, and only you see it. Pick as many as fit you, or use your own words."
     >
-      <form onSubmit={onSave} className="space-y-6">
-        <div className="space-y-2">
-          <Label id="gender-common-label">Gender identity</Label>
-          <div role="group" aria-labelledby="gender-common-label" className="flex flex-wrap gap-2">
-            {chipsFor("common")}
-            <Chip
-              label="Prefer not to say"
-              selected={declined}
-              onToggle={() => toggle(PREFER_NOT_TO_SAY)}
+      <form onSubmit={onSave} className="space-y-5">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field id="gender_identities" label="Gender identity">
+            <MultiCombobox
+              id="gender_identities"
+              options={IDENTITY_OPTIONS}
+              values={form.identities}
+              onToggle={(id) => set({ identities: toggleGender(form.identities, id) })}
+              onClear={() => set({ identities: [] })}
+              placeholder="Select identities…"
+              searchPlaceholder="Search identities…"
+              emptyText="Not listed — add it in your own words."
             />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <button
-            type="button"
-            onClick={() => setMoreOpen((o) => !o)}
-            aria-expanded={showMore}
-            disabled={pickedMore}
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground disabled:cursor-default disabled:hover:text-muted-foreground"
-          >
-            <ChevronDown
-              className={cn("h-4 w-4 transition-transform", showMore && "rotate-180")}
-              aria-hidden="true"
+          </Field>
+          <Field id="pronouns" label="Pronouns">
+            <MultiCombobox
+              id="pronouns"
+              options={PRONOUN_DROPDOWN_OPTIONS}
+              values={form.pronouns}
+              onToggle={(id) => set({ pronouns: togglePronoun(form.pronouns, id) })}
+              onClear={() => set({ pronouns: [] })}
+              placeholder="Select pronouns…"
+              searchPlaceholder="Search pronouns…"
+              emptyText="Not listed — add them below."
             />
-            More identities
-          </button>
-          {showMore &&
-            GENDER_GROUPS.filter((g) => g.id !== "common").map((g) => (
-              <div key={g.id} className="space-y-2">
-                <Label id={`gender-${g.id}-label`}>{g.label}</Label>
-                <div
-                  role="group"
-                  aria-labelledby={`gender-${g.id}-label`}
-                  className="flex flex-wrap gap-2"
-                >
-                  {chipsFor(g.id)}
-                </div>
-              </div>
-            ))}
-        </div>
-
-        <Field
-          id="gender_description"
-          label="In your own words"
-          aside={<span className="text-xs text-muted-foreground">Optional</span>}
-          hint={
-            declined
-              ? "Cleared while “Prefer not to say” is picked."
-              : "Anything the list doesn't capture."
-          }
-        >
-          <Input
+          </Field>
+          <Field
             id="gender_description"
-            value={declined ? "" : form.description}
-            onChange={(e) => set({ description: e.target.value })}
-            disabled={declined}
-            maxLength={80}
-            placeholder="e.g. genderfluid, leaning femme"
-            aria-describedby="gender_description-hint"
-          />
-        </Field>
-
-        <div className="space-y-2">
-          <Label id="pronouns-label">Pronouns</Label>
-          <div role="group" aria-labelledby="pronouns-label" className="flex flex-wrap gap-2">
-            {PRONOUN_OPTIONS.map((o) => (
-              <Chip
-                key={o.id}
-                label={o.label}
-                selected={form.pronouns.includes(o.id)}
-                onToggle={() => set({ pronouns: togglePronoun(form.pronouns, o.id) })}
-              />
-            ))}
-          </div>
+            label="In your own words"
+            aside={<span className="text-xs text-muted-foreground">Optional</span>}
+            hint={declined ? "Cleared while “Prefer not to say” is picked." : undefined}
+          >
+            <Input
+              id="gender_description"
+              value={declined ? "" : form.description}
+              onChange={(e) => set({ description: e.target.value })}
+              disabled={declined}
+              maxLength={80}
+              placeholder="e.g. genderfluid, leaning femme"
+            />
+          </Field>
+          <Field
+            id="pronouns_description"
+            label="Other pronouns"
+            aside={<span className="text-xs text-muted-foreground">Optional</span>}
+            hint={shownAs ? `Shown under your name as “${shownAs}”.` : undefined}
+          >
+            <Input
+              id="pronouns_description"
+              value={form.pronounsDescription}
+              onChange={(e) => set({ pronounsDescription: e.target.value })}
+              maxLength={40}
+              placeholder="e.g. ve/ver"
+            />
+          </Field>
         </div>
 
-        <Field
-          id="pronouns_description"
-          label="Other pronouns"
-          aside={<span className="text-xs text-muted-foreground">Optional</span>}
-          hint={
-            pronounsLabel(form.pronouns, form.pronounsDescription)
-              ? `Shown under your name as “${pronounsLabel(form.pronouns, form.pronounsDescription)}”.`
-              : "Neopronouns, or how you'd like them written."
-          }
-        >
-          <Input
-            id="pronouns_description"
-            value={form.pronounsDescription}
-            onChange={(e) => set({ pronounsDescription: e.target.value })}
-            maxLength={40}
-            placeholder="e.g. ve/ver"
-            aria-describedby="pronouns_description-hint"
-          />
-        </Field>
-
-        <div className="flex items-center justify-end gap-2 pt-1">
-          {dirty && (
+        {dirty && (
+          <div className="flex items-center justify-end gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -629,43 +588,13 @@ function GenderSection({ profile }: { profile: AccountProfile | null | undefined
             >
               Discard
             </Button>
-          )}
-          <Button type="submit" disabled={!dirty || save.isPending}>
-            {save.isPending ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save changes"}
+            </Button>
+          </div>
+        )}
       </form>
     </Section>
-  );
-}
-
-/** A multi-select toggle pill. */
-function Chip({
-  label,
-  hint,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  hint?: string;
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onToggle}
-      title={hint}
-      className={cn(
-        "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        selected ? "border-foreground bg-accent font-medium" : "text-muted-foreground",
-      )}
-    >
-      {selected && <Check className="h-3.5 w-3.5" aria-hidden="true" />}
-      {label}
-      {hint && <span className="text-xs font-normal text-muted-foreground">· {hint}</span>}
-    </button>
   );
 }
 
@@ -673,26 +602,33 @@ function Chip({
 /* Logo                                                                */
 /* ------------------------------------------------------------------ */
 
-const PRIDE_THEMES = LOGO_THEMES.filter((t) => t.group === "pride");
-const CAUSE_THEMES = LOGO_THEMES.filter((t) => t.group === "cause");
-const COUNTRY_THEMES = LOGO_THEMES.filter((t) => t.group === "country");
+const STANDARD_LOGO = "Standard";
+const LOGO_GROUP_LABELS = { pride: "Pride", cause: "Movements", country: "Countries & regions" };
 
 /**
- * Pick the colours of your own logo — standard, a pride flag, a movement, or a country's.
- * Saves on pick (no form), and writes the cache first so the header tile
- * changes the moment you click.
+ * Pick the colours of your own logo — standard, a pride flag, a movement, or a
+ * country's — from one searchable dropdown. Saves on pick (no form), and
+ * writes the cache first so the header tile changes the moment you choose.
  */
 function LogoSection({ profile }: { profile: AccountProfile | null | undefined }) {
   const queryClient = useQueryClient();
   const current = logoTheme(profile?.logo_theme);
 
-  const countryOptions = useMemo(
-    () =>
-      COUNTRY_THEMES.map((t) => ({
+  // Values are names (unique across all themes) so search matches what you read.
+  const options = useMemo<ComboboxOption[]>(
+    () => [
+      {
+        value: STANDARD_LOGO,
+        label: STANDARD_LOGO,
+        icon: <LogoTile theme={null} className="h-4 w-4 rounded-[4px] [&>span]:hidden" />,
+      },
+      ...LOGO_THEMES.map((t) => ({
         value: t.name,
         label: t.name,
-        icon: <LogoTile theme={t} className="h-4 w-4 align-[-3px]" />,
+        group: LOGO_GROUP_LABELS[t.group],
+        icon: <LogoTile theme={t} className="h-4 w-4" />,
       })),
+    ],
     [],
   );
 
@@ -730,117 +666,44 @@ function LogoSection({ profile }: { profile: AccountProfile | null | undefined }
       title="Logo"
       description="Show your colours: wear a flag on your Job Tracker logo. Only you see it."
     >
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <LogoTile theme={current} className="h-14 w-14" />
-          <div className="min-w-0">
-            <div className="text-sm font-medium">{current ? current.name : "Standard"}</div>
-            <div className="text-sm text-muted-foreground">
-              {current ? "Shown in your header and browser tab." : "The usual black tile."}
-            </div>
-          </div>
-          {current && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="ml-auto"
-              onClick={() => pick(null)}
-              disabled={saveTheme.isPending}
-            >
-              Reset
-            </Button>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label id="logo-pride-label">Pride</Label>
-          <div
-            role="radiogroup"
-            aria-labelledby="logo-pride-label"
-            className="flex flex-wrap gap-2"
-          >
-            <ThemeSwatch label="Standard" selected={!current} onSelect={() => pick(null)}>
-              <LogoTile theme={null} className="h-6 w-6" />
-            </ThemeSwatch>
-            {PRIDE_THEMES.map((t) => (
-              <ThemeSwatch
-                key={t.id}
-                label={t.name}
-                selected={current?.id === t.id}
-                onSelect={() => pick(t.id)}
-              >
-                <LogoTile theme={t} className="h-6 w-6" />
-              </ThemeSwatch>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label id="logo-cause-label">Movements</Label>
-          <div
-            role="radiogroup"
-            aria-labelledby="logo-cause-label"
-            className="flex flex-wrap gap-2"
-          >
-            {CAUSE_THEMES.map((t) => (
-              <ThemeSwatch
-                key={t.id}
-                label={t.name}
-                selected={current?.id === t.id}
-                onSelect={() => pick(t.id)}
-              >
-                <LogoTile theme={t} className="h-6 w-6" />
-              </ThemeSwatch>
-            ))}
-          </div>
-        </div>
-
-        <Field label="Country or region" hint="Any country's flag colours, plus a few regions.">
-          <Combobox
-            options={countryOptions}
-            value={current?.group === "country" ? current.name : ""}
-            onSelect={(name) => pick(COUNTRY_THEMES.find((t) => t.name === name)?.id ?? null)}
-            placeholder="Search a country…"
-            searchPlaceholder="Type a country…"
-            emptyText="No flag for that yet."
-            triggerIcon={
-              current?.group === "country" ? (
-                <LogoTile theme={current} className="h-4 w-4" />
-              ) : undefined
+      <div className="flex items-end gap-4">
+        <LogoTile theme={current} className="h-14 w-14" />
+        <div className="min-w-0 flex-1">
+          <Field
+            label="Logo colours"
+            hint="Pride flags, movements, and every country's flag."
+            aside={
+              current && (
+                <button
+                  type="button"
+                  onClick={() => pick(null)}
+                  disabled={saveTheme.isPending}
+                  className="text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  Reset to standard
+                </button>
+              )
             }
-          />
-        </Field>
+          >
+            <Combobox
+              options={options}
+              value={current?.name ?? STANDARD_LOGO}
+              onSelect={(name) => pick(LOGO_THEMES.find((t) => t.name === name)?.id ?? null)}
+              placeholder="Choose a flag…"
+              searchPlaceholder="Search flags, countries, movements…"
+              emptyText="No flag for that yet."
+              triggerIcon={
+                current ? (
+                  <LogoTile theme={current} className="h-4 w-4" />
+                ) : (
+                  <LogoTile theme={null} className="h-4 w-4 rounded-[4px] [&>span]:hidden" />
+                )
+              }
+            />
+          </Field>
+        </div>
       </div>
     </Section>
-  );
-}
-
-function ThemeSwatch({
-  label,
-  selected,
-  onSelect,
-  children,
-}: {
-  label: string;
-  selected: boolean;
-  onSelect: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "flex items-center gap-2 rounded-md border py-1.5 pl-1.5 pr-3 text-sm transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        selected ? "border-foreground bg-accent font-medium" : "text-muted-foreground",
-      )}
-    >
-      {children}
-      {label}
-    </button>
   );
 }
 

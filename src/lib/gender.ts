@@ -14,7 +14,7 @@ export type GenderOption = { id: string; label: string; group: GenderGroup; hint
 export const PREFER_NOT_TO_SAY = "prefer-not-to-say";
 
 export const GENDER_GROUPS: { id: GenderGroup; label: string }[] = [
-  { id: "common", label: "Identities" },
+  { id: "common", label: "Common" },
   { id: "beyond", label: "Beyond the binary" },
   { id: "cultural", label: "Cultural & Indigenous identities" },
 ];
@@ -126,8 +126,4 @@ export function pronounsLabel(
   const extra = custom?.trim();
   if (extra) parts.push(extra);
   return parts.length ? parts.join(", ") : null;
-}
-
-export function genderOption(id: string): GenderOption | undefined {
-  return GENDER_BY_ID.get(id);
 }
