@@ -7,6 +7,8 @@
   ·
   <a href="#features">Features</a>
   ·
+  <a href="#screenshots">Screenshots</a>
+  ·
   <a href="#how-its-built">How it's built</a>
   ·
   <a href="#run-it-yourself">Run it yourself</a>
@@ -37,14 +39,68 @@ extension, calendar integration and analytics.
 
 | | Feature | What it does |
 |---|---|---|
-| 🗂️ | **Pipeline board** | Every application as a card in its stage (wishlist, applied, interviewing, offer), with drag-to-advance and a keyboard move menu. Rejected and withdrawn roles move to an archive. |
+| 🗂️ | **Pipeline board** | Every application as a card in its stage (wishlist, applied, interviewing, offer), with drag-to-advance, a keyboard move menu and status tabs. Priority roles stand out in gold, and each column scrolls in place. Rejected and withdrawn roles move to an archive. |
+| ✨ | **Fill from a link or an ad** | Paste a job link or the whole ad into New application and it fills in the company, role, location, work mode, salary and requirements for you to check, and keeps a copy of the ad. |
 | ✂️ | **Clip to Job Tracker** | A Chrome extension that reads the job ad already open in your tab and saves salary, requirements and the full text. Site adapters for LinkedIn, Greenhouse, Lever, Ashby and Workday, plus a generic fallback. |
-| ✅ | **Follow-up tasks** | Dated tasks attached to any application. What's due today rises to the top of the list, and overdue follow-ups are flagged on the card. |
+| ✅ | **Tasks panel** | Dated follow-ups beside the board, grouped into overdue, today, the next 7 days and later. Tasks can link to several roles, be filtered by role, starred and deleted. |
+| 🎯 | **Daily goal** | Set how many applications you mean to send a day. A dot calendar of the last five weeks shows days met, partly met and missed, with your current and best streak. |
 | 📅 | **Google Calendar sync** | Open, dated tasks become calendar events and stay in step as you edit, complete or delete them. Any calendar app can subscribe to a signed iCal feed instead. |
-| 📈 | **Analytics** | A funnel from wishlist to offer, median days to first response and between stages, and date-range filters. |
+| 📈 | **Analytics** | Headline numbers, applications by status, stage reach from applied to offer, applications per week, median response times and date-range filters. |
+| 💬 | **Rejection reasons** | A rejection asks why, from common reasons or your own words. Analytics then shows the top reason and word clouds of what keeps coming up. |
 | ⏱️ | **Status history** | Every stage change is timestamped, so you know how long each company takes to respond. |
+| 🏳️‍🌈 | **Flag logo** | Wear your colours: switch your own Job Tracker logo (and browser-tab icon) to a pride flag or any of 120+ country and region flags. Only you see it. |
 | 📥 | **CSV import** | Bring an existing spreadsheet in through a downloadable template. |
 | 🏢 | **Company logos** | Each card shows the company's icon, read from the site's declared favicon when Google's service has none. |
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/landing.png" alt="Landing page: Track every application. Land the job." width="820">
+</p>
+
+**Applications board.** Cards show location, work mode, salary, how long since you applied and
+what's due. The priority role is outlined in gold.
+
+<p align="center">
+  <img src="docs/screenshots/board.png" alt="Applications board with wishlist, applied, interviewing and offer columns" width="820">
+</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Tasks panel.</b> Follow-ups grouped by when they're due, with progress at the top.
+      <br><br>
+      <img src="docs/screenshots/tasks.png" alt="Tasks panel grouped into overdue, today, next 7 days, later and no due date">
+    </td>
+    <td width="50%" valign="top">
+      <b>Daily goal.</b> Applications sent today against your target, streaks, and a dot per day.
+      <br><br>
+      <img src="docs/screenshots/daily-goal.png" alt="Daily goal tracker with streak, best day and a dot calendar">
+      <br><br>
+      <b>Fill from the job ad.</b> One paste fills the form and shows what it read.
+      <br><br>
+      <img src="docs/screenshots/new-application.png" alt="New application dialog filled in from a pasted job ad">
+    </td>
+  </tr>
+</table>
+
+**Analytics.** Where your search stands, how far applications get, and why roles say no.
+
+<p align="center">
+  <img src="docs/screenshots/analytics.png" alt="Analytics page with headline numbers, applications by status and stage reach" width="820">
+</p>
+<p align="center">
+  <img src="docs/screenshots/analytics-rejections.png" alt="Rejection reasons card with the top reason and word clouds" width="820">
+</p>
+
+**Flag logo.** Every theme a user can pick for their own logo on the account page.
+
+<p align="center">
+  <img src="docs/screenshots/logo-themes.png" alt="Grid of logo tiles in pride and country flag colours" width="820">
+</p>
+
+<sub>Screenshots use the fixture data on the dev-only `/dev-preview` route, so every company and
+task in them is invented.</sub>
 
 ## How it's built
 
@@ -62,11 +118,11 @@ flowchart LR
 |---|---|
 | **Frontend** | [TanStack Start](https://tanstack.com/start) (file-based routing, SSR), React 19, Tailwind CSS 4, shadcn/ui on Radix primitives, Recharts for analytics |
 | **Backend** | TanStack Start server functions, plus a custom server entry that serves the calendar feed, extension and logo endpoints ahead of the router; CSRF middleware on app requests |
-| **Database** | Supabase Postgres with row-level security on all 7 tables, 15 versioned SQL migrations, timestamped status-change events |
+| **Database** | Supabase Postgres with row-level security on all 8 tables, 19 versioned SQL migrations, timestamped status-change events |
 | **Extension** | Chrome Manifest V3 with only `activeTab`, `scripting` and `storage` permissions; runs when you click it and shares the app's job-ad parser |
 | **Integrations** | Google Calendar API over OAuth (one-way push, `calendar.events` scope) and an HMAC-signed iCal feed |
 | **Auth** | Supabase Auth with email and password, password reset, and a 30-minute idle sign-out |
-| **Testing & CI** | `bun test` unit tests for the feed, extension, logo and analytics logic; GitHub Actions runs lint, typecheck, tests and build on every push |
+| **Testing & CI** | `bun test` unit tests for the feed, extension, logo, quick-fill, daily goal, rejection and analytics logic; GitHub Actions runs lint, typecheck, tests and build on every push |
 | **Hosting** | Vercel through the Build Output API (Nitro `vercel` preset), deployed from `main` |
 
 ### Engineering highlights
@@ -128,12 +184,12 @@ deploys directly (configured in [`vercel.json`](vercel.json)). Set the `SUPABASE
 
 ```
 src/routes/              landing, auth, and the signed-in app (dashboard, applications, analytics, account)
-src/components/          board, cards, filters, task form, calendar and extension dialogs
-src/lib/                 job-ad parser, status model, stats, calendar feed and sync, server endpoints
+src/components/          board, cards, filters, tasks panel, daily goal, calendar and extension dialogs
+src/lib/                 job-ad and quick-fill parsers, status model, stats, daily goal, flag logos, calendar feed and sync
 src/server.ts            server entry: calendar feed, /clip and /logo routes ahead of the router
 extension/               Chrome MV3 extension: site adapters, popup, build script
 supabase/migrations/     schema, RLS policies, calendar tables
-docs/                    Google Calendar setup, voice and tone guide
+docs/                    Google Calendar setup, voice and tone guide, README screenshots
 ```
 
 ## License
