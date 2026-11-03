@@ -36,6 +36,8 @@ import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/
 import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { TaskForm, type TaskFormValues } from "@/components/TaskForm";
+import { TaskSummaryPanel, countOverdue, useAllTasks } from "@/components/TaskSummaryPanel";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import type { RoleOption } from "@/components/RoleMultiSelect";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -70,6 +72,7 @@ import {
 type View = "list" | "grid" | "board";
 
 const VIEW_KEY = "applications-view";
+const TASKS_PANEL_KEY = "applications-tasks-panel";
 
 /** The stored preference, validated so a stale or hand-edited value can never reach the renderer. */
 function storedView(): View {
@@ -186,6 +189,13 @@ function ApplicationsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<View>(storedView);
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
+  // The task panel sits beside the applications on wide screens (xl+), open by
+  // default and remembered when closed. Narrower screens have no room for a
+  // second column, so the same panel slides over as a sheet instead.
+  const [tasksPanelOpen, setTasksPanelOpen] = useState(
+    () => typeof window === "undefined" || localStorage.getItem(TASKS_PANEL_KEY) !== "closed",
+  );
+  const [tasksSheetOpen, setTasksSheetOpen] = useState(false);
   // An application on its way to `rejected`, waiting on the reason prompt.
   // `commit` is what Save (with a reason) or Skip (null) goes ahead and does;
   // closing the prompt drops it, which cancels a move.
@@ -201,6 +211,18 @@ function ApplicationsPage() {
   useEffect(() => {
     localStorage.setItem(VIEW_KEY, view);
   }, [view]);
+
+  useEffect(() => {
+    localStorage.setItem(TASKS_PANEL_KEY, tasksPanelOpen ? "open" : "closed");
+  }, [tasksPanelOpen]);
+
+  const { data: allTasks = [], isLoading: tasksLoading } = useAllTasks();
+  const overdueTasks = useMemo(() => countOverdue(allTasks), [allTasks]);
+
+  const openNewTask = () => {
+    setTasksSheetOpen(false);
+    setCreateTaskOpen(true);
+  };
 
   // Google Calendar OAuth bounces back to /applications?calendar=connected|error.
   // Surface the outcome, refresh the connection state, and strip the param from
@@ -626,7 +648,7 @@ function ApplicationsPage() {
   };
 
   return (
-    <main className="container-page page-body">
+    <main className={`container-page page-body ${tasksPanelOpen ? "xl:max-w-[92rem]" : ""}`}>
       <PageHeader
         title="Applications"
         count={isLoading ? undefined : filtersActive ? visibleApps.length : apps.length}
@@ -655,12 +677,27 @@ function ApplicationsPage() {
               <CalendarSyncDialog />
             </div>
 
+            {/* One button, two behaviours: below xl it opens the sheet, at xl
+                it shows or hides the column beside the board. */}
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto xl:hidden"
+              onClick={() => setTasksSheetOpen(true)}
+            >
+              <ListChecks className="h-4 w-4" /> Tasks
+              {overdueTasks > 0 && <OverdueBadge count={overdueTasks} />}
+            </Button>
+            <Button
+              variant="outline"
+              className="hidden xl:inline-flex"
+              aria-pressed={tasksPanelOpen}
+              onClick={() => setTasksPanelOpen((v) => !v)}
+            >
+              <ListChecks className="h-4 w-4" /> {tasksPanelOpen ? "Hide tasks" : "Tasks"}
+              {!tasksPanelOpen && overdueTasks > 0 && <OverdueBadge count={overdueTasks} />}
+            </Button>
+
             <Dialog open={createTaskOpen} onOpenChange={setCreateTaskOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <ListChecks className="h-4 w-4" /> New task
-                </Button>
-              </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>New task</DialogTitle>
@@ -893,85 +930,113 @@ function ApplicationsPage() {
         }
       />
 
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : apps.length === 0 ? (
-        <EmptyState
-          title="No applications yet"
-          body="Add your first one to start tracking where every role stands."
-        />
-      ) : (
-        <>
-          <ApplicationFilters
-            apps={apps}
-            value={filters}
-            onChange={patchFilters}
-            onClear={clearFilters}
-            resultCount={visibleApps.length}
-          />
-          {liveApps.length === 0 ? (
-            archivedApps.length > 0 ? (
-              // Not "no matches" — there are matches, they're just all closed.
-              // Sending someone to "widen or clear filters" when the fix is
-              // "scroll down" would be actively wrong advice.
-              <EmptyState
-                title="Nothing in your active pipeline"
-                body="Every application that matches is closed — see it in the archive below."
-              />
-            ) : (
-              <EmptyState
-                title="No matches"
-                body="No applications match these filters. Widen or clear them to see more."
-                action={
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
-                }
-              />
-            )
-          ) : effectiveView === "list" ? (
-            <div className="grid gap-3">
-              {liveApps.map((a) => (
-                <ApplicationCard
-                  key={a.id}
-                  app={a}
-                  variant="list"
-                  onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
-                  onDelete={() => deleteApp.mutate(a.id)}
-                />
-              ))}
-            </div>
-          ) : effectiveView === "grid" ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {liveApps.map((a) => (
-                <ApplicationCard
-                  key={a.id}
-                  app={a}
-                  variant="grid"
-                  onTogglePriority={(priority) => togglePriority.mutate({ aid: a.id, priority })}
-                  onDelete={() => deleteApp.mutate(a.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <ApplicationBoard
-              apps={liveApps}
-              onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
-              onMoveTo={requestMove}
-              onDelete={(a) => deleteApp.mutate(a.id)}
+      <div
+        className={
+          tasksPanelOpen ? "xl:grid xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start xl:gap-8" : ""
+        }
+      >
+        <div className="min-w-0">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : apps.length === 0 ? (
+            <EmptyState
+              title="No applications yet"
+              body="Add your first one to start tracking where every role stands."
             />
-          )}
-          {/* Same across all three views above — rejected and withdrawn have
+          ) : (
+            <>
+              <ApplicationFilters
+                apps={apps}
+                value={filters}
+                onChange={patchFilters}
+                onClear={clearFilters}
+                resultCount={visibleApps.length}
+              />
+              {liveApps.length === 0 ? (
+                archivedApps.length > 0 ? (
+                  // Not "no matches" — there are matches, they're just all closed.
+                  // Sending someone to "widen or clear filters" when the fix is
+                  // "scroll down" would be actively wrong advice.
+                  <EmptyState
+                    title="Nothing in your active pipeline"
+                    body="Every application that matches is closed — see it in the archive below."
+                  />
+                ) : (
+                  <EmptyState
+                    title="No matches"
+                    body="No applications match these filters. Widen or clear them to see more."
+                    action={
+                      <Button variant="outline" onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                    }
+                  />
+                )
+              ) : effectiveView === "list" ? (
+                <div className="grid gap-3">
+                  {liveApps.map((a) => (
+                    <ApplicationCard
+                      key={a.id}
+                      app={a}
+                      variant="list"
+                      onTogglePriority={(priority) =>
+                        togglePriority.mutate({ aid: a.id, priority })
+                      }
+                      onDelete={() => deleteApp.mutate(a.id)}
+                    />
+                  ))}
+                </div>
+              ) : effectiveView === "grid" ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {liveApps.map((a) => (
+                    <ApplicationCard
+                      key={a.id}
+                      app={a}
+                      variant="grid"
+                      onTogglePriority={(priority) =>
+                        togglePriority.mutate({ aid: a.id, priority })
+                      }
+                      onDelete={() => deleteApp.mutate(a.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <ApplicationBoard
+                  apps={liveApps}
+                  onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+                  onMoveTo={requestMove}
+                  onDelete={(a) => deleteApp.mutate(a.id)}
+                />
+              )}
+              {/* Same across all three views above — rejected and withdrawn have
               exactly one home on this page, and it isn't inline with the
               applications still moving. */}
-          <ApplicationArchive
-            apps={archivedApps}
-            onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
-            onDelete={(a) => deleteApp.mutate(a.id)}
-            onEditRejection={editRejection}
-          />
-        </>
-      )}
+              <ApplicationArchive
+                apps={archivedApps}
+                onTogglePriority={(a, priority) => togglePriority.mutate({ aid: a.id, priority })}
+                onDelete={(a) => deleteApp.mutate(a.id)}
+                onEditRejection={editRejection}
+              />
+            </>
+          )}
+        </div>
+        {tasksPanelOpen && (
+          <aside className="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border p-5 xl:block">
+            <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
+          </aside>
+        )}
+      </div>
+      <Sheet open={tasksSheetOpen} onOpenChange={setTasksSheetOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-sm">
+          <SheetTitle className="sr-only">Tasks</SheetTitle>
+          <SheetDescription className="sr-only">
+            Every task across your applications, grouped by when it is due.
+          </SheetDescription>
+          <div className="pt-6">
+            <TaskSummaryPanel tasks={allTasks} isLoading={tasksLoading} onNewTask={openNewTask} />
+          </div>
+        </SheetContent>
+      </Sheet>
       <RejectionReasonDialog
         open={pendingRejection !== null}
         onOpenChange={(v) => !v && setPendingRejection(null)}
@@ -991,5 +1056,16 @@ function ApplicationsPage() {
         }
       />
     </main>
+  );
+}
+
+function OverdueBadge({ count }: { count: number }) {
+  return (
+    <span
+      className="ml-0.5 rounded-full bg-[var(--status-rejected-soft)] px-1.5 text-xs font-medium text-brand-accent"
+      aria-label={`${count} overdue`}
+    >
+      {count}
+    </span>
   );
 }

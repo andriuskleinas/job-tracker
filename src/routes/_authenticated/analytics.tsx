@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
-import { addDays, subDays } from "date-fns";
+import { subDays } from "date-fns";
 import { z } from "zod";
 import {
   Area,
@@ -28,11 +28,6 @@ import {
   RANGE_PRESETS,
   type RangePreset,
 } from "@/components/AnalyticsRangeFilter";
-import {
-  TaskWindowFilter,
-  TASK_WINDOW_PRESETS,
-  type TaskWindowPreset,
-} from "@/components/TaskWindowFilter";
 import {
   ChartContainer,
   ChartLegend,
@@ -65,7 +60,7 @@ import {
   type StatsStatusEvent,
   type StatsTask,
 } from "@/lib/stats";
-import { ArrowDown, ArrowUp, Plus, TriangleAlert } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 
 /*
  * The date-range filter lives in the URL, same reasoning as the
@@ -73,17 +68,11 @@ import { ArrowDown, ArrowUp, Plus, TriangleAlert } from "lucide-react";
  * survives a refresh, and works with the back button. `range=custom`
  * without both `from`/`to` present falls back to "all" — a half-specified
  * custom range is not a range.
- *
- * `taskWindow`/`taskDue` are a second, independent pair for the "Next N
- * days" panel — forward-looking, so it needs its own state rather than
- * reusing `range`/`from`/`to`, which describe a backward-looking window.
  */
 const searchSchema = z.object({
   range: z.enum(RANGE_PRESETS).catch("all").optional(),
   from: z.string().catch("").optional(),
   to: z.string().catch("").optional(),
-  taskWindow: z.enum(TASK_WINDOW_PRESETS).catch("14d").optional(),
-  taskDue: z.string().catch("").optional(),
 });
 
 type AnalyticsSearch = z.infer<typeof searchSchema>;
@@ -106,23 +95,6 @@ export const Route = createFileRoute("/_authenticated/analytics")({
   validateSearch: (search): AnalyticsSearch => searchSchema.parse(search),
   component: AnalyticsPage,
 });
-
-type LinkedRole = { id: string; company: string; position: string };
-
-/**
- * A task carries every role it was assigned to, not one. The shape — and the
- * select that produces it — has to stay identical to the tasks page, because
- * both read the same `["tasks", "all"]` cache entry and whichever mounts
- * first is the one that fills it.
- */
-type TaskWithApp = StatsTask & {
-  id: string;
-  title: string;
-  task_applications: { application: LinkedRole | null }[];
-};
-
-const linkedRoles = (t: TaskWithApp): LinkedRole[] =>
-  (t.task_applications ?? []).map((ta) => ta.application).filter((a): a is LinkedRole => !!a);
 
 /*
  * Colour on this page is the status language from `@/lib/status`, nothing
@@ -197,6 +169,9 @@ function AnalyticsPage() {
     },
   });
 
+  // Only feeds the task tiles below. The select has to stay identical to the
+  // applications page's task panel — both read the same `["tasks", "all"]`
+  // cache entry, and whichever mounts first is the one that fills it.
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
     queryKey: ["tasks", "all"],
     queryFn: async () => {
@@ -224,26 +199,21 @@ function AnalyticsPage() {
 
   if (appsLoading || tasksLoading || eventsLoading) return <AnalyticsSkeleton />;
 
-  // resetScroll: false — this fires from filters anywhere on the page, including
-  // the task panel's own filter at the bottom, and neither should jump the
-  // page back to the top.
+  // resetScroll: false — changing the range should not jump the page back to
+  // the top.
   const setRange = (patch: Partial<AnalyticsSearch>) =>
     navigate({ search: { ...search, ...patch }, replace: true, resetScroll: false });
 
   return (
     <AnalyticsView
       apps={apps as StatsApplication[]}
-      tasks={tasks as unknown as TaskWithApp[]}
+      tasks={tasks as StatsTask[]}
       events={events as StatsStatusEvent[]}
       range={search.range ?? "all"}
       customFrom={search.from ? parseLocalDate(search.from) : null}
       customTo={search.to ? parseLocalDate(search.to) : null}
       onPresetChange={(range) => setRange({ range, from: undefined, to: undefined })}
       onCustomChange={(from, to) => setRange({ range: "custom", from: toIso(from), to: toIso(to) })}
-      taskWindow={search.taskWindow ?? "14d"}
-      taskDue={search.taskDue ? parseLocalDate(search.taskDue) : null}
-      onTaskWindowChange={(taskWindow) => setRange({ taskWindow, taskDue: undefined })}
-      onTaskDueChange={(due) => setRange({ taskWindow: "custom", taskDue: toIso(due) })}
     />
   );
 }
@@ -262,23 +232,15 @@ export function AnalyticsView({
   customTo = null,
   onPresetChange,
   onCustomChange,
-  taskWindow = "14d",
-  taskDue = null,
-  onTaskWindowChange,
-  onTaskDueChange,
 }: {
   apps: StatsApplication[];
-  tasks: TaskWithApp[];
+  tasks: StatsTask[];
   events?: StatsStatusEvent[];
   range?: RangePreset;
   customFrom?: Date | null;
   customTo?: Date | null;
   onPresetChange?: (range: Exclude<RangePreset, "custom">) => void;
   onCustomChange?: (from: Date, to: Date) => void;
-  taskWindow?: TaskWindowPreset;
-  taskDue?: Date | null;
-  onTaskWindowChange?: (window: Exclude<TaskWindowPreset, "custom">) => void;
-  onTaskDueChange?: (due: Date) => void;
 }) {
   const statApps = apps;
   const statTasks = tasks;
@@ -389,25 +351,6 @@ export function AnalyticsView({
     [periodApps, periodEvents],
   );
   const historySince = useMemo(() => historyStartedAt(periodEvents), [periodEvents]);
-
-  // Forward-looking, so it takes its own horizon rather than the page's
-  // backward-looking `from`/`to` — see TaskWindowFilter.
-  const taskHorizon = useMemo(() => {
-    if (taskWindow === "custom" && taskDue) return taskDue;
-    if (taskWindow === "7d") return addDays(today, 7);
-    if (taskWindow === "30d") return addDays(today, 30);
-    return addDays(today, 14);
-  }, [taskWindow, taskDue, today]);
-
-  const dueSoon = useMemo(
-    () =>
-      statTasks
-        .filter((t) => !t.done && t.due_date !== null)
-        .filter((t) => parseLocalDate(t.due_date as string) <= taskHorizon),
-    [statTasks, taskHorizon],
-  );
-  const upcoming = dueSoon.slice(0, 8);
-  const upcomingHidden = dueSoon.length - upcoming.length;
 
   const periodLabel = rangeLabel(range, from, to);
   const priorLabel = priorRangeLabel(range, from, to);
@@ -793,71 +736,6 @@ export function AnalyticsView({
           </CardContent>
         </Card>
       </section>
-
-      <Card className="mt-4">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="text-base">{taskWindowTitle(taskWindow, taskHorizon)}</CardTitle>
-            <CardDescription>Open tasks coming due, soonest first.</CardDescription>
-          </div>
-          {onTaskWindowChange && onTaskDueChange && (
-            <TaskWindowFilter
-              preset={taskWindow}
-              customDue={taskDue}
-              onPresetChange={onTaskWindowChange}
-              onCustomChange={onTaskDueChange}
-            />
-          )}
-        </CardHeader>
-        <CardContent>
-          {upcoming.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Nothing due {taskWindowPhrase(taskWindow, taskHorizon)}.
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {upcoming.map((t) => {
-                const due = parseLocalDate(t.due_date as string);
-                const overdue = due < new Date(new Date().toDateString());
-                const roles = linkedRoles(t);
-                return (
-                  <li key={t.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm">{t.title}</p>
-                      {/* One task can cover several roles; this row has space
-                          for one, so the rest are counted rather than listed. */}
-                      {roles.length > 0 && (
-                        <p className="truncate text-xs text-muted-foreground">
-                          <Link
-                            to="/applications/$id"
-                            params={{ id: roles[0].id }}
-                            className="hover:underline"
-                          >
-                            {roles[0].position} · {roles[0].company}
-                          </Link>
-                          {roles.length > 1 && ` +${roles.length - 1} more`}
-                        </p>
-                      )}
-                    </div>
-                    <span
-                      className={`shrink-0 text-xs ${overdue ? "font-medium text-brand-accent" : "text-muted-foreground"}`}
-                    >
-                      {overdue && <TriangleAlert className="mr-1 inline h-3 w-3" aria-hidden />}
-                      {overdue ? "Overdue " : "Due "}
-                      {due.toLocaleDateString()}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {upcomingHidden > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              +{upcomingHidden} more due in this window.
-            </p>
-          )}
-        </CardContent>
-      </Card>
     </main>
   );
 }
@@ -895,22 +773,6 @@ function priorRangeLabel(range: RangePreset, from: Date, to: Date): string {
 
 function sentenceCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-/** The card title for the task panel — "Next 7 days" through a custom "Due by Mar 5". */
-function taskWindowTitle(preset: TaskWindowPreset, horizon: Date): string {
-  if (preset === "custom") return `Due by ${horizon.toLocaleDateString()}`;
-  if (preset === "7d") return "Next 7 days";
-  if (preset === "30d") return "Next 30 days";
-  return "Next 14 days";
-}
-
-/** The empty-state phrase — "Nothing due {this}." */
-function taskWindowPhrase(preset: TaskWindowPreset, horizon: Date): string {
-  if (preset === "custom") return `by ${horizon.toLocaleDateString()}`;
-  if (preset === "7d") return "in the next week";
-  if (preset === "30d") return "in the next month";
-  return "in the next two weeks";
 }
 
 /**

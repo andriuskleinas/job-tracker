@@ -8,10 +8,10 @@ import { useState } from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { AnalyticsView } from "./_authenticated/analytics";
 import type { RangePreset } from "@/components/AnalyticsRangeFilter";
-import type { TaskWindowPreset } from "@/components/TaskWindowFilter";
 import { ApplicationCard, type ApplicationCardData } from "@/components/ApplicationCard";
 import { ApplicationBoard } from "@/components/ApplicationBoard";
 import { ApplicationArchive } from "@/components/ApplicationArchive";
+import { TaskSummaryPanel } from "@/components/TaskSummaryPanel";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { rejectionColumns, rejectionFromRow } from "@/lib/rejection";
 import { CLOSED_STATUSES } from "@/lib/status";
@@ -103,7 +103,11 @@ const tasks = [
   { id: "t3", title: "Take-home: submit by Friday", done: false, due_date: iso(-8) },
   { id: "t4", title: "Ask about relocation package", done: false, due_date: iso(-12) },
   { id: "t5", title: "Update CV with new project", done: true, due_date: iso(20) },
+  { id: "t6", title: "Research the team on LinkedIn", done: false, due_date: null },
+  { id: "t7", title: "Thank-you note after onsite", done: false, due_date: iso(0), priority: true },
 ].map((t) => ({
+  priority: false,
+  due_time: null,
   ...t,
   task_applications: [
     { application: { id: "app-1", company: "Northwind", position: "Staff Engineer" } },
@@ -286,8 +290,6 @@ function DevPreview() {
   const [range, setRange] = useState<RangePreset>("all");
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
-  const [taskWindow, setTaskWindow] = useState<TaskWindowPreset>("14d");
-  const [taskDue, setTaskDue] = useState<Date | null>(null);
 
   return (
     <div>
@@ -307,16 +309,6 @@ function DevPreview() {
           setRange("custom");
           setCustomFrom(from);
           setCustomTo(to);
-        }}
-        taskWindow={taskWindow}
-        taskDue={taskDue}
-        onTaskWindowChange={(next) => {
-          setTaskWindow(next);
-          setTaskDue(null);
-        }}
-        onTaskDueChange={(due) => {
-          setTaskWindow("custom");
-          setTaskDue(due);
         }}
       />
       <main className="container-page pb-20">
@@ -361,6 +353,10 @@ function DevPreview() {
           }
           onDelete={(app) => setBoardCards((prev) => prev.filter((c) => c.id !== app.id))}
         />
+        <h2 className="mb-3 mt-8 text-lg font-semibold">TaskSummaryPanel</h2>
+        <div className="max-w-[19rem] rounded-xl border p-5">
+          <TaskSummaryPanel tasks={tasks} isLoading={false} onNewTask={() => {}} />
+        </div>
         <h2 className="mb-3 mt-8 text-lg font-semibold">Archive</h2>
         <ApplicationArchive
           apps={boardCards.filter((c) => CLOSED_STATUSES.includes(c.status))}
