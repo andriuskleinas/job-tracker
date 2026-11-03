@@ -40,14 +40,82 @@ const JOB_TYPE_ICON: Record<JobType, typeof Globe> = {
  *
  * The city picker leads — choosing a city sets its country automatically.
  * Both fields are optional for every job type.
+ *
+ * `compact` is the dialog's version: a one-line segmented control instead of
+ * three tall tiles, and no box of its own, so logging a role stays one short
+ * screen rather than a stack of nested cards.
  */
 export function LocationFields({
   value,
   onChange,
+  compact = false,
 }: {
   value: LocationValue;
   onChange: (v: LocationValue) => void;
+  compact?: boolean;
 }) {
+  const place = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2">
+        <Label>
+          City <span className="font-normal text-muted-foreground">(optional)</span>
+        </Label>
+        <CityCombobox
+          value={value.city}
+          onSelectCity={(city, country) => onChange({ ...value, city, country })}
+          onCustom={(city) => onChange({ ...value, city })}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>
+          Country <span className="font-normal text-muted-foreground">(optional)</span>
+        </Label>
+        <CountryCombobox
+          value={value.country}
+          onSelect={(country) => onChange({ ...value, country })}
+        />
+      </div>
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label id="job-type-label">Job type</Label>
+          <div
+            role="group"
+            aria-labelledby="job-type-label"
+            className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1"
+          >
+            {JOB_TYPES.map((jt) => {
+              const Icon = JOB_TYPE_ICON[jt];
+              const active = value.job_type === jt;
+              return (
+                <button
+                  key={jt}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onChange({ ...value, job_type: jt })}
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {JOB_TYPE_META[jt].short}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {place}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <div className="space-y-2">
@@ -80,27 +148,7 @@ export function LocationFields({
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>
-            City <span className="font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <CityCombobox
-            value={value.city}
-            onSelectCity={(city, country) => onChange({ ...value, city, country })}
-            onCustom={(city) => onChange({ ...value, city })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>
-            Country <span className="font-normal text-muted-foreground">(optional)</span>
-          </Label>
-          <CountryCombobox
-            value={value.country}
-            onSelect={(country) => onChange({ ...value, country })}
-          />
-        </div>
-      </div>
+      {place}
     </div>
   );
 }

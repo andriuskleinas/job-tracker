@@ -14,6 +14,8 @@ import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { TaskSummaryPanel } from "@/components/TaskSummaryPanel";
 import { DailyGoalTracker } from "@/components/DailyGoalTracker";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
+import { NewApplicationDialog } from "@/components/NewApplicationDialog";
+import { Button } from "@/components/ui/button";
 import { rejectionColumns, rejectionFromRow, type RejectionFields } from "@/lib/rejection";
 import { CLOSED_STATUSES } from "@/lib/status";
 import type { Status } from "@/lib/status";
@@ -321,6 +323,7 @@ function DevPreview() {
   // the URL on the real page, so the fixture needs its own state to exercise
   // the control at all.
   const [dailyGoal, setDailyGoal] = useState(2);
+  const [newOpen, setNewOpen] = useState(false);
   const [range, setRange] = useState<RangePreset>("all");
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
@@ -346,7 +349,22 @@ function DevPreview() {
         }}
       />
       <main className="container-page pb-20">
-        <h2 className="mb-3 text-lg font-semibold">ApplicationCard — list</h2>
+        <h2 className="mb-3 text-lg font-semibold">NewApplicationDialog</h2>
+        {/* Saving only pretends: it waits a beat and resolves, so the reset
+            after a successful save can be seen without a database. */}
+        <NewApplicationDialog
+          open={newOpen}
+          onOpenChange={setNewOpen}
+          isPending={false}
+          onSubmit={async (values) => {
+            console.info("[dev-preview] new application", values);
+            await new Promise((r) => setTimeout(r, 300));
+            setNewOpen(false);
+          }}
+          trigger={<Button>New application</Button>}
+        />
+
+        <h2 className="mb-3 mt-8 text-lg font-semibold">ApplicationCard — list</h2>
         <div className="space-y-3">
           {cards.map((c) => (
             <ApplicationCard

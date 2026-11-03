@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
@@ -15,24 +14,15 @@ import { ApplicationArchive } from "@/components/ApplicationArchive";
 import { RejectionReasonDialog } from "@/components/RejectionReasonDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { LocationFields, type LocationValue } from "@/components/LocationFields";
-import { JobAdFields } from "@/components/JobAdFields";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { NewApplicationDialog, type NewApplicationSubmit } from "@/components/NewApplicationDialog";
 import { EMPTY_JOB_AD, jobAdColumns, jobAdSchema, type JobAdValue } from "@/lib/job-ad-form";
+import { applicationSchema } from "@/lib/application-form";
 import { ApplicationFilters } from "@/components/ApplicationFilters";
 import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { TaskForm, type TaskFormValues } from "@/components/TaskForm";
@@ -52,16 +42,7 @@ import {
   type RejectionReason,
 } from "@/lib/rejection";
 import { JOB_TYPES } from "@/lib/job-location";
-import {
-  Plus,
-  Upload,
-  Download,
-  List,
-  LayoutGrid,
-  Columns3,
-  ChevronRight,
-  ListChecks,
-} from "lucide-react";
+import { Plus, Upload, Download, List, LayoutGrid, Columns3, ListChecks } from "lucide-react";
 import Papa from "papaparse";
 import { useRef, useMemo } from "react";
 import {
@@ -115,31 +96,8 @@ export const Route = createFileRoute("/_authenticated/applications/")({
   component: ApplicationsPage,
 });
 
-const appBase = z.object({
-  company: z.string().trim().min(1, "Company is required").max(120),
-  position: z.string().trim().min(1, "Position is required").max(120),
-  status: z.enum(STATUSES, { errorMap: () => ({ message: "Select application status" }) }),
-  application_date: z.string().min(1, "Date is required"),
-  website: z.string().trim().max(255).optional().or(z.literal("")),
-  notes: z.string().max(2000).optional().or(z.literal("")),
-  job_type: z.enum(JOB_TYPES).or(z.literal("")).optional(),
-  country: z.string().trim().max(120).optional().or(z.literal("")),
-  city: z.string().trim().max(120).optional().or(z.literal("")),
-});
-
-// Only company and position are required — location, website, notes and the
-// job ad are all optional, so a role can be logged in a few seconds.
-const appSchema = appBase;
-
 /** One CSV row: the application itself plus its job-ad block. */
-type ImportRow = { app: z.infer<typeof appSchema>; ad: JobAdValue };
-
-// The New application dialog can also seed a first follow-up task, linked to the
-// application that gets created. Both task fields are optional.
-const appWithTaskSchema = appBase.extend({
-  task_title: z.string().trim().max(200, "Task title must be 200 characters or fewer").optional(),
-  task_due_date: z.string().optional(),
-});
+type ImportRow = { app: z.infer<typeof applicationSchema>; ad: JobAdValue };
 
 function ApplicationsPage() {
   const queryClient = useQueryClient();
@@ -179,13 +137,6 @@ function ApplicationsPage() {
   const clearFilters = () => navigate({ search: {}, replace: true });
 
   const [open, setOpen] = useState(false);
-  const defaultLocation: LocationValue = { job_type: "onsite", country: "", city: "" };
-  const [location, setLocation] = useState<LocationValue>(defaultLocation);
-  const [jobAd, setJobAd] = useState<JobAdValue>(EMPTY_JOB_AD);
-  // The ad, salary, notes and follow-up task all start tucked away — company,
-  // position and status are enough to log a role in a few seconds, and the
-  // rest is there for whoever wants it, not in everyone's way by default.
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importErrors, setImportErrors] = useState<{ row: number; reason: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -331,7 +282,7 @@ function ApplicationsPage() {
   );
 
   const create = useMutation({
-    mutationFn: async (values: z.infer<typeof appWithTaskSchema>) => {
+    mutationFn: async ({ jobAd, ...values }: NewApplicationSubmit) => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Not signed in");
       const userId = userData.user.id;
@@ -585,7 +536,7 @@ function ApplicationsPage() {
         const today = new Date().toISOString().slice(0, 10);
         results.data.forEach((raw, i) => {
           const rowNum = i + 2; // header is row 1
-          const parsed = appSchema.safeParse({
+          const parsed = applicationSchema.safeParse({
             company: (raw.company ?? "").trim(),
             position: (raw.position ?? "").trim(),
             status: (raw.status ?? "").trim().toLowerCase() || "applied",
@@ -649,37 +600,6 @@ function ApplicationsPage() {
     a.download = "applications-template.csv";
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    // Fields inside the collapsed "job ad, salary & notes" section aren't in the
-    // DOM, so FormData returns null for them — read those as empty, not invalid.
-    const field = (name: string) => (fd.get(name) as string | null) ?? "";
-    const parsed = appWithTaskSchema.safeParse({
-      company: field("company"),
-      position: field("position"),
-      status: field("status"),
-      application_date: field("application_date"),
-      website: field("website"),
-      notes: field("notes"),
-      job_type: location.job_type,
-      country: location.country,
-      city: location.city,
-      task_title: field("task_title"),
-      task_due_date: field("task_due_date"),
-    });
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
-    }
-    const ad = jobAdSchema.safeParse(jobAd);
-    if (!ad.success) {
-      toast.error(ad.error.issues[0].message);
-      return;
-    }
-    create.mutate(parsed.data);
   };
 
   return (
@@ -822,150 +742,17 @@ function ApplicationsPage() {
               </DialogContent>
             </Dialog>
 
-            <Dialog
+            <NewApplicationDialog
               open={open}
-              onOpenChange={(v) => {
-                setOpen(v);
-                if (v) {
-                  setLocation(defaultLocation);
-                  setJobAd(EMPTY_JOB_AD);
-                  setDetailsOpen(false);
-                }
-              }}
-            >
-              <DialogTrigger asChild>
+              onOpenChange={setOpen}
+              isPending={create.isPending}
+              onSubmit={(values) => create.mutateAsync(values)}
+              trigger={
                 <Button className="w-full sm:w-auto">
                   <Plus className="h-4 w-4" /> New application
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0">
-                <DialogHeader className="shrink-0 border-b px-6 py-4">
-                  <DialogTitle>New application</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
-                  {/* Everything a role needs to exist on the board — the rest is
-                      one click away, not a wall you have to scroll past first. */}
-                  <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="company">Company</Label>
-                        <Input
-                          id="company"
-                          name="company"
-                          placeholder="Acme"
-                          required
-                          autoFocus
-                          autoComplete="off"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="position">Position</Label>
-                        <Input
-                          id="position"
-                          name="position"
-                          placeholder="Product Designer"
-                          required
-                          autoComplete="off"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="status">Status</Label>
-                        <Select name="status" defaultValue="applied">
-                          <SelectTrigger id="status">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {STATUSES.map((s) => (
-                              <SelectItem key={s} value={s} className="capitalize">
-                                {s}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="application_date">Application date</Label>
-                        <Input
-                          id="application_date"
-                          name="application_date"
-                          type="date"
-                          defaultValue={new Date().toISOString().slice(0, 10)}
-                          required
-                        />
-                      </div>
-                    </div>
-                    <LocationFields value={location} onChange={setLocation} />
-
-                    <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
-                      <CollapsibleTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="-ml-2 text-muted-foreground hover:text-foreground"
-                        >
-                          <ChevronRight
-                            className={`h-4 w-4 transition-transform ${detailsOpen ? "rotate-90" : ""}`}
-                          />
-                          {detailsOpen
-                            ? "Hide job ad, salary & notes"
-                            : "Add job ad, salary & notes"}
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="space-y-4 pt-4">
-                        <JobAdFields value={jobAd} onChange={setJobAd} />
-                        <div className="space-y-2">
-                          <Label htmlFor="website">Company website</Label>
-                          <Input
-                            id="website"
-                            name="website"
-                            type="url"
-                            inputMode="url"
-                            placeholder="acme.com"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Used to show the company logo on the board.
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="notes">Notes</Label>
-                          <Textarea id="notes" name="notes" rows={3} />
-                        </div>
-                        <div className="space-y-3 rounded-lg border border-dashed p-4">
-                          <div className="space-y-0.5">
-                            <p className="text-sm font-medium">Add a follow-up task</p>
-                            <p className="text-xs text-muted-foreground">
-                              Optional — kick things off with the next thing you owe this
-                              application.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="task_title">Task (optional)</Label>
-                            <Input
-                              id="task_title"
-                              name="task_title"
-                              placeholder="e.g. Send follow-up email"
-                              maxLength={200}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="task_due_date">Due date</Label>
-                            <Input id="task_due_date" name="task_due_date" type="date" />
-                          </div>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </div>
-                  <DialogFooter className="shrink-0 border-t px-6 py-4">
-                    <Button type="submit" className="w-full sm:w-auto" disabled={create.isPending}>
-                      {create.isPending ? "Saving…" : "Save"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+              }
+            />
           </>
         }
       />

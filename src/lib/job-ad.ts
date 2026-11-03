@@ -266,6 +266,8 @@ const LANGUAGES: LanguagePack[] = [
       "we(?:'|’)?d\\s+love\\s+to\\s+see",
       "minimum\\s+qualifications?",
       "basic\\s+qualifications?",
+      "required\\s+(?:qualifications?|skills?|experience)",
+      "preferred\\s+qualifications?",
     ],
     closingHeadings: [
       "benefits?",

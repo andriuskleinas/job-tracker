@@ -24,6 +24,7 @@ import {
   type SalarySource,
 } from "@/lib/job-ad";
 import { MAX_AD_LENGTH, type JobAdValue } from "@/lib/job-ad-form";
+import { readQuickFill } from "@/lib/quick-fill";
 
 const NONE = "__none__";
 
@@ -40,10 +41,13 @@ export function JobAdFields({
   value,
   onChange,
   capturedAt,
+  showPaste = true,
 }: {
   value: JobAdValue;
   onChange: (v: JobAdValue) => void;
   capturedAt?: string | null;
+  /** Off in the New application dialog, which has its own paste box at the top. */
+  showPaste?: boolean;
 }) {
   const [paste, setPaste] = useState("");
   const [found, setFound] = useState<{ salary: string | null; requirements: boolean } | null>(null);
@@ -81,6 +85,8 @@ export function JobAdFields({
 
     const parsed = parseJobAd(raw);
     const next: JobAdValue = { ...value, description: parsed.description };
+    // An "Apply here" link inside the ad is the posting's own address.
+    if (!value.job_url) next.job_url = readQuickFill(raw).job_url ?? "";
     if (parsed.requirements) next.requirements = parsed.requirements;
     if (parsed.salary) {
       next.salary_min = parsed.salary.salary_min?.toString() ?? "";
@@ -130,57 +136,59 @@ export function JobAdFields({
           after it. Filling it is quicker than typing the fields below, so it
           gets its own highlighted card rather than blending into the plain
           fields underneath it. */}
-      <div className="space-y-2 rounded-lg border border-[var(--status-offer-text)]/30 bg-[var(--status-offer-soft)]/50 p-3">
-        <Label
-          htmlFor="job-ad-paste"
-          className="flex items-center gap-1.5 text-sm font-medium text-[var(--status-offer-text)]"
-        >
-          <Sparkles className="h-4 w-4" />
-          Paste the job ad
-        </Label>
-        <p className="text-xs text-muted-foreground">
-          The fastest way to fill this in — we'll read out the salary and requirements for you.
-        </p>
-        <Textarea
-          id="job-ad-paste"
-          rows={3}
-          placeholder="Paste the whole posting here — we'll pull out the salary and requirements, and keep a copy for when the ad is taken down."
-          value={paste}
-          onChange={(e) => setPaste(e.target.value)}
-          className="bg-background"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" disabled={!paste.trim()} onClick={readAd}>
-            <Wand2 className="h-4 w-4" /> Read the ad
-          </Button>
+      {showPaste && (
+        <div className="space-y-2 rounded-lg border border-[var(--status-offer-text)]/30 bg-[var(--status-offer-soft)]/50 p-3">
+          <Label
+            htmlFor="job-ad-paste"
+            className="flex items-center gap-1.5 text-sm font-medium text-[var(--status-offer-text)]"
+          >
+            <Sparkles className="h-4 w-4" />
+            Paste the job ad
+          </Label>
           <p className="text-xs text-muted-foreground">
-            Company and job title stay yours to fill in — we don't guess those.
+            The fastest way to fill this in — we'll read out the salary and requirements for you.
           </p>
-        </div>
-
-        {found && (
-          <div className="flex items-start gap-2 rounded-md border border-[var(--status-offer-text)]/40 bg-[var(--status-offer-soft)] p-2.5 text-xs">
-            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--status-offer-text)]" />
-            <div className="space-y-0.5 text-[var(--status-offer-text)]">
-              <p className="font-medium">Read from the ad — check it below.</p>
-              <p>
-                {found.salary ? `Salary ${found.salary}. ` : "No salary found. "}
-                {found.requirements
-                  ? "Requirements section found."
-                  : "No requirements section found."}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setFound(null)}
-              className="ml-auto shrink-0 rounded p-0.5 text-[var(--status-offer-text)] hover:bg-foreground/5"
-              aria-label="Dismiss"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+          <Textarea
+            id="job-ad-paste"
+            rows={3}
+            placeholder="Paste the whole posting here — we'll pull out the salary and requirements, and keep a copy for when the ad is taken down."
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            className="bg-background"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" disabled={!paste.trim()} onClick={readAd}>
+              <Wand2 className="h-4 w-4" /> Read the ad
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Company and job title stay yours to fill in — we don't guess those.
+            </p>
           </div>
-        )}
-      </div>
+
+          {found && (
+            <div className="flex items-start gap-2 rounded-md border border-[var(--status-offer-text)]/40 bg-[var(--status-offer-soft)] p-2.5 text-xs">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--status-offer-text)]" />
+              <div className="space-y-0.5 text-[var(--status-offer-text)]">
+                <p className="font-medium">Read from the ad — check it below.</p>
+                <p>
+                  {found.salary ? `Salary ${found.salary}. ` : "No salary found. "}
+                  {found.requirements
+                    ? "Requirements section found."
+                    : "No requirements section found."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFound(null)}
+                className="ml-auto shrink-0 rounded p-0.5 text-[var(--status-offer-text)] hover:bg-foreground/5"
+                aria-label="Dismiss"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="job_url" className="flex items-center gap-2">
