@@ -113,9 +113,9 @@ export function DailyGoalTracker({
         <GoalStat label="Last 30d">{last30Met} / 30</GoalStat>
       </dl>
 
-      {/* One dot per day: green met, yellow partly, black missed. Today is
-          still in progress, so with nothing sent yet it's a hollow ring
-          rather than a miss. */}
+      {/* One dot per day: green met, yellow partly, grey missed, and a lighter
+          grey for days still to come. Today is still in progress, so with
+          nothing sent yet it's a hollow ring rather than a miss. */}
       <div>
         <TooltipProvider delayDuration={0}>
           <div className="grid grid-cols-7 gap-y-2.5" role="grid" aria-label="Last five weeks">
@@ -135,14 +135,14 @@ export function DailyGoalTracker({
               const future = key > today;
               const tone =
                 future || key < firstDay
-                  ? "bg-muted-foreground/20"
+                  ? "bg-muted-foreground/15"
                   : n >= goal
                     ? "bg-[var(--status-offer)]"
                     : n > 0
                       ? "bg-[var(--status-interviewing)]"
                       : isToday
                         ? "border-2 border-foreground/50"
-                        : "bg-foreground";
+                        : "bg-muted-foreground/45";
               // Just the day and the plain total — 0 included. A day still to
               // come has nothing to count yet.
               const total = future ? null : `${n} ${n === 1 ? "application" : "applications"}`;
@@ -174,7 +174,7 @@ export function DailyGoalTracker({
         <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
           <LegendDot className="bg-[var(--status-offer)]">Goal met</LegendDot>
           <LegendDot className="bg-[var(--status-interviewing)]">Partly</LegendDot>
-          <LegendDot className="bg-foreground">Missed</LegendDot>
+          <LegendDot className="bg-muted-foreground/45">Missed</LegendDot>
         </div>
       </div>
     </section>
