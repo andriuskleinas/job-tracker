@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Check, Flame, Minus, Pencil, Plus, Target, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,6 +17,9 @@ const MAX_GOAL = 50;
 /** Five weeks of history: enough to see a habit form, small enough to read at a glance. */
 const WEEKS = 5;
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+// Fixed English names rather than toLocaleDateString: this renders on the
+// server too, and a locale difference there would break hydration.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
  * A daily target for applications sent, and whether it's being hit day after
@@ -59,6 +62,21 @@ export function DailyGoalTracker({
       return { key: localDateKey(d), date: d };
     });
   }, []);
+
+  // A month name down the left, GitHub-style: on the first row, then
+  // wherever a new month takes over. A row counts as the month most of its
+  // days fall in — its Thursday's — so "Nov" never sits on a row that's
+  // six days of October.
+  const rowMonths = useMemo(
+    () =>
+      Array.from({ length: WEEKS }, (_, r) => {
+        const month = grid[r * 7 + 3].date.getMonth();
+        const prev = r > 0 ? grid[(r - 1) * 7 + 3].date.getMonth() : null;
+        return month === prev ? null : MONTHS[month];
+      }),
+    [grid],
+  );
+  const rangeLabel = `${grid[0].date.getDate()} ${MONTHS[grid[0].date.getMonth()]} – ${grid[grid.length - 1].date.getDate()} ${MONTHS[grid[grid.length - 1].date.getMonth()]}`;
 
   const met = sentToday >= goal;
   const remaining = Math.max(goal - sentToday, 0);
@@ -118,13 +136,18 @@ export function DailyGoalTracker({
           nothing sent yet it's a hollow ring rather than a miss. */}
       <div>
         <TooltipProvider delayDuration={0}>
-          <div className="grid grid-cols-7 gap-y-2.5" role="grid" aria-label="Last five weeks">
+          <div
+            className="grid grid-cols-[1.75rem_repeat(7,minmax(0,1fr))] gap-y-2.5"
+            role="grid"
+            aria-label={`Last five weeks, ${rangeLabel}`}
+          >
+            <span aria-hidden />
             {WEEKDAYS.map((d, i) => (
               <span key={i} className="text-center text-[10px] text-muted-foreground" aria-hidden>
                 {d}
               </span>
             ))}
-            {grid.map(({ key, date }) => {
+            {grid.map(({ key, date }, i) => {
               const n = counts.get(key) ?? 0;
               const isToday = key === today;
               const label = date.toLocaleDateString(undefined, {
@@ -147,26 +170,38 @@ export function DailyGoalTracker({
               // come has nothing to count yet.
               const total = future ? null : `${n} ${n === 1 ? "application" : "applications"}`;
               return (
-                <Tooltip key={key}>
-                  <TooltipTrigger asChild>
+                <Fragment key={key}>
+                  {i % 7 === 0 && (
                     <span
-                      role="gridcell"
-                      tabIndex={0}
-                      aria-label={total ? `${label}: ${total}` : label}
-                      className="flex cursor-default justify-center rounded-sm py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="self-center text-[10px] font-medium text-muted-foreground"
+                      aria-hidden
                     >
-                      <span
-                        className={`block h-2.5 w-2.5 rounded-full ${tone} ${
-                          isToday ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-muted" : ""
-                        }`}
-                      />
+                      {rowMonths[i / 7]}
                     </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-center">
-                    <p className="font-medium">{label}</p>
-                    {total && <p>{total}</p>}
-                  </TooltipContent>
-                </Tooltip>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span
+                        role="gridcell"
+                        tabIndex={0}
+                        aria-label={total ? `${label}: ${total}` : label}
+                        className="flex cursor-default justify-center rounded-sm py-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span
+                          className={`block h-2.5 w-2.5 rounded-full ${tone} ${
+                            isToday
+                              ? "ring-2 ring-foreground/30 ring-offset-2 ring-offset-muted"
+                              : ""
+                          }`}
+                        />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-center">
+                      <p className="font-medium">{label}</p>
+                      {total && <p>{total}</p>}
+                    </TooltipContent>
+                  </Tooltip>
+                </Fragment>
               );
             })}
           </div>
