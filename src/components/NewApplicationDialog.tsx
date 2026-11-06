@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
+import { CompanyLogo } from "@/components/CompanyLogo";
 import { addDays, format } from "date-fns";
-import { ChevronDown, CornerDownLeft, Sparkles, Undo2, Wand2, X } from "lucide-react";
+import { ChevronDown, CornerDownLeft, Globe, Sparkles, Undo2, Wand2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,13 +42,19 @@ type Draft = {
   status: Status;
   application_date: string;
   website: string;
+  /**
+   * Where the website came from when we filled it: the job link, or a lookup
+   * by company name. Empty once the user types it (or it was never filled) —
+   * then it's theirs, and no later paste or lookup touches it.
+   */
+  websiteFrom: "" | "link" | "lookup";
   notes: string;
   task_title: string;
   task_due_date: string;
 };
 
 /** Fields the paste box can fill, marked until the user edits them. */
-type FilledKey = "company" | "position" | "website";
+type FilledKey = "company" | "position";
 
 type Summary = { label: string; value: string; warn?: boolean }[];
 
@@ -68,6 +75,7 @@ const blankDraft = (): Draft => ({
   // Local, not UTC — logging a role at 00:30 in Vilnius is still today.
   application_date: isoDate(new Date()),
   website: "",
+  websiteFrom: "",
   notes: "",
   task_title: "",
   task_due_date: "",
@@ -171,7 +179,6 @@ export function NewApplicationDialog({
     salary,
     jobAd.requirements,
     jobAd.description,
-    draft.website,
     draft.notes,
     draft.task_title,
   ].filter(Boolean).length;
@@ -191,9 +198,42 @@ export function NewApplicationDialog({
 
   /** A typed edit: the field is the user's now, so drop its "filled" mark. */
   const edit = <K extends keyof Draft>(key: K, value: Draft[K]) => {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setDraft((d) => ({ ...d, [key]: value, ...(key === "website" && { websiteFrom: "" }) }));
     if (filled.includes(key as FilledKey)) setFilled((f) => f.filter((k) => k !== key));
     if (key in errors) setErrors((e) => ({ ...e, [key]: undefined }));
+  };
+
+  // Latest lookup wins: typing "Wi" then "Wix" must not land Wi's answer.
+  const lookupSeq = useRef(0);
+  const [lookingUp, setLookingUp] = useState(false);
+
+  /** A name to go on, and a website field that's empty or holds our own guess. */
+  const needsWebsiteLookup = (d: Draft) =>
+    d.company.trim().length >= 2 && (!d.website.trim() || d.websiteFrom === "lookup");
+
+  /**
+   * Find the company's website from its name (see company-website.server.ts)
+   * and fill it in, unless the user has put their own there meanwhile. A miss
+   * clears an earlier guess made for a different name.
+   */
+  const lookUpWebsite = async (rawName: string) => {
+    const name = rawName.trim();
+    const seq = ++lookupSeq.current;
+    setLookingUp(true);
+    let website: string | null = null;
+    try {
+      const res = await fetch(`/company-website?name=${encodeURIComponent(name)}`);
+      if (res.ok) website = ((await res.json()) as { website: string | null }).website;
+    } catch {
+      // Offline or the lookup failed — the field just stays as it is.
+    }
+    if (seq !== lookupSeq.current) return;
+    setLookingUp(false);
+    setDraft((d) =>
+      d.company.trim() !== name || (d.website.trim() && d.websiteFrom !== "lookup")
+        ? d
+        : { ...d, website: website ?? "", websiteFrom: website ? "lookup" : "" },
+    );
   };
 
   const applyFill = (fill: QuickFill) => {
@@ -212,7 +252,11 @@ export function NewApplicationDialog({
     const found: Summary = [];
     if (take("company", fill.company)) found.push({ label: "Company", value: fill.company! });
     if (take("position", fill.position)) found.push({ label: "Position", value: fill.position! });
-    take("website", fill.website);
+    // The employer's own domain from the link beats a lookup by name.
+    if (fill.website && (!draft.website.trim() || draft.websiteFrom)) {
+      nextDraft.website = fill.website;
+      nextDraft.websiteFrom = "link";
+    }
 
     const nextLocation = { ...location };
     if (!locationTouched) {
@@ -260,6 +304,7 @@ export function NewApplicationDialog({
 
     setDraft(nextDraft);
     setFilled([...nextFilled]);
+    if (needsWebsiteLookup(nextDraft)) void lookUpWebsite(nextDraft.company);
     setLocation(nextLocation);
     setJobAd(nextAd);
     setSummary(found);
@@ -334,8 +379,15 @@ export function NewApplicationDialog({
   };
 
   const followUps = FOLLOW_UPS[draft.status];
-  const filledClass = (key: FilledKey) =>
-    filled.includes(key) && "border-[var(--status-offer-text)]/40 bg-[var(--status-offer-soft)]/40";
+  const filledStyle = "border-[var(--status-offer-text)]/40 bg-[var(--status-offer-soft)]/40";
+  const filledClass = (key: FilledKey) => filled.includes(key) && filledStyle;
+  const websiteHint = lookingUp
+    ? "Looking up the company's website…"
+    : draft.websiteFrom === "link"
+      ? "Taken from the job link."
+      : draft.websiteFrom === "lookup"
+        ? `Found for “${draft.company.trim()}” — check it's the right company.`
+        : "Shows the company logo on your board. Found from the company name when we can.";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -475,6 +527,7 @@ export function NewApplicationDialog({
                   maxLength={120}
                   value={draft.company}
                   onChange={(e) => edit("company", e.target.value)}
+                  onBlur={() => needsWebsiteLookup(draft) && void lookUpWebsite(draft.company)}
                   aria-invalid={!!errors.company}
                   aria-describedby={errors.company ? "company-error" : undefined}
                   className={cn(filledClass("company"), errors.company && "border-destructive")}
@@ -500,6 +553,36 @@ export function NewApplicationDialog({
                 />
               </Field>
             </div>
+
+            <Field
+              id="website"
+              label="Company website"
+              filled={!!draft.websiteFrom}
+              hint={websiteHint}
+            >
+              <div className="flex items-center gap-3">
+                {draft.website.trim() ? (
+                  <CompanyLogo
+                    key={draft.website}
+                    company={draft.company}
+                    website={draft.website}
+                  />
+                ) : (
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+                    <Globe className="h-4 w-4" aria-hidden />
+                  </span>
+                )}
+                <Input
+                  id="website"
+                  type="url"
+                  inputMode="url"
+                  placeholder="acme.com"
+                  value={draft.website}
+                  onChange={(e) => edit("website", e.target.value)}
+                  className={cn(draft.websiteFrom && filledStyle)}
+                />
+              </div>
+            </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -566,27 +649,6 @@ export function NewApplicationDialog({
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-5 pt-5">
                 <JobAdFields value={jobAd} onChange={setJobAd} showPaste={false} />
-
-                <Field
-                  id="website"
-                  label="Company website"
-                  filled={filled.includes("website")}
-                  hint={
-                    filled.includes("website")
-                      ? "Taken from the job link — used to show the company logo."
-                      : "Used to show the company logo on the board."
-                  }
-                >
-                  <Input
-                    id="website"
-                    type="url"
-                    inputMode="url"
-                    placeholder="acme.com"
-                    value={draft.website}
-                    onChange={(e) => edit("website", e.target.value)}
-                    className={cn(filledClass("website"))}
-                  />
-                </Field>
 
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>

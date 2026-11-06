@@ -81,6 +81,12 @@ export default {
         return await handleLogo(request);
       }
 
+      // Company name → website, for the new-application form to fill in.
+      if (pathname === "/company-website") {
+        const { handleCompanyWebsite } = await import("./lib/company-website.server");
+        return await handleCompanyWebsite(request);
+      }
+
       // Daily Supabase keepalive, called by the Vercel cron in vercel.json.
       if (pathname === "/cron/keepalive") {
         const { handleKeepalive } = await import("./lib/keepalive.server");
